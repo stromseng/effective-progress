@@ -6,6 +6,7 @@ export const SPINNER_FRAMES = ["-", "\\", "|", "/"] as const;
 export const DEFAULT_PROGRESS_BAR_WIDTH = 30;
 
 export const ProgressBarConfigSchema = Schema.Struct({
+  isTTY: Schema.Boolean,
   spinnerFrames: Schema.NonEmptyArray(Schema.String),
   barWidth: Schema.Number,
   fillChar: Schema.String,
@@ -13,11 +14,13 @@ export const ProgressBarConfigSchema = Schema.Struct({
   leftBracket: Schema.String,
   rightBracket: Schema.String,
   maxLogLines: Schema.Number,
+  nonTtyUpdateStep: Schema.Number,
 });
 
 export type ProgressBarConfigShape = typeof ProgressBarConfigSchema.Type;
 
 export const defaultProgressBarConfig: ProgressBarConfigShape = {
+  isTTY: Boolean(process.stderr.isTTY),
   spinnerFrames: SPINNER_FRAMES,
   barWidth: DEFAULT_PROGRESS_BAR_WIDTH,
   fillChar: "━",
@@ -25,6 +28,7 @@ export const defaultProgressBarConfig: ProgressBarConfigShape = {
   leftBracket: "",
   rightBracket: "",
   maxLogLines: 0,
+  nonTtyUpdateStep: 5,
 };
 
 export class ProgressBarConfig extends Context.Tag("stromseng.dev/ProgressBarConfig")<
@@ -162,6 +166,7 @@ const SHOW_CURSOR = "\x1b[?25h";
 const CLEAR_LINE = "\x1b[2K";
 const MOVE_UP_ONE = "\x1b[1A";
 const RENDER_INTERVAL = "80 millis";
+const DIRTY_DEBOUNCE_INTERVAL = "10 millis";
 interface LogEntry {
   readonly id: number;
   readonly message: string;
@@ -251,12 +256,13 @@ const orderTasksForRender = (
 const runProgressServiceRenderer = (
   tasksRef: Ref.Ref<Map<TaskId, TaskSnapshot>>,
   logsRef: Ref.Ref<ReadonlyArray<LogEntry>>,
+  dirtyRef: Ref.Ref<boolean>,
   config: ProgressBarConfigShape,
 ) => {
-  const isTTY = Boolean(process.stderr.isTTY);
+  const isTTY = config.isTTY;
   let previousLineCount = 0;
-  let nonTTYSignature = "";
   let nonTTYLastLogId = 0;
+  let nonTTYTaskSignatureById = new Map<number, string>();
   let tick = 0;
 
   return Effect.gen(function* () {
@@ -277,9 +283,10 @@ const runProgressServiceRenderer = (
         );
         const ordered = orderTasksForRender(snapshots);
         const frameTick = mode === "final" ? tick + 1 : tick;
-        const taskLines = ordered.map(({ snapshot, depth }) =>
-          buildTaskLine(snapshot, depth, frameTick, config),
-        );
+        const taskLines = ordered.map(({ snapshot, depth }) => {
+          const lineTick = isTTY ? frameTick : 0;
+          return buildTaskLine(snapshot, depth, lineTick, config);
+        });
         const logLines = logs.map((log) => log.message);
         const lines = [...logLines, ...taskLines];
 
@@ -296,21 +303,30 @@ const runProgressServiceRenderer = (
             nonTTYLastLogId = appendedLogs[appendedLogs.length - 1]?.id ?? nonTTYLastLogId;
           }
 
-          const signature =
-            ordered
-              .map(({ snapshot }) => {
-                const unitPart =
-                  snapshot.units._tag === "DeterminateTaskUnits"
-                    ? `${snapshot.units.completed}/${snapshot.units.total}`
-                    : String(snapshot.units.spinnerFrame);
-                return `${snapshot.id}:${snapshot.status}:${unitPart}`;
-              })
-              .join("|");
+          const nextTaskSignatureById = new Map<number, string>();
+          const changedTaskLines: Array<string> = [];
+          const nonTtyUpdateStep = Math.max(1, Math.floor(config.nonTtyUpdateStep));
 
-          if (signature !== nonTTYSignature && taskLines.length > 0) {
-            process.stderr.write(taskLines.join("\n") + "\n");
-            nonTTYSignature = signature;
+          for (let i = 0; i < ordered.length; i++) {
+            const taskId = ordered[i]!.snapshot.id as number;
+            const snapshot = ordered[i]!.snapshot;
+            const line = taskLines[i]!;
+            const signature =
+              snapshot.units._tag === "DeterminateTaskUnits"
+                ? `${snapshot.status}:${snapshot.description}:${Math.floor(snapshot.units.completed / nonTtyUpdateStep)}:${snapshot.units.total}`
+                : `${snapshot.status}:${snapshot.description}`;
+
+            nextTaskSignatureById.set(taskId, signature);
+            if (nonTTYTaskSignatureById.get(taskId) !== signature) {
+              changedTaskLines.push(line);
+            }
           }
+
+          if (changedTaskLines.length > 0) {
+            process.stderr.write(changedTaskLines.join("\n") + "\n");
+          }
+
+          nonTTYTaskSignatureById = nextTaskSignatureById;
         }
       });
 
@@ -319,7 +335,18 @@ const runProgressServiceRenderer = (
     }
 
     while (true) {
-      yield* renderFrame("tick");
+      const dirty = yield* Ref.getAndSet(dirtyRef, false);
+      const hasActiveSpinners = yield* Ref.get(tasksRef).pipe(
+        Effect.map((tasks) =>
+          Array.from(tasks.values()).some(
+            (task) => task.status === "running" && task.units._tag === "IndeterminateTaskUnits",
+          ),
+        ),
+      );
+
+      if (dirty || hasActiveSpinners) {
+        yield* renderFrame("tick");
+      }
 
       tick += 1;
       yield* Effect.sleep(RENDER_INTERVAL);
@@ -338,7 +365,7 @@ const runProgressServiceRenderer = (
         const logLines = logs.map((log) => log.message);
         const lines = [...logLines, ...taskLines];
 
-        if (process.stderr.isTTY) {
+        if (isTTY) {
           let output = "\r" + CLEAR_LINE;
           for (let i = 1; i < previousLineCount; i++) {
             output += MOVE_UP_ONE + CLEAR_LINE;
@@ -356,12 +383,33 @@ const runProgressServiceRenderer = (
             nonTTYLastLogId = appendedLogs[appendedLogs.length - 1]?.id ?? nonTTYLastLogId;
           }
 
-          if (taskLines.length > 0) {
-            process.stderr.write(taskLines.join("\n") + "\n");
+          const nextTaskSignatureById = new Map<number, string>();
+          const changedTaskLines: Array<string> = [];
+          const nonTtyUpdateStep = Math.max(1, Math.floor(config.nonTtyUpdateStep));
+
+          for (let i = 0; i < ordered.length; i++) {
+            const taskId = ordered[i]!.snapshot.id as number;
+            const snapshot = ordered[i]!.snapshot;
+            const line = taskLines[i]!;
+            const signature =
+              snapshot.units._tag === "DeterminateTaskUnits"
+                ? `${snapshot.status}:${snapshot.description}:${Math.floor(snapshot.units.completed / nonTtyUpdateStep)}:${snapshot.units.total}`
+                : `${snapshot.status}:${snapshot.description}`;
+
+            nextTaskSignatureById.set(taskId, signature);
+            if (nonTTYTaskSignatureById.get(taskId) !== signature) {
+              changedTaskLines.push(line);
+            }
           }
+
+          if (changedTaskLines.length > 0) {
+            process.stderr.write(changedTaskLines.join("\n") + "\n");
+          }
+
+          nonTTYTaskSignatureById = nextTaskSignatureById;
         }
 
-        if (process.stderr.isTTY) {
+        if (isTTY) {
           process.stderr.write("\n" + SHOW_CURSOR);
         }
       }),
@@ -413,10 +461,29 @@ export const makeProgressService = Effect.gen(function* () {
   const nextTaskIdRef = yield* Ref.make(0);
   const tasksRef = yield* Ref.make(new Map<TaskId, TaskSnapshot>());
   const logsRef = yield* Ref.make<ReadonlyArray<LogEntry>>([]);
+  const dirtyRef = yield* Ref.make(true);
+  const dirtyScheduledRef = yield* Ref.make(false);
   const nextLogIdRef = yield* Ref.make(0);
   const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
 
-  yield* Effect.forkScoped(runProgressServiceRenderer(tasksRef, logsRef, config));
+  yield* Effect.forkScoped(runProgressServiceRenderer(tasksRef, logsRef, dirtyRef, config));
+
+  const markDirty = Effect.gen(function* () {
+    const shouldSchedule = yield* Ref.modify(dirtyScheduledRef, (scheduled) =>
+      scheduled ? [false, true] : [true, true],
+    );
+
+    if (!shouldSchedule) {
+      return;
+    }
+
+    yield* Effect.forkDaemon(
+      Effect.sleep(DIRTY_DEBOUNCE_INTERVAL).pipe(
+        Effect.zipRight(Ref.set(dirtyRef, true)),
+        Effect.ensuring(Ref.set(dirtyScheduledRef, false)),
+      ),
+    );
+  });
 
   const addTask = (options: AddTaskOptions) =>
     Effect.gen(function* () {
@@ -444,6 +511,7 @@ export const makeProgressService = Effect.gen(function* () {
         next.set(taskId, snapshot);
         return next;
       });
+      yield* markDirty;
 
       return taskId;
     });
@@ -458,7 +526,7 @@ export const makeProgressService = Effect.gen(function* () {
       const next = new Map(tasks);
       next.set(taskId, updatedSnapshot(snapshot, options));
       return next;
-    });
+    }).pipe(Effect.zipRight(markDirty));
 
   const advanceTask = (taskId: TaskId, amount = 1) =>
     Ref.update(tasksRef, (tasks) => {
@@ -492,7 +560,7 @@ export const makeProgressService = Effect.gen(function* () {
       );
 
       return next;
-    });
+    }).pipe(Effect.zipRight(markDirty));
 
   const completeTask = (taskId: TaskId) =>
     Ref.update(tasksRef, (tasks) => {
@@ -525,7 +593,7 @@ export const makeProgressService = Effect.gen(function* () {
         }),
       );
       return next;
-    });
+    }).pipe(Effect.zipRight(markDirty));
 
   const failTask = (taskId: TaskId) =>
     Ref.update(tasksRef, (tasks) => {
@@ -552,14 +620,14 @@ export const makeProgressService = Effect.gen(function* () {
         }),
       );
       return next;
-    });
+    }).pipe(Effect.zipRight(markDirty));
 
   const log = (...args: ReadonlyArray<unknown>) =>
     Effect.gen(function* () {
       const id = yield* Ref.updateAndGet(nextLogIdRef, (current) => current + 1);
       const message = formatWithOptions(
         {
-          colors: Boolean(process.stderr.isTTY),
+          colors: config.isTTY,
           depth: 6,
         },
         ...args,
@@ -576,6 +644,7 @@ export const makeProgressService = Effect.gen(function* () {
         }
         return next.slice(next.length - maxLogLines);
       });
+      yield* markDirty;
     });
 
   const getTask = (taskId: TaskId) =>
