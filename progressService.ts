@@ -338,13 +338,8 @@ const runProgressServiceRenderer = (
 
       if (config.disableUserInput && process.stdin.isTTY) {
         const stdin = process.stdin;
-        const wasPaused = stdin.isPaused();
         const wasRaw = Boolean(stdin.isRaw);
-
-        if (wasPaused) {
-          stdin.resume();
-        }
-
+        stdin.resume();
         stdin.setRawMode?.(true);
 
         const onData = (chunk: Buffer) => {
@@ -356,10 +351,12 @@ const runProgressServiceRenderer = (
         stdin.on("data", onData);
 
         teardownInput = () => {
-          stdin.off("data", onData);
-          stdin.setRawMode?.(wasRaw);
-          if (wasPaused) {
+          try {
+            stdin.off("data", onData);
+            stdin.setRawMode?.(wasRaw);
             stdin.pause();
+          } catch {
+            // Best effort terminal restoration.
           }
         };
       }
