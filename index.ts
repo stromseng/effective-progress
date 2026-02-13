@@ -1,12 +1,40 @@
-import { Effect, Console, Exit, Fiber, Queue } from "effect";
+import { Console, Deferred, Effect, Exit, Fiber, Queue, Schema } from "effect";
+import { formatWithOptions } from "node:util";
 
 type AllOptions = Parameters<typeof Effect.all>[1];
 
-type ProgressEvent =
-  | { readonly _tag: "Log"; readonly message: string }
-  | { readonly _tag: "Increment"; readonly amount: number }
-  | { readonly _tag: "SetTotal"; readonly total: number }
-  | { readonly _tag: "Stop" };
+class LogEvent extends Schema.TaggedClass<LogEvent>()("Log", {
+  message: Schema.String,
+}) {}
+
+class IncrementEvent extends Schema.TaggedClass<IncrementEvent>()("Increment", {
+  amount: Schema.Number,
+}) {}
+
+class SetTotalEvent extends Schema.TaggedClass<SetTotalEvent>()("SetTotal", {
+  total: Schema.Number,
+}) {}
+
+class StopEvent extends Schema.TaggedClass<StopEvent>()("Stop", {}) {}
+
+class DelegateEvent extends Schema.TaggedClass<DelegateEvent>()("Delegate", {
+  effect: Schema.Any,
+  ack: Schema.optional(Schema.Any),
+}) {
+  declare readonly effect: Effect.Effect<void, never, never>;
+  declare readonly ack?: Deferred.Deferred<void>;
+}
+
+const ProgressEventSchema = Schema.Union(
+  LogEvent,
+  IncrementEvent,
+  SetTotalEvent,
+  StopEvent,
+  DelegateEvent,
+);
+
+type ProgressEvent = typeof ProgressEventSchema.Type;
+const decodeProgressEvent = Schema.decodeSync(ProgressEventSchema);
 
 const MAX_LOG_LINES = 8;
 const HIDE_CURSOR = "\x1b[?25l";
@@ -37,6 +65,15 @@ const runProgressRenderer = (queue: Queue.Queue<ProgressEvent>, total: number) =
     let previousLineCount = 0;
     const ttyProgressStep = Math.max(1, Math.floor(total / 20));
 
+    const clearTTY = () => {
+      let output = "\r" + CLEAR_LINE;
+      for (let i = 1; i < previousLineCount; i++) {
+        output += MOVE_UP_ONE + CLEAR_LINE;
+      }
+      process.stderr.write(output + "\r");
+      previousLineCount = 0;
+    };
+
     const renderTTY = () => {
       const lines = [...state.logs, renderBar(state.completed, state.total)];
 
@@ -58,8 +95,9 @@ const runProgressRenderer = (queue: Queue.Queue<ProgressEvent>, total: number) =
 
     let done = false;
     while (!done) {
-      const event = yield* Queue.take(queue);
-      const batchedEvents = [event, ...(yield* Queue.takeAll(queue))];
+      const event = decodeProgressEvent(yield* Queue.take(queue));
+      const rest = yield* Queue.takeAll(queue);
+      const batchedEvents = [event, ...Array.from(rest, (next) => decodeProgressEvent(next))];
 
       for (const current of batchedEvents) {
         switch (current._tag) {
@@ -94,6 +132,21 @@ const runProgressRenderer = (queue: Queue.Queue<ProgressEvent>, total: number) =
             done = true;
             break;
           }
+          case "Delegate": {
+            if (isTTY) {
+              clearTTY();
+            }
+
+            yield* current.effect;
+            if (current.ack) {
+              yield* Deferred.succeed(current.ack, undefined);
+            }
+
+            if (isTTY) {
+              state.dirty = true;
+            }
+            break;
+          }
         }
       }
 
@@ -115,72 +168,163 @@ const runProgressRenderer = (queue: Queue.Queue<ProgressEvent>, total: number) =
     ),
   );
 
-const makeProgressConsole = (queue: Queue.Queue<ProgressEvent>): Console.Console => {
+const makeProgressConsole = (
+  queue: Queue.Queue<ProgressEvent>,
+  outerConsole: Console.Console,
+): Console.Console => {
+  const formatArgs = (args: ReadonlyArray<any>) =>
+    formatWithOptions(
+      {
+        colors: Boolean(process.stderr.isTTY),
+        depth: 6,
+      },
+      ...args,
+    );
+
   const log = (...args: ReadonlyArray<any>) =>
-    Queue.offer(queue, { _tag: "Log", message: args.map(String).join(" ") });
+    Queue.offer(
+      queue,
+      new LogEvent({ message: formatArgs(args) }),
+    );
+
   const unsafeLog = (...args: ReadonlyArray<any>) => {
-    Queue.unsafeOffer(queue, { _tag: "Log", message: args.map(String).join(" ") });
+    Queue.unsafeOffer(
+      queue,
+      new LogEvent({ message: formatArgs(args) }),
+    );
+  };
+
+  const delegate = (effect: Effect.Effect<void, never, never>) =>
+    Effect.gen(function* () {
+      const ack = yield* Deferred.make<void>();
+      yield* Queue.offer(
+        queue,
+        new DelegateEvent({ effect, ack }),
+      );
+      yield* Deferred.await(ack);
+    });
+
+  const unsafeDelegate = (effect: Effect.Effect<void, never, never>) => {
+    Queue.unsafeOffer(
+      queue,
+      new DelegateEvent({ effect }),
+    );
   };
 
   return {
     [Console.TypeId]: Console.TypeId,
+    // Log assertion failures when condition is false.
     assert(condition, ...args) {
       return condition ? Effect.void : log("Assertion failed:", ...args);
     },
-    clear: Effect.void,
-    count: () => Effect.void,
-    countReset: () => Effect.void,
+    // Clear the terminal screen.
+    clear: delegate(outerConsole.clear),
+    // Increment a named counter.
+    count: (label) => delegate(outerConsole.count(label)),
+    // Reset a named counter.
+    countReset: (label) => delegate(outerConsole.countReset(label)),
+    // Write a debug log line.
     debug: (...args) => log(...args),
-    dir: (item) => log(item),
-    dirxml: (...args) => log(...args),
+    // Print a structured object inspection.
+    dir: (item, options) => delegate(outerConsole.dir(item, options)),
+    // Print XML-style / alternate object representation.
+    dirxml: (...args) => delegate(outerConsole.dirxml(...args)),
+    // Write an error log line.
     error: (...args) => log(...args),
-    group: () => Effect.void,
-    groupEnd: Effect.void,
+    // Start a console group section.
+    group: (...args) => delegate(outerConsole.group(...args)),
+    // End the current console group section.
+    groupEnd: delegate(outerConsole.groupEnd),
+    // Write an informational log line.
     info: (...args) => log(...args),
+    // Write a standard log line.
     log: (...args) => log(...args),
-    table: (data) => log(data),
-    time: () => Effect.void,
-    timeEnd: () => Effect.void,
-    timeLog: () => Effect.void,
-    trace: (...args) => log(...args),
+    // Render tabular data.
+    table: (tabularData, properties) => delegate(outerConsole.table(tabularData, properties)),
+    // Start a named timer.
+    time: (label) => delegate(outerConsole.time(label)),
+    // End a named timer and print elapsed time.
+    timeEnd: (label) => delegate(outerConsole.timeEnd(label)),
+    // Print current elapsed time for a named timer.
+    timeLog: (label, ...args) => delegate(outerConsole.timeLog(label, ...args)),
+    // Write a stack trace line.
+    trace: (...args) => delegate(outerConsole.trace(...args)),
+    // Write a warning log line.
     warn: (...args) => log(...args),
     unsafe: {
+      // Unsafe assertion log: immediate/best-effort variant.
       assert(condition, ...args) {
         if (!condition) unsafeLog("Assertion failed:", ...args);
       },
-      clear() {},
-      count() {},
-      countReset() {},
+      // Unsafe clear: immediate/best-effort variant.
+      clear() {
+        unsafeDelegate(Effect.sync(() => outerConsole.unsafe.clear()));
+      },
+      // Unsafe count increment: immediate/best-effort variant.
+      count(label) {
+        unsafeDelegate(Effect.sync(() => outerConsole.unsafe.count(label)));
+      },
+      // Unsafe count reset: immediate/best-effort variant.
+      countReset(label) {
+        unsafeDelegate(Effect.sync(() => outerConsole.unsafe.countReset(label)));
+      },
+      // Unsafe debug log: immediate/best-effort variant.
       debug(...args) {
         unsafeLog(...args);
       },
-      dir(item) {
-        unsafeLog(item);
+      // Unsafe object inspection: immediate/best-effort variant.
+      dir(item, options) {
+        unsafeDelegate(Effect.sync(() => outerConsole.unsafe.dir(item, options)));
       },
+      // Unsafe XML-style output: immediate/best-effort variant.
       dirxml(...args) {
-        unsafeLog(...args);
+        unsafeDelegate(Effect.sync(() => outerConsole.unsafe.dirxml(...args)));
       },
+      // Unsafe error log: immediate/best-effort variant.
       error(...args) {
         unsafeLog(...args);
       },
-      group() {},
-      groupCollapsed() {},
-      groupEnd() {},
+      // Unsafe group start: immediate/best-effort variant.
+      group(...args) {
+        unsafeDelegate(Effect.sync(() => outerConsole.unsafe.group(...args)));
+      },
+      // Unsafe collapsed group start: immediate/best-effort variant.
+      groupCollapsed(...args) {
+        unsafeDelegate(Effect.sync(() => outerConsole.unsafe.groupCollapsed(...args)));
+      },
+      // Unsafe group end: immediate/best-effort variant.
+      groupEnd() {
+        unsafeDelegate(Effect.sync(() => outerConsole.unsafe.groupEnd()));
+      },
+      // Unsafe info log: immediate/best-effort variant.
       info(...args) {
         unsafeLog(...args);
       },
+      // Unsafe standard log: immediate/best-effort variant.
       log(...args) {
         unsafeLog(...args);
       },
-      table(data) {
-        unsafeLog(data);
+      // Unsafe table output: immediate/best-effort variant.
+      table(tabularData, properties) {
+        unsafeDelegate(Effect.sync(() => outerConsole.unsafe.table(tabularData, properties)));
       },
-      time() {},
-      timeEnd() {},
-      timeLog() {},
+      // Unsafe timer start: immediate/best-effort variant.
+      time(label) {
+        unsafeDelegate(Effect.sync(() => outerConsole.unsafe.time(label)));
+      },
+      // Unsafe timer end: immediate/best-effort variant.
+      timeEnd(label) {
+        unsafeDelegate(Effect.sync(() => outerConsole.unsafe.timeEnd(label)));
+      },
+      // Unsafe timer log: immediate/best-effort variant.
+      timeLog(label, ...args) {
+        unsafeDelegate(Effect.sync(() => outerConsole.unsafe.timeLog(label, ...args)));
+      },
+      // Unsafe trace log: immediate/best-effort variant.
       trace(...args) {
-        unsafeLog(...args);
+        unsafeDelegate(Effect.sync(() => outerConsole.unsafe.trace(...args)));
       },
+      // Unsafe warning log: immediate/best-effort variant.
       warn(...args) {
         unsafeLog(...args);
       },
@@ -195,18 +339,25 @@ const trackProgress = <A, E, R, Options extends AllOptions>(
   return Effect.gen(function* () {
     const queue = yield* Queue.unbounded<ProgressEvent>();
     const renderer = yield* Effect.fork(runProgressRenderer(queue, effectsIterable.length));
-    const console = makeProgressConsole(queue);
+    const outerConsole = yield* Console.consoleWith((console) => Effect.succeed(console));
+    const console = makeProgressConsole(queue, outerConsole);
 
     const tasks = effectsIterable.map((effect) =>
       Effect.gen(function* () {
         const result = yield* Effect.withConsole(effect, console);
-        yield* Queue.offer(queue, { _tag: "Increment", amount: 1 });
+        yield* Queue.offer(
+          queue,
+          new IncrementEvent({ amount: 1 }),
+        );
         return result;
       }),
     );
 
     const exit = yield* Effect.exit(Effect.all(tasks, options));
-    yield* Queue.offer(queue, { _tag: "Stop" });
+    yield* Queue.offer(
+      queue,
+      new StopEvent({}),
+    );
     yield* Fiber.join(renderer);
     return yield* Exit.match(exit, {
       onFailure: Effect.failCause,
@@ -223,7 +374,6 @@ const program = Effect.gen(function* () {
       Effect.gen(function* () {
         yield* Effect.sleep("100  millis");
         yield* Console.log("test log from item", item);
-        yield* Effect.logInfo("test info log from item", item);
         return yield* Effect.succeed(item);
       }),
     ),
