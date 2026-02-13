@@ -1,5 +1,6 @@
 import { Brand, Console, Context, Effect, Exit, FiberRef, Option, Ref, Schema } from "effect";
 import { formatWithOptions } from "node:util";
+import chalk from "chalk";
 
 export const SPINNER_FRAMES = ["-", "\\", "|", "/"] as const;
 export const DEFAULT_PROGRESS_BAR_WIDTH = 30;
@@ -18,10 +19,10 @@ export type ProgressBarConfigShape = typeof ProgressBarConfigSchema.Type;
 export const defaultProgressBarConfig: ProgressBarConfigShape = {
   spinnerFrames: SPINNER_FRAMES,
   barWidth: DEFAULT_PROGRESS_BAR_WIDTH,
-  fillChar: "#",
-  emptyChar: "-",
-  leftBracket: "[",
-  rightBracket: "]",
+  fillChar: "━",
+  emptyChar: "─",
+  leftBracket: "",
+  rightBracket: "",
 };
 
 export class ProgressBarConfig extends Context.Tag("stromseng.dev/ProgressBarConfig")<
@@ -186,9 +187,9 @@ const renderDeterminate = (units: DeterminateTaskUnits, config: ProgressBarConfi
   const safeTotal = units.total <= 0 ? 1 : units.total;
   const ratio = Math.min(1, Math.max(0, units.completed / safeTotal));
   const filled = Math.round(ratio * config.barWidth);
-  const bar = `${config.fillChar.repeat(filled)}${config.emptyChar.repeat(config.barWidth - filled)}`;
+  const bar = `${chalk.cyan(config.fillChar.repeat(filled))}${chalk.dim(config.emptyChar.repeat(config.barWidth - filled))}`;
   const percent = String(Math.round(ratio * 100)).padStart(3, " ");
-  return `${config.leftBracket}${bar}${config.rightBracket} ${units.completed}/${units.total} ${percent}%`;
+  return `${chalk.dim(config.leftBracket)}${bar}${chalk.dim(config.rightBracket)} ${units.completed}/${units.total} ${chalk.bold(percent + "%")}`;
 };
 
 const buildTaskLine = (
@@ -200,14 +201,14 @@ const buildTaskLine = (
   const prefix = `${"  ".repeat(depth)}- ${snapshot.description}: `;
 
   if (snapshot.status === "failed") {
-    return `${prefix}[failed]`;
+    return `${prefix}${chalk.red("[failed]")}`;
   }
 
   if (snapshot.status === "done") {
     if (snapshot.units._tag === "DeterminateTaskUnits") {
-      return `${prefix}[done] ${snapshot.units.completed}/${snapshot.units.total}`;
+      return `${prefix}${chalk.green("[done]")} ${snapshot.units.completed}/${snapshot.units.total}`;
     }
-    return `${prefix}[done]`;
+    return `${prefix}${chalk.green("[done]")}`;
   }
 
   if (snapshot.units._tag === "DeterminateTaskUnits") {
@@ -216,7 +217,7 @@ const buildTaskLine = (
 
   const frames = config.spinnerFrames;
   const frameIndex = (snapshot.units.spinnerFrame + tick) % frames.length;
-  return `${prefix}${frames[frameIndex]}`;
+  return `${prefix}${chalk.yellow(frames[frameIndex])}`;
 };
 
 const orderTasksForRender = (tasks: ReadonlyArray<TaskSnapshot>): ReadonlyArray<{ snapshot: TaskSnapshot; depth: number }> => {

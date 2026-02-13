@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "@effect/language-service": "^0.73.1",
+    "chalk": "^5.6.2",
     "effect": "^3.19.16"
   },
   "devDependencies": {
