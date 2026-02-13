@@ -79,3 +79,8 @@ Effect.runPromise(program);
 
 - `examples/simpleExample.ts` - low-boilerplate real-world flow
 - `examples/advancedExample.ts` - full API usage with custom config and manual task control
+
+## Notes
+
+- This is a WIP library, so expect breaking changes. Feedback and contributions are very welcome!
+- As Effect 4.0 is around the corner with some changes to logging, there may be some adjustments needed to align with the new Effect APIs.
