@@ -12,6 +12,7 @@ export const ProgressBarConfigSchema = Schema.Struct({
   emptyChar: Schema.String,
   leftBracket: Schema.String,
   rightBracket: Schema.String,
+  maxLogLines: Schema.Number,
 });
 
 export type ProgressBarConfigShape = typeof ProgressBarConfigSchema.Type;
@@ -23,6 +24,7 @@ export const defaultProgressBarConfig: ProgressBarConfigShape = {
   emptyChar: "─",
   leftBracket: "",
   rightBracket: "",
+  maxLogLines: 0,
 };
 
 export class ProgressBarConfig extends Context.Tag("stromseng.dev/ProgressBarConfig")<
@@ -160,7 +162,10 @@ const SHOW_CURSOR = "\x1b[?25h";
 const CLEAR_LINE = "\x1b[2K";
 const MOVE_UP_ONE = "\x1b[1A";
 const RENDER_INTERVAL = "80 millis";
-const MAX_LOG_LINES = 8;
+interface LogEntry {
+  readonly id: number;
+  readonly message: string;
+}
 
 const inferTotal = (iterable: Iterable<unknown>): number | undefined => {
   if (Array.isArray(iterable)) {
@@ -220,7 +225,9 @@ const buildTaskLine = (
   return `${prefix}${chalk.yellow(frames[frameIndex])}`;
 };
 
-const orderTasksForRender = (tasks: ReadonlyArray<TaskSnapshot>): ReadonlyArray<{ snapshot: TaskSnapshot; depth: number }> => {
+const orderTasksForRender = (
+  tasks: ReadonlyArray<TaskSnapshot>,
+): ReadonlyArray<{ snapshot: TaskSnapshot; depth: number }> => {
   const byParent = new Map<number | null, Array<TaskSnapshot>>();
   for (const task of tasks) {
     const bucket = byParent.get(task.parentId) ?? [];
@@ -243,16 +250,16 @@ const orderTasksForRender = (tasks: ReadonlyArray<TaskSnapshot>): ReadonlyArray<
 
 const runProgressServiceRenderer = (
   tasksRef: Ref.Ref<Map<TaskId, TaskSnapshot>>,
-  logsRef: Ref.Ref<ReadonlyArray<string>>,
+  logsRef: Ref.Ref<ReadonlyArray<LogEntry>>,
   config: ProgressBarConfigShape,
 ) => {
   const isTTY = Boolean(process.stderr.isTTY);
   let previousLineCount = 0;
   let nonTTYSignature = "";
+  let nonTTYLastLogId = 0;
   let tick = 0;
 
   return Effect.gen(function* () {
-
     const clearTTY = () => {
       let output = "\r" + CLEAR_LINE;
       for (let i = 1; i < previousLineCount; i++) {
@@ -273,7 +280,8 @@ const runProgressServiceRenderer = (
         const taskLines = ordered.map(({ snapshot, depth }) =>
           buildTaskLine(snapshot, depth, frameTick, config),
         );
-        const lines = [...logs, ...taskLines];
+        const logLines = logs.map((log) => log.message);
+        const lines = [...logLines, ...taskLines];
 
         if (isTTY) {
           clearTTY();
@@ -282,6 +290,12 @@ const runProgressServiceRenderer = (
             previousLineCount = lines.length;
           }
         } else {
+          const appendedLogs = logs.filter((log) => log.id > nonTTYLastLogId);
+          if (appendedLogs.length > 0) {
+            process.stderr.write(appendedLogs.map((log) => log.message).join("\n") + "\n");
+            nonTTYLastLogId = appendedLogs[appendedLogs.length - 1]?.id ?? nonTTYLastLogId;
+          }
+
           const signature =
             ordered
               .map(({ snapshot }) => {
@@ -291,10 +305,10 @@ const runProgressServiceRenderer = (
                     : String(snapshot.units.spinnerFrame);
                 return `${snapshot.id}:${snapshot.status}:${unitPart}`;
               })
-              .join("|") + `::${logs.join("\\n")}`;
+              .join("|");
 
-          if (signature !== nonTTYSignature && lines.length > 0) {
-            process.stderr.write(lines.join("\n") + "\n");
+          if (signature !== nonTTYSignature && taskLines.length > 0) {
+            process.stderr.write(taskLines.join("\n") + "\n");
             nonTTYSignature = signature;
           }
         }
@@ -321,7 +335,8 @@ const runProgressServiceRenderer = (
         const taskLines = ordered.map(({ snapshot, depth }) =>
           buildTaskLine(snapshot, depth, tick + 1, config),
         );
-        const lines = [...logs, ...taskLines];
+        const logLines = logs.map((log) => log.message);
+        const lines = [...logLines, ...taskLines];
 
         if (process.stderr.isTTY) {
           let output = "\r" + CLEAR_LINE;
@@ -334,8 +349,16 @@ const runProgressServiceRenderer = (
           } else {
             process.stderr.write(output + "\r");
           }
-        } else if (lines.length > 0) {
-          process.stderr.write(lines.join("\n") + "\n");
+        } else {
+          const appendedLogs = logs.filter((log) => log.id > nonTTYLastLogId);
+          if (appendedLogs.length > 0) {
+            process.stderr.write(appendedLogs.map((log) => log.message).join("\n") + "\n");
+            nonTTYLastLogId = appendedLogs[appendedLogs.length - 1]?.id ?? nonTTYLastLogId;
+          }
+
+          if (taskLines.length > 0) {
+            process.stderr.write(taskLines.join("\n") + "\n");
+          }
         }
 
         if (process.stderr.isTTY) {
@@ -389,7 +412,8 @@ export const makeProgressService = Effect.gen(function* () {
 
   const nextTaskIdRef = yield* Ref.make(0);
   const tasksRef = yield* Ref.make(new Map<TaskId, TaskSnapshot>());
-  const logsRef = yield* Ref.make<ReadonlyArray<string>>([]);
+  const logsRef = yield* Ref.make<ReadonlyArray<LogEntry>>([]);
+  const nextLogIdRef = yield* Ref.make(0);
   const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
 
   yield* Effect.forkScoped(runProgressServiceRenderer(tasksRef, logsRef, config));
@@ -397,7 +421,9 @@ export const makeProgressService = Effect.gen(function* () {
   const addTask = (options: AddTaskOptions) =>
     Effect.gen(function* () {
       const parentId =
-        options.parentId === undefined ? yield* FiberRef.get(currentParentRef) : Option.some(options.parentId);
+        options.parentId === undefined
+          ? yield* FiberRef.get(currentParentRef)
+          : Option.some(options.parentId);
       const taskId = TaskId(yield* Ref.updateAndGet(nextTaskIdRef, (id) => id + 1));
       const units =
         options.total === undefined
@@ -529,7 +555,8 @@ export const makeProgressService = Effect.gen(function* () {
     });
 
   const log = (...args: ReadonlyArray<unknown>) =>
-    Ref.update(logsRef, (logs) => {
+    Effect.gen(function* () {
+      const id = yield* Ref.updateAndGet(nextLogIdRef, (current) => current + 1);
       const message = formatWithOptions(
         {
           colors: Boolean(process.stderr.isTTY),
@@ -537,11 +564,18 @@ export const makeProgressService = Effect.gen(function* () {
         },
         ...args,
       );
-      const next = [...logs, message];
-      if (next.length <= MAX_LOG_LINES) {
-        return next;
-      }
-      return next.slice(next.length - MAX_LOG_LINES);
+
+      yield* Ref.update(logsRef, (logs) => {
+        const maxLogLines = Math.floor(config.maxLogLines);
+        const next = [...logs, { id, message }];
+        if (maxLogLines <= 0) {
+          return next;
+        }
+        if (next.length <= maxLogLines) {
+          return next;
+        }
+        return next.slice(next.length - maxLogLines);
+      });
     });
 
   const getTask = (taskId: TaskId) =>
@@ -561,7 +595,9 @@ export const makeProgressService = Effect.gen(function* () {
         transient: options.transient ?? Option.isSome(resolvedParentId),
       });
 
-      const exit = yield* Effect.exit(Effect.locally(effect(taskId), currentParentRef, Option.some(taskId)));
+      const exit = yield* Effect.exit(
+        Effect.locally(effect(taskId), currentParentRef, Option.some(taskId)),
+      );
 
       if (Exit.isSuccess(exit)) {
         yield* completeTask(taskId);
@@ -606,16 +642,66 @@ export const makeProgressService = Effect.gen(function* () {
   return service;
 });
 
-const makeProgressConsole = (progress: ProgressService, outerConsole: Console.Console): Console.Console => {
+export interface TrackEffectsOptions {
+  readonly description: string;
+  readonly total?: number;
+  readonly transient?: boolean;
+  readonly all?: {
+    readonly concurrency?: number | "unbounded";
+    readonly batching?: boolean | "inherit";
+    readonly concurrentFinalizers?: boolean;
+  };
+}
+
+export const trackProgress = <A, E, R>(
+  effects: ReadonlyArray<Effect.Effect<A, E, R>>,
+  options: TrackEffectsOptions,
+): Effect.Effect<ReadonlyArray<A>, E, R> =>
+  withProgressService(
+    Effect.gen(function* () {
+      const progress = yield* Progress;
+      return yield* progress.withTask(
+        {
+          description: options.description,
+          total: options.total ?? effects.length,
+          transient: options.transient,
+        },
+        (taskId) =>
+          Effect.forEach(
+            effects.map((effect) => Effect.tap(effect, () => progress.advanceTask(taskId, 1))),
+            (effect) => effect,
+            {
+              concurrency: options.all?.concurrency,
+              batching: options.all?.batching,
+              concurrentFinalizers: options.all?.concurrentFinalizers,
+            },
+          ),
+      );
+    }),
+  );
+
+export const track = <A, B, E, R>(
+  iterable: Iterable<A>,
+  options: TrackOptions,
+  f: (item: A, index: number) => Effect.Effect<B, E, R>,
+): Effect.Effect<ReadonlyArray<B>, E, R> =>
+  withProgressService(
+    Effect.gen(function* () {
+      const progress = yield* Progress;
+      return yield* progress.trackIterable(iterable, options, f);
+    }),
+  );
+
+const makeProgressConsole = (
+  progress: ProgressService,
+  outerConsole: Console.Console,
+): Console.Console => {
   const log = (...args: ReadonlyArray<unknown>) => progress.log(...args);
   const unsafeLog = (...args: ReadonlyArray<unknown>) => {
     Effect.runFork(progress.log(...args));
   };
 
-  const delegate = (effect: Effect.Effect<void, never, never>) =>
-    Effect.gen(function* () {
-      yield* effect;
-    });
+  const delegate = (effect: Effect.Effect<void, never, never>) => effect;
 
   return {
     [Console.TypeId]: Console.TypeId,
@@ -697,7 +783,10 @@ export const withProgressService = <A, E, R>(
     const existing = yield* Effect.serviceOption(Progress);
     if (Option.isSome(existing)) {
       const console = makeProgressConsole(existing.value, outerConsole);
-      return yield* Effect.withConsole(Effect.provideService(effect, Progress, existing.value), console);
+      return yield* Effect.withConsole(
+        Effect.provideService(effect, Progress, existing.value),
+        console,
+      );
     }
 
     return yield* Effect.scoped(
