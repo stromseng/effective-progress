@@ -15,6 +15,35 @@ export interface TrackEffectsOptions {
   };
 }
 
+export interface ForEachOptions extends TrackOptions {
+  readonly forEach?: {
+    readonly concurrency?: number | "unbounded";
+    readonly batching?: boolean | "inherit";
+    readonly concurrentFinalizers?: boolean;
+  };
+}
+
+const inferTotal = (iterable: Iterable<unknown>): number | undefined => {
+  if (Array.isArray(iterable)) {
+    return iterable.length;
+  }
+
+  if (typeof iterable === "string") {
+    return iterable.length;
+  }
+
+  const candidate = iterable as { length?: unknown; size?: unknown };
+  if (typeof candidate.length === "number") {
+    return candidate.length;
+  }
+
+  if (typeof candidate.size === "number") {
+    return candidate.size;
+  }
+
+  return undefined;
+};
+
 export const withProgressService = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
     const outerConsole = yield* Console.consoleWith((console) => Effect.succeed(console));
@@ -36,7 +65,7 @@ export const withProgressService = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     );
   });
 
-export const trackProgress = <A, E, R>(
+export const all = <A, E, R>(
   effects: ReadonlyArray<Effect.Effect<A, E, R>>,
   options: TrackEffectsOptions,
 ): Effect.Effect<ReadonlyArray<A>, E, Exclude<R, Progress>> =>
@@ -63,14 +92,43 @@ export const trackProgress = <A, E, R>(
     }),
   );
 
+export const forEach = <A, B, E, R>(
+  iterable: Iterable<A>,
+  f: (item: A, index: number) => Effect.Effect<B, E, R>,
+  options: ForEachOptions,
+): Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress>> =>
+  withProgressService(
+    Effect.gen(function* () {
+      const progress = yield* Progress;
+
+      const items = Array.from(iterable);
+      const total = options.total ?? inferTotal(iterable);
+
+      return yield* progress.withTask(
+        {
+          description: options.description,
+          total,
+          transient: options.transient,
+        },
+        (taskId) =>
+          Effect.forEach(
+            items,
+            (item, index) => Effect.tap(f(item, index), () => progress.advanceTask(taskId, 1)),
+            {
+              concurrency: options.forEach?.concurrency,
+              batching: options.forEach?.batching,
+              concurrentFinalizers: options.forEach?.concurrentFinalizers,
+            },
+          ),
+      );
+    }),
+  );
+
+export const trackProgress = all;
+
 export const track = <A, B, E, R>(
   iterable: Iterable<A>,
   options: TrackOptions,
   f: (item: A, index: number) => Effect.Effect<B, E, R>,
 ): Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress>> =>
-  withProgressService(
-    Effect.gen(function* () {
-      const progress = yield* Progress;
-      return yield* progress.trackIterable(iterable, options, f);
-    }),
-  );
+  forEach(iterable, f, options);

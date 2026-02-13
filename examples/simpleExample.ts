@@ -1,37 +1,37 @@
 import { Console, Effect, Logger } from "effect";
-import { track, trackProgress } from "../src";
+import * as Progress from "../src";
 
 const program = Effect.gen(function* () {
-  yield* track(["init"], { description: "Bootstrapping environment", total: 0 }, () =>
-    Effect.sleep("2 seconds"),
-  );
+  yield* Progress.forEach(["init"], () => Effect.sleep("2 seconds"), {
+    description: "Bootstrapping environment",
+    total: 0,
+  });
 
-  yield* track(
+  yield* Progress.forEach(
     ["users.csv", "orders.csv", "events.csv", "sessions.csv"],
-    { description: "Importing data files" },
     (file, index) =>
       Effect.gen(function* () {
         yield* Effect.sleep("900 millis");
         yield* Console.log(`Imported ${file} (${index + 1}/4)`);
         return file;
       }),
+    { description: "Importing data files" },
   );
 
-  yield* trackProgress(
+  yield* Progress.all(
     Array.from({ length: 8 }, (_, index) =>
       Effect.gen(function* () {
         yield* Effect.sleep("700 millis");
 
-        yield* track(
+        yield* Progress.forEach(
           ["fetch", "transform", "persist"],
-          { description: `Worker ${index + 1} pipeline` },
           (stage) =>
             Effect.gen(function* () {
               yield* Effect.sleep("650 millis");
-              // yield* Effect.logInfo(`Worker ${index + 1} - ${stage}`);
               yield* Console.log(`Worker ${index + 1}: ${stage}`);
               return stage;
             }),
+          { description: `Worker ${index + 1} pipeline` },
         );
 
         return `worker-${index + 1}`;
@@ -43,12 +43,15 @@ const program = Effect.gen(function* () {
     },
   );
 
-  yield* track([1, 2, 3, 4, 5], { description: "Manual deployment" }, (step) =>
-    Effect.gen(function* () {
-      yield* Effect.sleep("1 second");
-      yield* Console.log(`Manual deployment (step ${step}/5)`);
-      return step;
-    }),
+  yield* Progress.forEach(
+    [1, 2, 3, 4, 5],
+    (step) =>
+      Effect.gen(function* () {
+        yield* Effect.sleep("1 second");
+        yield* Console.log(`Manual deployment (step ${step}/5)`);
+        return step;
+      }),
+    { description: "Manual deployment" },
   );
 
   yield* Console.log("All advanced progress examples finished.");

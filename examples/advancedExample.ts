@@ -1,15 +1,8 @@
 import { Console, Effect } from "effect";
-import {
-  defaultProgressBarConfig,
-  Progress,
-  ProgressBarConfig,
-  track,
-  trackProgress,
-  withProgressService,
-} from "../src";
+import * as Progress from "../src";
 
 const advancedProgram = Effect.gen(function* () {
-  const progress = yield* Progress;
+  const progress = yield* Progress.Progress;
 
   yield* progress.withTask(
     {
@@ -18,20 +11,20 @@ const advancedProgram = Effect.gen(function* () {
     () => Effect.sleep("2 seconds"),
   );
 
-  yield* track(
+  yield* Progress.forEach(
     ["users.csv", "orders.csv", "events.csv", "sessions.csv"],
-    {
-      description: "Importing data files",
-    },
     (file, index) =>
       Effect.gen(function* () {
         yield* Effect.sleep("900 millis");
         yield* Console.log(`Imported ${file} (${index + 1}/4)`);
         return file;
       }),
+    {
+      description: "Importing data files",
+    },
   );
 
-  yield* trackProgress(
+  yield* Progress.all(
     Array.from({ length: 8 }, (_, index) =>
       progress.withTask(
         {
@@ -41,17 +34,17 @@ const advancedProgram = Effect.gen(function* () {
           Effect.gen(function* () {
             yield* Effect.sleep("700 millis");
 
-            yield* track(
+            yield* Progress.forEach(
               ["fetch", "transform", "persist"],
-              {
-                description: `Worker ${index + 1} pipeline`,
-              },
               (stage) =>
                 Effect.gen(function* () {
                   yield* Effect.sleep("650 millis");
                   yield* Console.log(`Worker ${index + 1}: ${stage}`);
                   return stage;
                 }),
+              {
+                description: `Worker ${index + 1} pipeline`,
+              },
             );
 
             return `worker-${index + 1}`;
@@ -83,11 +76,11 @@ const advancedProgram = Effect.gen(function* () {
   yield* Console.log("All advanced progress examples finished.");
 });
 
-const configuredProgram = Effect.provideService(advancedProgram, ProgressBarConfig, {
-  ...defaultProgressBarConfig,
+const configuredProgram = Effect.provideService(advancedProgram, Progress.ProgressBarConfig, {
+  ...Progress.defaultProgressBarConfig,
   barWidth: 36,
   nonTtyUpdateStep: 2,
   maxLogLines: 12,
 });
 
-Effect.runPromise(withProgressService(configuredProgram));
+Effect.runPromise(Progress.withProgressService(configuredProgram));
