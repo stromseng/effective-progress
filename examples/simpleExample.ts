@@ -1,5 +1,5 @@
-import { Console, Effect } from "effect";
-import { track, trackProgress } from "../progressService";
+import { Console, Effect, Logger } from "effect";
+import { track, trackProgress } from "../src";
 
 const program = Effect.gen(function* () {
   yield* track(["init"], { description: "Bootstrapping environment", total: 0 }, () =>
@@ -28,6 +28,7 @@ const program = Effect.gen(function* () {
           (stage) =>
             Effect.gen(function* () {
               yield* Effect.sleep("650 millis");
+              // yield* Effect.logInfo(`Worker ${index + 1} - ${stage}`);
               yield* Console.log(`Worker ${index + 1}: ${stage}`);
               return stage;
             }),
@@ -53,4 +54,4 @@ const program = Effect.gen(function* () {
   yield* Console.log("All advanced progress examples finished.");
 });
 
-Effect.runPromise(program);
+Effect.runPromise(program.pipe(Effect.provide(Logger.pretty)));

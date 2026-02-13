@@ -6,7 +6,7 @@ import {
   track,
   trackProgress,
   withProgressService,
-} from "../progressService";
+} from "../src";
 
 const advancedProgram = Effect.gen(function* () {
   const progress = yield* Progress;
