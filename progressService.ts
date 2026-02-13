@@ -7,6 +7,7 @@ export const DEFAULT_PROGRESS_BAR_WIDTH = 30;
 
 export const ProgressBarConfigSchema = Schema.Struct({
   isTTY: Schema.Boolean,
+  disableUserInput: Schema.Boolean,
   spinnerFrames: Schema.NonEmptyArray(Schema.String),
   barWidth: Schema.Number,
   fillChar: Schema.String,
@@ -21,6 +22,7 @@ export type ProgressBarConfigShape = typeof ProgressBarConfigSchema.Type;
 
 export const defaultProgressBarConfig: ProgressBarConfigShape = {
   isTTY: Boolean(process.stderr.isTTY),
+  disableUserInput: true,
   spinnerFrames: SPINNER_FRAMES,
   barWidth: DEFAULT_PROGRESS_BAR_WIDTH,
   fillChar: "━",
@@ -264,6 +266,7 @@ const runProgressServiceRenderer = (
   let nonTTYLastLogId = 0;
   let nonTTYTaskSignatureById = new Map<number, string>();
   let tick = 0;
+  let teardownInput: (() => void) | undefined;
 
   return Effect.gen(function* () {
     const clearTTY = () => {
@@ -332,6 +335,34 @@ const runProgressServiceRenderer = (
 
     if (isTTY) {
       process.stderr.write(HIDE_CURSOR);
+
+      if (config.disableUserInput && process.stdin.isTTY) {
+        const stdin = process.stdin;
+        const wasPaused = stdin.isPaused();
+        const wasRaw = Boolean(stdin.isRaw);
+
+        if (wasPaused) {
+          stdin.resume();
+        }
+
+        stdin.setRawMode?.(true);
+
+        const onData = (chunk: Buffer) => {
+          if (chunk.length === 1 && chunk[0] === 3) {
+            process.kill(process.pid, "SIGINT");
+          }
+        };
+
+        stdin.on("data", onData);
+
+        teardownInput = () => {
+          stdin.off("data", onData);
+          stdin.setRawMode?.(wasRaw);
+          if (wasPaused) {
+            stdin.pause();
+          }
+        };
+      }
     }
 
     while (true) {
@@ -410,6 +441,7 @@ const runProgressServiceRenderer = (
         }
 
         if (isTTY) {
+          teardownInput?.();
           process.stderr.write("\n" + SHOW_CURSOR);
         }
       }),
@@ -421,9 +453,14 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): Ta
   const currentUnits = snapshot.units;
   const units = (() => {
     if (options.total !== undefined) {
+      if (options.total <= 0) {
+        return new IndeterminateTaskUnits({ spinnerFrame: 0 });
+      }
+
       const completed =
         options.completed ??
         (currentUnits._tag === "DeterminateTaskUnits" ? currentUnits.completed : 0);
+
       return new DeterminateTaskUnits({
         completed: Math.max(0, completed),
         total: Math.max(0, options.total),
@@ -493,7 +530,7 @@ export const makeProgressService = Effect.gen(function* () {
           : Option.some(options.parentId);
       const taskId = TaskId(yield* Ref.updateAndGet(nextTaskIdRef, (id) => id + 1));
       const units =
-        options.total === undefined
+        options.total === undefined || options.total <= 0
           ? new IndeterminateTaskUnits({ spinnerFrame: 0 })
           : new DeterminateTaskUnits({ completed: 0, total: Math.max(0, options.total) });
 
@@ -844,9 +881,7 @@ const makeProgressConsole = (
   };
 };
 
-export const withProgressService = <A, E, R>(
-  effect: Effect.Effect<A, E, R | Progress>,
-): Effect.Effect<A, E, R> =>
+export const withProgressService = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
     const outerConsole = yield* Console.consoleWith((console) => Effect.succeed(console));
     const existing = yield* Effect.serviceOption(Progress);
