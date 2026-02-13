@@ -1,6 +1,6 @@
 # effective-progress
 
-`effective-progress` is an Effect-first terminal progress library with:
+`effective-progress` is an [Effect](https://effect.website/)-first terminal progress library with:
 
 - multiple progress bars
 - nested child progress bars

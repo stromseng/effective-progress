@@ -1,7 +1,27 @@
 {
   "name": "effective-progress",
+  "version": "0.1.0",
+  "description": "Effect-first terminal progress bars with nested multibar support",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stromseng/effective-progress.git"
+  },
+  "bugs": {
+    "url": "https://github.com/stromseng/effective-progress/issues"
+  },
+  "homepage": "https://github.com/stromseng/effective-progress#readme",
   "type": "module",
   "module": "index.ts",
+  "files": [
+    "index.ts",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "prepare": "effect-language-service patch"
   },
