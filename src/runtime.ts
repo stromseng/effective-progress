@@ -20,7 +20,6 @@ import {
 } from "./types";
 import { inferTotal } from "./utils";
 
-const DIRTY_DEBOUNCE_INTERVAL = "10 millis";
 
 const mergeConfig = <T extends Record<PropertyKey, any>>(
   base: T,
@@ -104,7 +103,6 @@ export const makeProgressService = Effect.gen(function* () {
   const pendingLogsRef = yield* Ref.make<ReadonlyArray<string>>([]);
   const topLevelCaptureCountRef = yield* Ref.make(0);
   const dirtyRef = yield* Ref.make(true);
-  const dirtyScheduledRef = yield* Ref.make(false);
   const rendererStartedRef = yield* Ref.make(false);
   const rendererLatch = yield* Effect.makeLatch(false);
   const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
@@ -133,22 +131,7 @@ export const makeProgressService = Effect.gen(function* () {
     scope,
   );
 
-  const markDirty = Effect.gen(function* () {
-    const shouldSchedule = yield* Ref.modify(dirtyScheduledRef, (scheduled) =>
-      scheduled ? [false, true] : [true, true],
-    );
-
-    if (!shouldSchedule) {
-      return;
-    }
-
-    yield* Effect.forkDaemon(
-      Effect.sleep(DIRTY_DEBOUNCE_INTERVAL).pipe(
-        Effect.zipRight(Ref.set(dirtyRef, true)),
-        Effect.ensuring(Ref.set(dirtyScheduledRef, false)),
-      ),
-    );
-  });
+  const markDirty = Ref.set(dirtyRef, true);
 
   const settleTopLevelRender = Effect.gen(function* () {
     if (!rendererConfig.isTTY) {
