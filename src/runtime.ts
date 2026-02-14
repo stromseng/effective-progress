@@ -237,6 +237,10 @@ export const makeProgressService = Effect.gen(function* () {
 
   const log = (...args: ReadonlyArray<unknown>) =>
     Effect.gen(function* () {
+      if (args.length === 0) {
+        return;
+      }
+
       const message = formatWithOptions(
         {
           colors: config.isTTY,
