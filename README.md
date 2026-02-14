@@ -2,6 +2,7 @@
 
 > [!WARNING]
 > Pre-`1.0.0`, breaking changes may happen in any release. SemVer guarantees will begin at `1.0.0`.
+> Please open an issue or reach out if you have any questions or want to contribute!
 
 <img alt="Showcase output" src="docs/images/showcase.gif" width="600" />
 
