@@ -102,6 +102,7 @@ export const makeProgressService = Effect.gen(function* () {
   const tasksRef = yield* Ref.make(new Map<TaskId, TaskSnapshot>());
   const logsRef = yield* Ref.make<ReadonlyArray<string>>([]);
   const pendingLogsRef = yield* Ref.make<ReadonlyArray<string>>([]);
+  const topLevelCaptureCountRef = yield* Ref.make(0);
   const dirtyRef = yield* Ref.make(true);
   const dirtyScheduledRef = yield* Ref.make(false);
   const rendererStartedRef = yield* Ref.make(false);
@@ -109,11 +110,21 @@ export const makeProgressService = Effect.gen(function* () {
   const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
   const scope = yield* Effect.scope;
 
+  const openRendererIfNeeded = Effect.gen(function* () {
+    const shouldOpenRenderer = yield* Ref.modify(rendererStartedRef, (started) =>
+      started ? [false, true] : [true, true],
+    );
+    if (shouldOpenRenderer) {
+      yield* rendererLatch.open;
+    }
+  });
+
   yield* Effect.forkIn(
     runProgressServiceRenderer(
       tasksRef,
       logsRef,
       pendingLogsRef,
+      topLevelCaptureCountRef,
       dirtyRef,
       rendererConfig,
       maxRetainedLogLines,
@@ -139,6 +150,16 @@ export const makeProgressService = Effect.gen(function* () {
     );
   });
 
+  const settleTopLevelRender = Effect.gen(function* () {
+    if (!rendererConfig.isTTY) {
+      return;
+    }
+
+    yield* Ref.set(dirtyRef, true);
+    const settleMillis = Math.max(1, Math.floor(rendererConfig.renderIntervalMillis)) * 2;
+    yield* Effect.sleep(`${settleMillis} millis`);
+  });
+
   const addTask = (options: AddTaskOptions) =>
     Effect.gen(function* () {
       const parentId =
@@ -157,12 +178,7 @@ export const makeProgressService = Effect.gen(function* () {
       const resolvedProgressBarConfig = decodeProgressBarConfigSync(
         mergeConfig(inheritedProgressBarConfig, options.progressbar),
       );
-      const shouldOpenRenderer = yield* Ref.modify(rendererStartedRef, (started) =>
-        started ? [false, true] : [true, true],
-      );
-      if (shouldOpenRenderer) {
-        yield* rendererLatch.open;
-      }
+      yield* openRendererIfNeeded;
 
       const snapshot = new TaskSnapshot({
         id: taskId,
@@ -292,17 +308,10 @@ export const makeProgressService = Effect.gen(function* () {
       return next;
     }).pipe(Effect.zipRight(markDirty));
 
-  const log = (...args: ReadonlyArray<unknown>) =>
+  const appendLog = (args: ReadonlyArray<unknown>) =>
     Effect.gen(function* () {
       if (args.length === 0) {
         return;
-      }
-
-      const shouldOpenRenderer = yield* Ref.modify(rendererStartedRef, (started) =>
-        started ? [false, true] : [true, true],
-      );
-      if (shouldOpenRenderer) {
-        yield* rendererLatch.open;
       }
 
       const message = formatWithOptions(
@@ -327,10 +336,42 @@ export const makeProgressService = Effect.gen(function* () {
       yield* markDirty;
     });
 
+  const log = (...args: ReadonlyArray<unknown>) =>
+    Effect.gen(function* () {
+      yield* openRendererIfNeeded;
+      yield* appendLog(args);
+    });
+
   const withCapturedLogs: ProgressService["withCapturedLogs"] = (effect) =>
     Effect.gen(function* () {
       const outerConsole = yield* Console.consoleWith((console) => Effect.succeed(console));
-      return yield* Effect.withConsole(effect, makeProgressConsole(log, outerConsole));
+      const currentParent = yield* FiberRef.get(currentParentRef);
+
+      if (Option.isSome(currentParent)) {
+        return yield* Effect.withConsole(effect, makeProgressConsole(log, outerConsole));
+      }
+
+      yield* openRendererIfNeeded;
+      yield* Ref.update(topLevelCaptureCountRef, (count) => count + 1);
+      yield* Ref.set(dirtyRef, true);
+
+      const exit = yield* Effect.exit(
+        Effect.withConsole(effect, makeProgressConsole(log, outerConsole)),
+      ).pipe(
+        Effect.ensuring(
+          Effect.gen(function* () {
+            yield* Ref.update(topLevelCaptureCountRef, (count) => Math.max(0, count - 1));
+            yield* Ref.set(dirtyRef, true);
+          }),
+        ),
+      );
+
+      yield* settleTopLevelRender;
+
+      return yield* Exit.match(exit, {
+        onFailure: Effect.failCause,
+        onSuccess: Effect.succeed,
+      });
     });
 
   const getTask = (taskId: TaskId) =>
@@ -358,6 +399,10 @@ export const makeProgressService = Effect.gen(function* () {
         yield* completeTask(taskId);
       } else {
         yield* failTask(taskId);
+      }
+
+      if (Option.isNone(resolvedParentId)) {
+        yield* settleTopLevelRender;
       }
 
       return yield* Exit.match(exit, {

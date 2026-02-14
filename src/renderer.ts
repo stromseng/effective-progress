@@ -83,6 +83,7 @@ export const runProgressServiceRenderer = (
   tasksRef: Ref.Ref<Map<TaskId, TaskSnapshot>>,
   logsRef: Ref.Ref<ReadonlyArray<string>>,
   pendingLogsRef: Ref.Ref<ReadonlyArray<string>>,
+  topLevelCaptureCountRef: Ref.Ref<number>,
   dirtyRef: Ref.Ref<boolean>,
   rendererConfig: RendererConfigShape,
   maxRetainedLogLines: number,
@@ -96,6 +97,8 @@ export const runProgressServiceRenderer = (
   let nonTTYTaskSignatureById = new Map<number, string>();
   let tick = 0;
   let rendererActive = false;
+  let sessionActive = false;
+  let sessionHadRunningTasks = false;
   let teardownInput: (() => void) | undefined;
 
   const getCompiledColors = (progressbar: ProgressBarConfigShape): CompiledProgressBarColors => {
@@ -139,9 +142,58 @@ export const runProgressServiceRenderer = (
 
     const hiddenLineCount = lines.length - visibleLineLimit + 1;
     return [
-      ...lines.slice(0, visibleLineLimit - 1),
-      `... ${hiddenLineCount} lines hidden (increase terminal height to see all tasks)`,
+      `... ${hiddenLineCount} lines hidden (showing latest lines)`,
+      ...lines.slice(lines.length - (visibleLineLimit - 1)),
     ];
+  };
+
+  const startTTYSession = () => {
+    if (!isTTY || sessionActive) {
+      return;
+    }
+
+    process.stderr.write(HIDE_CURSOR);
+
+    if (rendererConfig.disableUserInput && process.stdin.isTTY) {
+      const stdin = process.stdin;
+      const wasRaw = Boolean(stdin.isRaw);
+      stdin.resume();
+      stdin.setRawMode?.(true);
+
+      const onData = (chunk: Buffer) => {
+        if (chunk.length === 1 && chunk[0] === 3) {
+          process.kill(process.pid, "SIGINT");
+        }
+      };
+
+      stdin.on("data", onData);
+
+      teardownInput = () => {
+        try {
+          stdin.off("data", onData);
+          stdin.setRawMode?.(wasRaw);
+          stdin.pause();
+        } catch {
+          // Best effort terminal restoration.
+        }
+      };
+    }
+
+    sessionActive = true;
+  };
+
+  const stopTTYSession = () => {
+    if (!isTTY || !sessionActive) {
+      return;
+    }
+
+    teardownInput?.();
+    teardownInput = undefined;
+    process.stderr.write("\n" + SHOW_CURSOR);
+    previousLineCount = 0;
+    previousTaskLineCount = 0;
+    sessionActive = false;
+    sessionHadRunningTasks = false;
   };
 
   const renderNonTTYTaskUpdates = (
@@ -220,46 +272,54 @@ export const runProgressServiceRenderer = (
     yield* rendererLatch.await;
     rendererActive = true;
 
-    if (isTTY) {
-      process.stderr.write(HIDE_CURSOR);
-
-      if (rendererConfig.disableUserInput && process.stdin.isTTY) {
-        const stdin = process.stdin;
-        const wasRaw = Boolean(stdin.isRaw);
-        stdin.resume();
-        stdin.setRawMode?.(true);
-
-        const onData = (chunk: Buffer) => {
-          if (chunk.length === 1 && chunk[0] === 3) {
-            process.kill(process.pid, "SIGINT");
-          }
-        };
-
-        stdin.on("data", onData);
-
-        teardownInput = () => {
-          try {
-            stdin.off("data", onData);
-            stdin.setRawMode?.(wasRaw);
-            stdin.pause();
-          } catch {
-            // Best effort terminal restoration.
-          }
-        };
-      }
-    }
-
     while (true) {
       const dirty = yield* Ref.getAndSet(dirtyRef, false);
-      const hasActiveSpinners = yield* Ref.get(tasksRef).pipe(
-        Effect.map((tasks) =>
-          Array.from(tasks.values()).some(
-            (task) => task.status === "running" && task.units._tag === "IndeterminateTaskUnits",
-          ),
-        ),
+      const tasks = Array.from((yield* Ref.get(tasksRef)).values()).filter(
+        (task) => !(task.transient && task.status !== "running"),
       );
+      const hasRunningTasks = tasks.some((task) => task.status === "running");
+      const hasActiveSpinners = tasks.some(
+        (task) => task.status === "running" && task.units._tag === "IndeterminateTaskUnits",
+      );
+      const hasPendingLogs = (yield* Ref.get(pendingLogsRef)).length > 0;
+      const hasTopLevelCapture = (yield* Ref.get(topLevelCaptureCountRef)) > 0;
 
-      if (dirty || hasActiveSpinners) {
+      if (isTTY) {
+        if (!sessionActive && (hasRunningTasks || hasPendingLogs || hasTopLevelCapture)) {
+          startTTYSession();
+        }
+
+        if (sessionActive) {
+          if (hasRunningTasks) {
+            sessionHadRunningTasks = true;
+          }
+
+          if (dirty || hasActiveSpinners || hasPendingLogs || hasTopLevelCapture) {
+            yield* renderFrame("tick");
+          }
+
+          const hasPendingLogsAfterRender = (yield* Ref.get(pendingLogsRef)).length > 0;
+          const dirtyAfterRender = yield* Ref.get(dirtyRef);
+          const hasTopLevelCaptureAfterRender = (yield* Ref.get(topLevelCaptureCountRef)) > 0;
+          const hasRunningTasksAfterRender = yield* Ref.get(tasksRef).pipe(
+            Effect.map((taskMap) =>
+              Array.from(taskMap.values()).some((task) => task.status === "running"),
+            ),
+          );
+          const isIdle =
+            !hasRunningTasksAfterRender &&
+            !hasPendingLogsAfterRender &&
+            !dirtyAfterRender &&
+            !hasTopLevelCaptureAfterRender;
+
+          if (isIdle) {
+            if (sessionHadRunningTasks) {
+              yield* renderFrame("final");
+            }
+            stopTTYSession();
+          }
+        }
+      } else if (dirty || hasActiveSpinners) {
         yield* renderFrame("tick");
       }
 
@@ -273,12 +333,15 @@ export const runProgressServiceRenderer = (
           return;
         }
 
-        yield* renderFrame("final");
-
         if (isTTY) {
-          teardownInput?.();
-          process.stderr.write("\n" + SHOW_CURSOR);
+          if (sessionActive) {
+            yield* renderFrame("final");
+            stopTTYSession();
+          }
+          return;
         }
+
+        yield* renderFrame("final");
       }),
     ),
   );
