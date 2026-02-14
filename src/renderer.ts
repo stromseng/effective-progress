@@ -122,6 +122,28 @@ export const runProgressServiceRenderer = (
     process.stderr.write(output + "\r");
   };
 
+  const clipTTYFrameLines = (lines: ReadonlyArray<string>): ReadonlyArray<string> => {
+    const terminalRows = process.stderr.rows;
+    if (terminalRows === undefined) {
+      return lines;
+    }
+
+    const visibleLineLimit = Math.max(1, terminalRows - 1);
+    if (lines.length <= visibleLineLimit) {
+      return lines;
+    }
+
+    if (visibleLineLimit === 1) {
+      return [`... ${lines.length} lines hidden`];
+    }
+
+    const hiddenLineCount = lines.length - visibleLineLimit + 1;
+    return [
+      ...lines.slice(0, visibleLineLimit - 1),
+      `... ${hiddenLineCount} lines hidden (increase terminal height to see all tasks)`,
+    ];
+  };
+
   const renderNonTTYTaskUpdates = (
     ordered: ReadonlyArray<{ snapshot: TaskSnapshot; depth: number }>,
     taskLines: ReadonlyArray<string>,
@@ -168,7 +190,7 @@ export const runProgressServiceRenderer = (
       if (isTTY) {
         if (retainLogHistory) {
           const historyLogs = yield* Ref.get(logsRef);
-          const lines = [...historyLogs, ...taskLines];
+          const lines = clipTTYFrameLines([...historyLogs, ...taskLines]);
           clearTTYLines(previousLineCount);
           if (lines.length > 0) {
             process.stderr.write(lines.join("\n"));
