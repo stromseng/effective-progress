@@ -7,7 +7,6 @@ const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
 const CLEAR_LINE = "\x1b[2K";
 const MOVE_UP_ONE = "\x1b[1A";
-const RENDER_INTERVAL = "80 millis";
 
 const renderDeterminate = (units: DeterminateTaskUnits, config: ProgressBarConfigShape): string => {
   const safeTotal = units.total <= 0 ? 1 : units.total;
@@ -214,7 +213,7 @@ export const runProgressServiceRenderer = (
       }
 
       tick += 1;
-      yield* Effect.sleep(RENDER_INTERVAL);
+      yield* Effect.sleep(Math.max(1, Math.floor(config.renderIntervalMillis)));
     }
   }).pipe(
     Effect.ensuring(
