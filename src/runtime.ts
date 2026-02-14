@@ -291,8 +291,7 @@ export const makeProgressService = Effect.gen(function* () {
         transient: options.transient,
       },
       (taskId) => {
-        const items = Array.from(iterable);
-        return Effect.forEach(items, (item, index) =>
+        return Effect.forEach(iterable, (item, index) =>
           Effect.tap(f(item, index), () => advanceTask(taskId, 1)),
         );
       },
