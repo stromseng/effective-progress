@@ -3,6 +3,8 @@
 > [!WARNING]
 > Pre-`1.0.0`, breaking changes may happen in any release. SemVer guarantees will begin at `1.0.0`.
 
+<img alt="Showcase output" src="docs/images/showcase.gif" width="600" />
+
 `effective-progress` is an [Effect](https://effect.website/)-first terminal progress library with:
 
 - multiple progress bars
@@ -82,6 +84,7 @@ Effect.runPromise(program);
 
 - `examples/simpleExample.ts` - low-boilerplate real-world flow
 - `examples/advancedExample.ts` - full API usage with custom config and manual task control
+- `examples/showcase.ts` - nested concurrent tasks, spinner workloads, and mixed Effect/Console logging
 
 ## Log retention
 
