@@ -101,9 +101,6 @@ const program = Effect.gen(function* () {
       concurrency: 2,
     },
   );
-
-  yield* Effect.logInfo("Showcase run complete");
-  yield* Console.log("All showcase tasks finished.");
 });
 
 Effect.runPromise(program.pipe(Effect.provide(Logger.pretty)));
