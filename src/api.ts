@@ -1,28 +1,24 @@
 import { Console, Effect, Option } from "effect";
+import type { Concurrency } from "effect/Types";
 import { makeProgressConsole } from "./console";
 import { makeProgressService } from "./runtime";
 import { Progress } from "./types";
 import type { TrackOptions } from "./types";
 import { inferTotal } from "./utils";
 
-export interface TrackEffectsOptions {
-  readonly description: string;
-  readonly total?: number;
-  readonly transient?: boolean;
-  readonly all?: {
-    readonly concurrency?: number | "unbounded";
-    readonly batching?: boolean | "inherit";
-    readonly concurrentFinalizers?: boolean;
-  };
+export interface EffectExecutionOptions {
+  readonly concurrency?: Concurrency;
+  readonly batching?: boolean | "inherit";
+  readonly concurrentFinalizers?: boolean;
 }
 
-export interface ForEachOptions extends TrackOptions {
-  readonly forEach?: {
-    readonly concurrency?: number | "unbounded";
-    readonly batching?: boolean | "inherit";
-    readonly concurrentFinalizers?: boolean;
-  };
+export type AllOptions = Omit<TrackOptions, "total"> & EffectExecutionOptions;
+
+export interface ForEachExecutionOptions extends EffectExecutionOptions {
+  readonly discard?: false | undefined;
 }
+
+export type ForEachOptions = TrackOptions & ForEachExecutionOptions;
 
 export const withProgressService = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
@@ -47,7 +43,7 @@ export const withProgressService = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
 
 export const all = <A, E, R>(
   effects: ReadonlyArray<Effect.Effect<A, E, R>>,
-  options: TrackEffectsOptions,
+  options: AllOptions,
 ): Effect.Effect<ReadonlyArray<A>, E, Exclude<R, Progress>> =>
   withProgressService(
     Effect.gen(function* () {
@@ -55,17 +51,16 @@ export const all = <A, E, R>(
       return yield* progress.withTask(
         {
           description: options.description,
-          total: options.total ?? effects.length,
+          total: effects.length,
           transient: options.transient,
         },
         (taskId) =>
-          Effect.forEach(
+          Effect.all(
             effects.map((effect) => Effect.tap(effect, () => progress.advanceTask(taskId, 1))),
-            (effect) => effect,
             {
-              concurrency: options.all?.concurrency,
-              batching: options.all?.batching,
-              concurrentFinalizers: options.all?.concurrentFinalizers,
+              concurrency: options.concurrency,
+              batching: options.batching,
+              concurrentFinalizers: options.concurrentFinalizers,
             },
           ),
       );
@@ -81,33 +76,23 @@ export const forEach = <A, B, E, R>(
     Effect.gen(function* () {
       const progress = yield* Progress;
 
-      const items = Array.from(iterable);
-      const total = options.total ?? inferTotal(iterable);
-
       return yield* progress.withTask(
         {
           description: options.description,
-          total,
+          total: options.total ?? inferTotal(iterable),
           transient: options.transient,
         },
         (taskId) =>
           Effect.forEach(
-            items,
+            iterable,
             (item, index) => Effect.tap(f(item, index), () => progress.advanceTask(taskId, 1)),
             {
-              concurrency: options.forEach?.concurrency,
-              batching: options.forEach?.batching,
-              concurrentFinalizers: options.forEach?.concurrentFinalizers,
+              concurrency: options.concurrency,
+              batching: options.batching,
+              discard: options.discard,
+              concurrentFinalizers: options.concurrentFinalizers,
             },
           ),
       );
     }),
   );
-
-export const trackProgress = all;
-
-export const track = <A, B, E, R>(
-  iterable: Iterable<A>,
-  options: TrackOptions,
-  f: (item: A, index: number) => Effect.Effect<B, E, R>,
-): Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress>> => forEach(iterable, f, options);

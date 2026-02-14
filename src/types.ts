@@ -59,11 +59,7 @@ export interface UpdateTaskOptions {
   readonly transient?: boolean;
 }
 
-export interface TrackOptions {
-  readonly description: string;
-  readonly total?: number;
-  readonly transient?: boolean;
-}
+export type TrackOptions = Exclude<AddTaskOptions, "parentId">;
 
 export class DeterminateTaskUnits extends Schema.TaggedClass<DeterminateTaskUnits>()(
   "DeterminateTaskUnits",
@@ -160,8 +156,3 @@ export const ProgressTaskEventSchema = Schema.Union(
 export type ProgressTaskEvent = typeof ProgressTaskEventSchema.Type;
 
 export const decodeProgressTaskEvent = Schema.decodeUnknownSync(ProgressTaskEventSchema);
-
-export const isIndeterminateTask = (snapshot: TaskSnapshot) =>
-  snapshot.units._tag === "IndeterminateTaskUnits";
-
-export const nextSpinnerFrame = (index: number) => (index + 1) % SPINNER_FRAMES.length;

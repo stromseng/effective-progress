@@ -8,7 +8,10 @@ const program = Progress.all(
       yield* Console.log(`Completed task ${i + 1}`);
     }),
   ),
-  { description: "Running tasks in parallel", all: { concurrency: 2 } },
+  {
+    description: "Running tasks in parallel",
+    concurrency: 2,
+  },
 );
 
 Effect.runPromise(program);

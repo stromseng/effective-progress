@@ -53,9 +53,7 @@ const advancedProgram = Effect.gen(function* () {
     ),
     {
       description: "Running worker pool",
-      all: {
-        concurrency: 3,
-      },
+      concurrency: 3,
     },
   );
 
