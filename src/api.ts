@@ -3,6 +3,7 @@ import { makeProgressConsole } from "./console";
 import { makeProgressService } from "./runtime";
 import { Progress } from "./types";
 import type { TrackOptions } from "./types";
+import { inferTotal } from "./utils";
 
 export interface TrackEffectsOptions {
   readonly description: string;
@@ -22,27 +23,6 @@ export interface ForEachOptions extends TrackOptions {
     readonly concurrentFinalizers?: boolean;
   };
 }
-
-const inferTotal = (iterable: Iterable<unknown>): number | undefined => {
-  if (Array.isArray(iterable)) {
-    return iterable.length;
-  }
-
-  if (typeof iterable === "string") {
-    return iterable.length;
-  }
-
-  const candidate = iterable as { length?: unknown; size?: unknown };
-  if (typeof candidate.length === "number") {
-    return candidate.length;
-  }
-
-  if (typeof candidate.size === "number") {
-    return candidate.size;
-  }
-
-  return undefined;
-};
 
 export const withProgressService = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
