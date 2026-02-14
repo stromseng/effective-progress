@@ -6,3 +6,4 @@
 - [ ] Theme presets
 - [ ] Columns configuration
 - [ ] Add support for Effect.all Records, not only arrays.
+- [ ] Add non-effect api
