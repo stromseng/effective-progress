@@ -103,61 +103,11 @@ export const defaultProgressBarColors: ProgressBarColors = {
   failed: { kind: "named", value: "red" },
 };
 
-const applyModifier = (instance: ChalkInstance, modifier: StyleModifier): ChalkInstance => {
-  switch (modifier) {
-    case "bold":
-      return instance.bold;
-    case "dim":
-      return instance.dim;
-    case "italic":
-      return instance.italic;
-    case "underline":
-      return instance.underline;
-    case "inverse":
-      return instance.inverse;
-    case "hidden":
-      return instance.hidden;
-    case "strikethrough":
-      return instance.strikethrough;
-  }
-};
+const applyModifier = (instance: ChalkInstance, modifier: StyleModifier): ChalkInstance =>
+  instance[modifier] as ChalkInstance;
 
-const applyNamedColor = (instance: ChalkInstance, color: NamedColor): ChalkInstance => {
-  switch (color) {
-    case "black":
-      return instance.black;
-    case "red":
-      return instance.red;
-    case "green":
-      return instance.green;
-    case "yellow":
-      return instance.yellow;
-    case "blue":
-      return instance.blue;
-    case "magenta":
-      return instance.magenta;
-    case "cyan":
-      return instance.cyan;
-    case "white":
-      return instance.white;
-    case "blackBright":
-      return instance.blackBright;
-    case "redBright":
-      return instance.redBright;
-    case "greenBright":
-      return instance.greenBright;
-    case "yellowBright":
-      return instance.yellowBright;
-    case "blueBright":
-      return instance.blueBright;
-    case "magentaBright":
-      return instance.magentaBright;
-    case "cyanBright":
-      return instance.cyanBright;
-    case "whiteBright":
-      return instance.whiteBright;
-  }
-};
+const applyNamedColor = (instance: ChalkInstance, color: NamedColor): ChalkInstance =>
+  instance[color] as ChalkInstance;
 
 const resolveBaseStyle = (style: ColorStyle): ChalkInstance => {
   switch (style.kind) {
