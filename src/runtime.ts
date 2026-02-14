@@ -1,20 +1,41 @@
-import { Effect, Exit, FiberRef, Option, Ref } from "effect";
+import { Console, Effect, Exit, FiberRef, Option, Ref } from "effect";
+import { mergeWith } from "es-toolkit/object";
 import { formatWithOptions } from "node:util";
+import type { PartialDeep } from "type-fest";
+import { makeProgressConsole } from "./console";
 import { runProgressServiceRenderer } from "./renderer";
 import type { AddTaskOptions, ProgressService, UpdateTaskOptions } from "./types";
 import {
-  decodeProgressConfigSync,
-  defaultProgressConfig,
+  decodeProgressBarConfigSync,
+  decodeRendererConfigSync,
+  defaultProgressBarConfig,
+  defaultRendererConfig,
   DeterminateTaskUnits,
   IndeterminateTaskUnits,
   Progress,
-  ProgressConfig,
+  ProgressBarConfig,
+  RendererConfig,
   TaskId,
   TaskSnapshot,
 } from "./types";
 import { inferTotal } from "./utils";
 
 const DIRTY_DEBOUNCE_INTERVAL = "10 millis";
+
+const mergeConfig = <T extends Record<PropertyKey, any>>(
+  base: T,
+  override: PartialDeep<T> | undefined,
+): T =>
+  mergeWith(
+    structuredClone(base),
+    (override ?? {}) as Record<PropertyKey, any>,
+    (_targetValue, sourceValue) => {
+      if (Array.isArray(sourceValue)) {
+        return sourceValue;
+      }
+      return undefined;
+    },
+  ) as T;
 
 const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): TaskSnapshot => {
   const currentUnits = snapshot.units;
@@ -55,13 +76,27 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): Ta
     status: snapshot.status,
     transient: options.transient ?? snapshot.transient,
     units,
+    progressbar: snapshot.progressbar,
   });
 };
 
 export const makeProgressService = Effect.gen(function* () {
-  const configOption = yield* Effect.serviceOption(ProgressConfig);
-  const config = decodeProgressConfigSync(Option.getOrElse(configOption, () => defaultProgressConfig));
-  const maxRetainedLogLines = Math.max(0, Math.floor(config.renderer.maxLogLines ?? 0));
+  const rendererConfigOption = yield* Effect.serviceOption(RendererConfig);
+  const progressBarConfigOption = yield* Effect.serviceOption(ProgressBarConfig);
+
+  const rendererConfig = decodeRendererConfigSync(
+    mergeConfig(
+      defaultRendererConfig,
+      Option.isSome(rendererConfigOption) ? rendererConfigOption.value : undefined,
+    ),
+  );
+  const progressBarConfig = decodeProgressBarConfigSync(
+    mergeConfig(
+      defaultProgressBarConfig,
+      Option.isSome(progressBarConfigOption) ? progressBarConfigOption.value : undefined,
+    ),
+  );
+  const maxRetainedLogLines = Math.max(0, Math.floor(rendererConfig.maxLogLines ?? 0));
 
   const nextTaskIdRef = yield* Ref.make(0);
   const tasksRef = yield* Ref.make(new Map<TaskId, TaskSnapshot>());
@@ -69,17 +104,22 @@ export const makeProgressService = Effect.gen(function* () {
   const pendingLogsRef = yield* Ref.make<ReadonlyArray<string>>([]);
   const dirtyRef = yield* Ref.make(true);
   const dirtyScheduledRef = yield* Ref.make(false);
+  const rendererStartedRef = yield* Ref.make(false);
+  const rendererLatch = yield* Effect.makeLatch(false);
   const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
+  const scope = yield* Effect.scope;
 
-  yield* Effect.forkScoped(
+  yield* Effect.forkIn(
     runProgressServiceRenderer(
       tasksRef,
       logsRef,
       pendingLogsRef,
       dirtyRef,
-      config,
+      rendererConfig,
       maxRetainedLogLines,
+      rendererLatch,
     ),
+    scope,
   );
 
   const markDirty = Effect.gen(function* () {
@@ -110,6 +150,19 @@ export const makeProgressService = Effect.gen(function* () {
         options.total === undefined || options.total <= 0
           ? new IndeterminateTaskUnits({ spinnerFrame: 0 })
           : new DeterminateTaskUnits({ completed: 0, total: Math.max(0, options.total) });
+      const tasks = yield* Ref.get(tasksRef);
+      const parentSnapshot =
+        Option.isSome(parentId) ? tasks.get(parentId.value) : undefined;
+      const inheritedProgressBarConfig = parentSnapshot?.progressbar ?? progressBarConfig;
+      const resolvedProgressBarConfig = decodeProgressBarConfigSync(
+        mergeConfig(inheritedProgressBarConfig, options.progressbar),
+      );
+      const shouldOpenRenderer = yield* Ref.modify(rendererStartedRef, (started) =>
+        started ? [false, true] : [true, true],
+      );
+      if (shouldOpenRenderer) {
+        yield* rendererLatch.open;
+      }
 
       const snapshot = new TaskSnapshot({
         id: taskId,
@@ -118,6 +171,7 @@ export const makeProgressService = Effect.gen(function* () {
         status: "running",
         transient: options.transient ?? false,
         units,
+        progressbar: resolvedProgressBarConfig,
       });
 
       yield* Ref.update(tasksRef, (tasks) => {
@@ -157,9 +211,7 @@ export const makeProgressService = Effect.gen(function* () {
               total: snapshot.units.total,
             })
           : new IndeterminateTaskUnits({
-              spinnerFrame:
-                (snapshot.units.spinnerFrame + amount) %
-                Math.max(1, config.progressbar.spinnerFrames.length),
+              spinnerFrame: Math.max(0, snapshot.units.spinnerFrame + amount),
             });
 
       next.set(
@@ -171,6 +223,7 @@ export const makeProgressService = Effect.gen(function* () {
           status: snapshot.status,
           transient: snapshot.transient,
           units,
+          progressbar: snapshot.progressbar,
         }),
       );
 
@@ -205,6 +258,7 @@ export const makeProgressService = Effect.gen(function* () {
                   total: snapshot.units.total,
                 })
               : snapshot.units,
+          progressbar: snapshot.progressbar,
         }),
       );
       return next;
@@ -232,6 +286,7 @@ export const makeProgressService = Effect.gen(function* () {
           status: "failed",
           transient: snapshot.transient,
           units: snapshot.units,
+          progressbar: snapshot.progressbar,
         }),
       );
       return next;
@@ -243,9 +298,16 @@ export const makeProgressService = Effect.gen(function* () {
         return;
       }
 
+      const shouldOpenRenderer = yield* Ref.modify(rendererStartedRef, (started) =>
+        started ? [false, true] : [true, true],
+      );
+      if (shouldOpenRenderer) {
+        yield* rendererLatch.open;
+      }
+
       const message = formatWithOptions(
         {
-          colors: config.renderer.isTTY,
+          colors: rendererConfig.isTTY,
           depth: 6,
         },
         ...args,
@@ -263,6 +325,12 @@ export const makeProgressService = Effect.gen(function* () {
       }
 
       yield* markDirty;
+    });
+
+  const withCapturedLogs: ProgressService["withCapturedLogs"] = (effect) =>
+    Effect.gen(function* () {
+      const outerConsole = yield* Console.consoleWith((console) => Effect.succeed(console));
+      return yield* Effect.withConsole(effect, makeProgressConsole(log, outerConsole));
     });
 
   const getTask = (taskId: TaskId) =>
@@ -304,6 +372,7 @@ export const makeProgressService = Effect.gen(function* () {
         description: options.description,
         total: options.total ?? inferTotal(iterable),
         transient: options.transient,
+        progressbar: options.progressbar,
       },
       (taskId) => {
         return Effect.forEach(iterable, (item, index) =>
@@ -312,16 +381,19 @@ export const makeProgressService = Effect.gen(function* () {
       },
     );
 
-  return Progress.of({
+  const service: ProgressService = {
     addTask,
     updateTask,
     advanceTask,
     completeTask,
     failTask,
     log,
+    withCapturedLogs,
     getTask,
     listTasks,
     withTask,
     trackIterable,
-  });
+  };
+
+  return Progress.of(service);
 });

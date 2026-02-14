@@ -44,6 +44,14 @@ const advancedProgram = Effect.gen(function* () {
                 }),
               {
                 description: `Worker ${index + 1} pipeline`,
+                progressbar: {
+                  barWidth: 20,
+                  spinnerFrames: [".", "o", "O", "0"],
+                  colors: {
+                    fill: { kind: "named", value: "blueBright" },
+                    spinner: { kind: "named", value: "magentaBright" },
+                  },
+                },
               },
             );
 
@@ -71,18 +79,15 @@ const advancedProgram = Effect.gen(function* () {
   }
 
   yield* progress.completeTask(deployTask);
-  yield* Console.log("All advanced progress examples finished.");
+  yield* progress.withCapturedLogs(Console.log("All advanced progress examples finished."));
 });
 
-const configuredProgram = Effect.provideService(advancedProgram, Progress.ProgressConfig, {
-  ...Progress.defaultProgressConfig,
-  renderer: {
-    ...Progress.defaultProgressConfig.renderer,
+const configuredProgram = Progress.provide(advancedProgram).pipe(
+  Effect.provideService(Progress.RendererConfig, {
     nonTtyUpdateStep: 2,
     maxLogLines: 12,
-  },
-  progressbar: {
-    ...Progress.defaultProgressConfig.progressbar,
+  }),
+  Effect.provideService(Progress.ProgressBarConfig, {
     barWidth: 36,
     colors: {
       fill: { kind: "hex", value: "#00b894" },
@@ -93,7 +98,7 @@ const configuredProgram = Effect.provideService(advancedProgram, Progress.Progre
       done: { kind: "named", value: "greenBright" },
       failed: { kind: "named", value: "redBright", modifiers: ["bold"] },
     },
-  },
-});
+  }),
+);
 
-Effect.runPromise(Progress.withProgressService(configuredProgram));
+Effect.runPromise(configuredProgram);

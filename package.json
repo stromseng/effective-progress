@@ -31,7 +31,9 @@
   },
   "dependencies": {
     "chalk": "^5.6.2",
-    "effect": "^3.19.16"
+    "effect": "^3.19.16",
+    "es-toolkit": "^1.44.0",
+    "type-fest": "^5.4.4"
   },
   "devDependencies": {
     "@effect/language-service": "^0.73.1",

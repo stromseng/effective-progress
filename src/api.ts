@@ -1,6 +1,5 @@
-import { Console, Effect, Option } from "effect";
+import { Effect, Option } from "effect";
 import type { Concurrency } from "effect/Types";
-import { makeProgressConsole } from "./console";
 import { makeProgressService } from "./runtime";
 import { Progress } from "./types";
 import type { TrackOptions } from "./types";
@@ -32,23 +31,17 @@ export interface ForEachExecutionOptions extends EffectExecutionOptions {
 
 export type ForEachOptions = TrackOptions & ForEachExecutionOptions;
 
-export const withProgressService = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+export const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
-    const outerConsole = yield* Console.consoleWith((console) => Effect.succeed(console));
     const existing = yield* Effect.serviceOption(Progress);
     if (Option.isSome(existing)) {
-      const console = makeProgressConsole(existing.value, outerConsole);
-      return yield* Effect.withConsole(
-        Effect.provideService(effect, Progress, existing.value),
-        console,
-      );
+      return yield* Effect.provideService(effect, Progress, existing.value);
     }
 
     return yield* Effect.scoped(
       Effect.gen(function* () {
         const service = yield* makeProgressService;
-        const console = makeProgressConsole(service, outerConsole);
-        return yield* Effect.withConsole(Effect.provideService(effect, Progress, service), console);
+        return yield* Effect.provideService(effect, Progress, service);
       }),
     );
   });
@@ -60,7 +53,7 @@ export const all = <
   effects: Arg,
   options: Omit<TrackOptions, "total"> & O,
 ): AllReturn<Arg, O> =>
-  withProgressService(
+  provide(
     Effect.gen(function* () {
       const progress = yield* Progress;
       return yield* progress.withTask(
@@ -68,10 +61,13 @@ export const all = <
           description: options.description,
           total: effects.length,
           transient: options.transient,
+          progressbar: options.progressbar,
         },
         (taskId) =>
           Effect.all(
-            effects.map((effect) => Effect.tap(effect, () => progress.advanceTask(taskId, 1))),
+            effects.map((effect) =>
+              Effect.tap(progress.withCapturedLogs(effect), () => progress.advanceTask(taskId, 1)),
+            ),
             {
               concurrency: options.concurrency,
               batching: options.batching,
@@ -89,7 +85,7 @@ export const forEach = <A, B, E, R>(
   f: (item: A, index: number) => Effect.Effect<B, E, R>,
   options: ForEachOptions,
 ): Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress>> =>
-  withProgressService(
+  provide(
     Effect.gen(function* () {
       const progress = yield* Progress;
 
@@ -98,11 +94,15 @@ export const forEach = <A, B, E, R>(
           description: options.description,
           total: options.total ?? inferTotal(iterable),
           transient: options.transient,
+          progressbar: options.progressbar,
         },
         (taskId) =>
           Effect.forEach(
             iterable,
-            (item, index) => Effect.tap(f(item, index), () => progress.advanceTask(taskId, 1)),
+            (item, index) =>
+              Effect.tap(progress.withCapturedLogs(f(item, index)), () =>
+                progress.advanceTask(taskId, 1),
+              ),
             {
               concurrency: options.concurrency,
               batching: options.batching,

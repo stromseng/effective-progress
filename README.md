@@ -4,6 +4,7 @@
 
 > [!WARNING]
 > Pre-`1.0.0`, breaking changes may happen in any release. SemVer guarantees will begin at `1.0.0`.
+> I recommend using only the `Progress.all` and `Progress.forEach` APIs for now, as they will likely change the least. The lower-level APIs for manual progress bar control are more likely to see breaking changes as I iterate on the design.
 >
 > Please open an issue or reach out if you have any questions or want to contribute!
 > Feedback and contributions are very welcome!
@@ -84,9 +85,72 @@ Effect.runPromise(program);
 
 ## Log retention
 
-- `renderer.maxLogLines` controls in-memory log retention.
-- `renderer.maxLogLines` omitted or set to `0` means no log history is kept in memory.
-- `renderer.maxLogLines > 0` keeps only the latest `N` log lines in memory.
+- `maxLogLines` on `RendererConfig` controls in-memory log retention.
+- Omitted or set to `0` means no log history is kept in memory.
+- `maxLogLines > 0` keeps only the latest `N` log lines in memory.
+
+## Configuring renderer and progress bars
+
+Configure global renderer behavior once, and a global base progress bar style:
+
+```ts
+import { Effect } from "effect";
+import * as Progress from "effective-progress";
+
+const configured = program.pipe(
+  Effect.provideService(Progress.RendererConfig, {
+    maxLogLines: 12,
+    nonTtyUpdateStep: 2,
+  }),
+  Effect.provideService(Progress.ProgressBarConfig, {
+    barWidth: 36,
+    colors: {
+      fill: { kind: "hex", value: "#00b894" },
+      spinner: { kind: "ansi256", value: 214 },
+    },
+  }),
+);
+
+Effect.runPromise(configured);
+```
+
+Task-level `progressbar` config is optional and inherits from its parent task (or from global `ProgressBarConfig` for root tasks):
+
+```ts
+yield *
+  progress.withTask(
+    {
+      description: "Worker pipeline",
+      progressbar: {
+        barWidth: 20,
+        spinnerFrames: [".", "o", "O", "0"],
+        colors: {
+          spinner: { kind: "named", value: "magentaBright" },
+        },
+      },
+    },
+    () => Effect.sleep("1 second"),
+  );
+```
+
+For manual service usage, capture logs explicitly:
+
+```ts
+const program = Progress.provide(
+  Effect.gen(function* () {
+    const progress = yield* Progress.Progress;
+
+    yield* progress.withTask({ description: "Manual task" }, () =>
+      progress.withCapturedLogs(
+        Effect.gen(function* () {
+          yield* Console.log("This log is rendered through progress output");
+          yield* Effect.sleep("1 second");
+        }),
+      ),
+    );
+  }),
+);
+```
 
 ## Progress bar colors
 
@@ -125,7 +189,7 @@ Supported modifiers:
 
 ## Dependencies & package size
 
-The only dependencies in this project are `effect` and `chalk`. You will already be dependant on `effect` and most likely `chalk` if doing any coloring, so package size likely wont be a concern.
+This library is designed for CLI workflows, where package size is typically a lower-priority concern. Alongside `effect`, it relies on two mature runtime dependencies: `chalk` and `es-toolkit`.
 
 ## Notes
 

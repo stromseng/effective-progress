@@ -1,19 +1,21 @@
-import { Effect, Ref } from "effect";
+import { Effect, Ref, Schema } from "effect";
 import {
   type CompiledProgressBarColors,
   compileProgressBarColors,
+  ProgressBarColorsSchema,
 } from "./colors";
-import type { ProgressConfigShape } from "./types";
+import type { ProgressBarConfigShape, RendererConfigShape } from "./types";
 import { DeterminateTaskUnits, TaskId, TaskSnapshot } from "./types";
 
 const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
 const CLEAR_LINE = "\x1b[2K";
 const MOVE_UP_ONE = "\x1b[1A";
+const encodeProgressBarColorsKey = Schema.encodeSync(Schema.parseJson(ProgressBarColorsSchema));
 
 const renderDeterminate = (
   units: DeterminateTaskUnits,
-  progressbar: ProgressConfigShape["progressbar"],
+  progressbar: ProgressBarConfigShape,
   colors: CompiledProgressBarColors,
 ): string => {
   const safeTotal = units.total <= 0 ? 1 : units.total;
@@ -28,9 +30,9 @@ const buildTaskLine = (
   snapshot: TaskSnapshot,
   depth: number,
   tick: number,
-  progressbar: ProgressConfigShape["progressbar"],
   colors: CompiledProgressBarColors,
 ): string => {
+  const progressbar = snapshot.progressbar;
   const prefix = `${"  ".repeat(depth)}- ${snapshot.description}: `;
 
   if (snapshot.status === "failed") {
@@ -82,19 +84,31 @@ export const runProgressServiceRenderer = (
   logsRef: Ref.Ref<ReadonlyArray<string>>,
   pendingLogsRef: Ref.Ref<ReadonlyArray<string>>,
   dirtyRef: Ref.Ref<boolean>,
-  config: ProgressConfigShape,
+  rendererConfig: RendererConfigShape,
   maxRetainedLogLines: number,
+  rendererLatch: Effect.Latch,
 ) => {
-  const rendererConfig = config.renderer;
-  const progressbarConfig = config.progressbar;
-  const colors = compileProgressBarColors(progressbarConfig.colors);
   const isTTY = rendererConfig.isTTY;
   const retainLogHistory = maxRetainedLogLines > 0;
+  const colorCache = new Map<string, CompiledProgressBarColors>();
   let previousLineCount = 0;
   let previousTaskLineCount = 0;
   let nonTTYTaskSignatureById = new Map<number, string>();
   let tick = 0;
+  let rendererActive = false;
   let teardownInput: (() => void) | undefined;
+
+  const getCompiledColors = (progressbar: ProgressBarConfigShape): CompiledProgressBarColors => {
+    const key = encodeProgressBarColorsKey(progressbar.colors);
+    const cached = colorCache.get(key);
+    if (cached) {
+      return cached;
+    }
+
+    const compiled = compileProgressBarColors(progressbar.colors);
+    colorCache.set(key, compiled);
+    return compiled;
+  };
 
   const clearTTYLines = (lineCount: number) => {
     if (lineCount <= 0) {
@@ -148,7 +162,7 @@ export const runProgressServiceRenderer = (
       const frameTick = mode === "final" ? tick + 1 : tick;
       const taskLines = ordered.map(({ snapshot, depth }) => {
         const lineTick = isTTY ? frameTick : 0;
-        return buildTaskLine(snapshot, depth, lineTick, progressbarConfig, colors);
+        return buildTaskLine(snapshot, depth, lineTick, getCompiledColors(snapshot.progressbar));
       });
 
       if (isTTY) {
@@ -181,6 +195,9 @@ export const runProgressServiceRenderer = (
     });
 
   return Effect.gen(function* () {
+    yield* rendererLatch.await;
+    rendererActive = true;
+
     if (isTTY) {
       process.stderr.write(HIDE_CURSOR);
 
@@ -230,6 +247,10 @@ export const runProgressServiceRenderer = (
   }).pipe(
     Effect.ensuring(
       Effect.gen(function* () {
+        if (!rendererActive) {
+          return;
+        }
+
         yield* renderFrame("final");
 
         if (isTTY) {

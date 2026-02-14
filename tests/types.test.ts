@@ -1,87 +1,101 @@
 import { describe, expect, test } from "bun:test";
 import { Schema } from "effect";
-import { defaultProgressConfig, ProgressConfigSchema } from "../src/types";
+import { mergeWith } from "es-toolkit/object";
+import {
+  defaultProgressBarConfig,
+  defaultRendererConfig,
+  ProgressBarConfigSchema,
+  RendererConfigSchema,
+} from "../src/types";
 
-const decodeProgressConfig = Schema.decodeUnknownSync(ProgressConfigSchema);
+const decodeProgressBarConfig = Schema.decodeUnknownSync(ProgressBarConfigSchema);
+const decodeRendererConfig = Schema.decodeUnknownSync(RendererConfigSchema);
 
-describe("ProgressConfigSchema colors validation", () => {
-  test("accepts valid progressbar colors", () => {
-    const config: unknown = {
-      ...defaultProgressConfig,
-      progressbar: {
-        ...defaultProgressConfig.progressbar,
-        colors: {
-          fill: { kind: "named", value: "cyanBright" },
-          empty: { kind: "hex", value: "#334155", modifiers: ["dim"] },
-          brackets: { kind: "rgb", value: { r: 148, g: 163, b: 184 } },
-          percent: { kind: "named", value: "white", modifiers: ["bold"] },
-          spinner: { kind: "ansi256", value: 214 },
-          done: { kind: "named", value: "greenBright" },
-          failed: { kind: "named", value: "redBright", modifiers: ["bold"] },
-        },
+const mergeConfig = <T extends Record<PropertyKey, any>>(base: T, override: unknown): unknown =>
+  mergeWith(
+    structuredClone(base),
+    (override ?? {}) as Record<PropertyKey, any>,
+    (_targetValue, sourceValue) => {
+      if (Array.isArray(sourceValue)) {
+        return sourceValue;
+      }
+      return undefined;
+    },
+  );
+
+describe("ProgressBarConfigSchema merge + validation", () => {
+  test("accepts valid merged progressbar colors", () => {
+    const config = mergeConfig(defaultProgressBarConfig, {
+      colors: {
+        fill: { kind: "named", value: "cyanBright" },
+        empty: { kind: "hex", value: "#334155", modifiers: ["dim"] },
+        brackets: { kind: "rgb", value: { r: 148, g: 163, b: 184 } },
+        percent: { kind: "named", value: "white", modifiers: ["bold"] },
+        spinner: { kind: "ansi256", value: 214 },
+        done: { kind: "named", value: "greenBright" },
+        failed: { kind: "named", value: "redBright", modifiers: ["bold"] },
       },
-    };
+    });
 
-    expect(() => decodeProgressConfig(config)).not.toThrow();
+    expect(() => decodeProgressBarConfig(config)).not.toThrow();
   });
 
-  test("rejects invalid named color", () => {
-    const invalidConfig: unknown = {
-      ...defaultProgressConfig,
-      progressbar: {
-        ...defaultProgressConfig.progressbar,
-        colors: {
-          ...defaultProgressConfig.progressbar.colors,
-          fill: { kind: "named", value: "not-a-color" },
-        },
+  test("rejects invalid named color after merge", () => {
+    const config = mergeConfig(defaultProgressBarConfig, {
+      colors: {
+        fill: { kind: "named", value: "not-a-color" },
       },
-    };
+    });
 
-    expect(() => decodeProgressConfig(invalidConfig)).toThrow();
+    expect(() => decodeProgressBarConfig(config)).toThrow();
   });
 
-  test("rejects invalid hex color", () => {
-    const invalidConfig: unknown = {
-      ...defaultProgressConfig,
-      progressbar: {
-        ...defaultProgressConfig.progressbar,
-        colors: {
-          ...defaultProgressConfig.progressbar.colors,
-          fill: { kind: "hex", value: "00b894" },
-        },
+  test("rejects invalid hex color after merge", () => {
+    const config = mergeConfig(defaultProgressBarConfig, {
+      colors: {
+        fill: { kind: "hex", value: "00b894" },
       },
-    };
+    });
 
-    expect(() => decodeProgressConfig(invalidConfig)).toThrow();
+    expect(() => decodeProgressBarConfig(config)).toThrow();
   });
 
-  test("rejects out-of-range rgb channel", () => {
-    const invalidConfig: unknown = {
-      ...defaultProgressConfig,
-      progressbar: {
-        ...defaultProgressConfig.progressbar,
-        colors: {
-          ...defaultProgressConfig.progressbar.colors,
-          fill: { kind: "rgb", value: { r: 256, g: 184, b: 148 } },
-        },
+  test("rejects out-of-range rgb channel after merge", () => {
+    const config = mergeConfig(defaultProgressBarConfig, {
+      colors: {
+        fill: { kind: "rgb", value: { r: 256, g: 184, b: 148 } },
       },
-    };
+    });
 
-    expect(() => decodeProgressConfig(invalidConfig)).toThrow();
+    expect(() => decodeProgressBarConfig(config)).toThrow();
   });
 
-  test("rejects out-of-range ansi256 value", () => {
-    const invalidConfig: unknown = {
-      ...defaultProgressConfig,
-      progressbar: {
-        ...defaultProgressConfig.progressbar,
-        colors: {
-          ...defaultProgressConfig.progressbar.colors,
-          fill: { kind: "ansi256", value: -1 },
-        },
+  test("rejects out-of-range ansi256 value after merge", () => {
+    const config = mergeConfig(defaultProgressBarConfig, {
+      colors: {
+        fill: { kind: "ansi256", value: -1 },
       },
-    };
+    });
 
-    expect(() => decodeProgressConfig(invalidConfig)).toThrow();
+    expect(() => decodeProgressBarConfig(config)).toThrow();
+  });
+});
+
+describe("RendererConfigSchema merge + validation", () => {
+  test("accepts valid partial override after merge", () => {
+    const config = mergeConfig(defaultRendererConfig, {
+      renderIntervalMillis: 25,
+      maxLogLines: 10,
+    });
+
+    expect(() => decodeRendererConfig(config)).not.toThrow();
+  });
+
+  test("rejects invalid type after merge", () => {
+    const config = mergeConfig(defaultRendererConfig, {
+      renderIntervalMillis: "fast",
+    });
+
+    expect(() => decodeRendererConfig(config)).toThrow();
   });
 });

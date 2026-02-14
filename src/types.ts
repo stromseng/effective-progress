@@ -1,4 +1,5 @@
 import { Brand, Context, Effect, Option, Schema } from "effect";
+import type { PartialDeep } from "type-fest";
 import { defaultProgressBarColors, ProgressBarColorsSchema } from "./colors";
 
 export const RendererConfigSchema = Schema.Struct({
@@ -8,8 +9,10 @@ export const RendererConfigSchema = Schema.Struct({
   maxLogLines: Schema.optional(Schema.Number),
   nonTtyUpdateStep: Schema.Number,
 });
+export type RendererConfigShape = typeof RendererConfigSchema.Type;
+export const decodeRendererConfigSync = Schema.decodeUnknownSync(RendererConfigSchema);
 
-export const ProgressBarDisplayConfigSchema = Schema.Struct({
+export const ProgressBarConfigSchema = Schema.Struct({
   spinnerFrames: Schema.NonEmptyArray(Schema.String),
   barWidth: Schema.Number,
   fillChar: Schema.String,
@@ -18,37 +21,35 @@ export const ProgressBarDisplayConfigSchema = Schema.Struct({
   rightBracket: Schema.String,
   colors: ProgressBarColorsSchema,
 });
+export type ProgressBarConfigShape = typeof ProgressBarConfigSchema.Type;
+export const decodeProgressBarConfigSync = Schema.decodeUnknownSync(ProgressBarConfigSchema);
 
-export const ProgressConfigSchema = Schema.Struct({
-  renderer: RendererConfigSchema,
-  progressbar: ProgressBarDisplayConfigSchema,
-});
-
-export type ProgressConfigShape = typeof ProgressConfigSchema.Type;
-export const decodeProgressConfigSync = Schema.decodeUnknownSync(ProgressConfigSchema);
-
-export const defaultProgressConfig: ProgressConfigShape = {
-  renderer: {
-    isTTY: Boolean(process.stderr.isTTY),
-    disableUserInput: true,
-    renderIntervalMillis: 50, // 20 FPS
-    maxLogLines: 0,
-    nonTtyUpdateStep: 5,
-  },
-  progressbar: {
-    spinnerFrames: ["-", "\\", "|", "/"],
-    barWidth: 30,
-    fillChar: "━",
-    emptyChar: "─",
-    leftBracket: "",
-    rightBracket: "",
-    colors: defaultProgressBarColors,
-  },
+export const defaultRendererConfig: RendererConfigShape = {
+  isTTY: Boolean(process.stderr.isTTY),
+  disableUserInput: true,
+  renderIntervalMillis: 50, // 20 FPS
+  maxLogLines: 0,
+  nonTtyUpdateStep: 5,
 };
 
-export class ProgressConfig extends Context.Tag("stromseng.dev/ProgressConfig")<
-  ProgressConfig,
-  ProgressConfigShape
+export const defaultProgressBarConfig: ProgressBarConfigShape = {
+  spinnerFrames: ["-", "\\", "|", "/"],
+  barWidth: 30,
+  fillChar: "━",
+  emptyChar: "─",
+  leftBracket: "",
+  rightBracket: "",
+  colors: defaultProgressBarColors,
+};
+
+export class RendererConfig extends Context.Tag("stromseng.dev/RendererConfig")<
+  RendererConfig,
+  PartialDeep<RendererConfigShape>
+>() {}
+
+export class ProgressBarConfig extends Context.Tag("stromseng.dev/ProgressBarConfig")<
+  ProgressBarConfig,
+  PartialDeep<ProgressBarConfigShape>
 >() {}
 
 const TaskIdSchema = Schema.Number.pipe(Schema.brand("TaskId"));
@@ -65,6 +66,7 @@ export interface AddTaskOptions {
   readonly total?: number;
   readonly transient?: boolean;
   readonly parentId?: TaskId;
+  readonly progressbar?: PartialDeep<ProgressBarConfigShape>;
 }
 
 export interface UpdateTaskOptions {
@@ -102,6 +104,7 @@ export class TaskSnapshot extends Schema.TaggedClass<TaskSnapshot>()("TaskSnapsh
   status: TaskStatusSchema,
   transient: Schema.Boolean,
   units: TaskUnitsSchema,
+  progressbar: ProgressBarConfigSchema,
 }) {}
 
 export interface ProgressService {
@@ -111,6 +114,7 @@ export interface ProgressService {
   readonly completeTask: (taskId: TaskId) => Effect.Effect<void>;
   readonly failTask: (taskId: TaskId) => Effect.Effect<void>;
   readonly log: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>;
+  readonly withCapturedLogs: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>;
   readonly getTask: (taskId: TaskId) => Effect.Effect<Option.Option<TaskSnapshot>>;
   readonly listTasks: Effect.Effect<ReadonlyArray<TaskSnapshot>>;
   readonly withTask: <A, E, R>(

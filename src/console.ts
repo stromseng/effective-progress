@@ -1,14 +1,13 @@
 import { Console, Effect } from "effect";
 import { formatWithOptions } from "node:util";
-import type { ProgressService } from "./types";
 
 export const makeProgressConsole = (
-  progress: ProgressService,
+  progressLog: (...args: ReadonlyArray<unknown>) => Effect.Effect<void, never, never>,
   outerConsole: Console.Console,
 ): Console.Console => {
-  const log = (...args: ReadonlyArray<unknown>) => progress.log(...args);
+  const log = (...args: ReadonlyArray<unknown>) => progressLog(...args);
   const unsafeLog = (...args: ReadonlyArray<unknown>) => {
-    Effect.runFork(progress.log(...args));
+    Effect.runFork(progressLog(...args));
   };
 
   const delegate = (effect: Effect.Effect<void, never, never>) => effect;
