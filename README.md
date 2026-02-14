@@ -1,5 +1,8 @@
 # effective-progress
 
+> [!WARNING]
+> Pre-`1.0.0`, breaking changes may happen in any release. SemVer guarantees will begin at `1.0.0`.
+
 `effective-progress` is an [Effect](https://effect.website/)-first terminal progress library with:
 
 - multiple progress bars
@@ -111,12 +114,14 @@ progressbar: {
 ```
 
 Supported color styles:
+
 - `named` (for example `cyan`, `greenBright`)
 - `hex` (for example `#00b894`)
 - `rgb` (for example `{ r: 0, g: 184, b: 148 }`)
 - `ansi256` (for example `214`)
 
 Supported modifiers:
+
 - `bold`, `dim`, `italic`, `underline`, `inverse`, `hidden`, `strikethrough`
 
 ## Notes
