@@ -43,12 +43,7 @@ const program = Progress.all(
 Effect.runPromise(program);
 ```
 
-```bash
-bun run examples/basic.ts
-Completed task 1
-Completed task 2
-- Running tasks in parallel: ━━━━━━━━━━━━────────────────── 2/5  40%
-```
+<img alt="Basic example output" src="docs/images/basic.gif" width="600" />
 
 ## Nested example
 
@@ -79,12 +74,7 @@ const program = Progress.all(
 Effect.runPromise(program);
 ```
 
-```bash
-❯ bun run examples/nesting.ts
-- Running tasks in parallel: ━━━━━━━━━━━━────────────────── 2/5  40%
-  - Running subtasks for task 3: ━━━━━━━━────────────────────── 4/15  27%
-  - Running subtasks for task 4: ━━━━━━━━────────────────────── 4/15  27%
-```
+<img alt="Nested example output" src="docs/images/nesting.gif" width="600" />
 
 ## Other examples
 

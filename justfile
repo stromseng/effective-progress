@@ -10,9 +10,11 @@ tag-and-push version:
     git tag "$TAG"
     git push origin main "$TAG"
 
-# Record the showcase example to docs/images/showcase.gif.
-record-showcase-gif:
+# Record all README demo GIFs.
+record-gifs:
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p docs/images
+    vhs docs/tapes/basic.tape
+    vhs docs/tapes/nesting.tape
     vhs docs/tapes/showcase.tape
