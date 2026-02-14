@@ -2,7 +2,9 @@
 
 > [!WARNING]
 > Pre-`1.0.0`, breaking changes may happen in any release. SemVer guarantees will begin at `1.0.0`.
+>
 > Please open an issue or reach out if you have any questions or want to contribute!
+> Feedback and contributions are very welcome!
 
 <img alt="Showcase output" src="docs/images/showcase.gif" width="600" />
 
@@ -134,5 +136,4 @@ The only dependencies in this project are `effect` and `chalk`. You will already
 
 ## Notes
 
-- This is a WIP library, so expect breaking changes. Feedback and contributions are very welcome!
 - As Effect 4.0 is around the corner with some changes to logging, there may be some adjustments needed to align with the new Effect APIs.
