@@ -12,7 +12,19 @@ export interface EffectExecutionOptions {
   readonly concurrentFinalizers?: boolean;
 }
 
-export type AllOptions = Omit<TrackOptions, "total"> & EffectExecutionOptions;
+export interface EffectAllExecutionOptions extends EffectExecutionOptions {
+  readonly discard?: boolean;
+  readonly mode?: "default" | "validate" | "either";
+}
+
+export type AllOptions = Omit<TrackOptions, "total"> & EffectAllExecutionOptions;
+export type AllReturn<
+  Arg extends ReadonlyArray<Effect.Effect<any, any, any>>,
+  O extends EffectAllExecutionOptions,
+> =
+  [Effect.All.ReturnTuple<Arg, Effect.All.IsDiscard<O>, Effect.All.ExtractMode<O>>] extends
+    [Effect.Effect<infer A, infer E, infer R>] ? Effect.Effect<A, E, Exclude<R, Progress>>
+  : never;
 
 export interface ForEachExecutionOptions extends EffectExecutionOptions {
   readonly discard?: false | undefined;
@@ -41,10 +53,13 @@ export const withProgressService = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     );
   });
 
-export const all = <A, E, R>(
-  effects: ReadonlyArray<Effect.Effect<A, E, R>>,
-  options: AllOptions,
-): Effect.Effect<ReadonlyArray<A>, E, Exclude<R, Progress>> =>
+export const all = <
+  const Arg extends ReadonlyArray<Effect.Effect<any, any, any>>,
+  O extends EffectAllExecutionOptions,
+>(
+  effects: Arg,
+  options: Omit<TrackOptions, "total"> & O,
+): AllReturn<Arg, O> =>
   withProgressService(
     Effect.gen(function* () {
       const progress = yield* Progress;
@@ -60,12 +75,14 @@ export const all = <A, E, R>(
             {
               concurrency: options.concurrency,
               batching: options.batching,
+              discard: options.discard,
+              mode: options.mode,
               concurrentFinalizers: options.concurrentFinalizers,
             },
           ),
       );
     }),
-  );
+  ) as AllReturn<Arg, O>;
 
 export const forEach = <A, B, E, R>(
   iterable: Iterable<A>,
