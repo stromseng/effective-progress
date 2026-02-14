@@ -12,7 +12,7 @@ export const ProgressBarConfigSchema = Schema.Struct({
   emptyChar: Schema.String,
   leftBracket: Schema.String,
   rightBracket: Schema.String,
-  maxLogLines: Schema.Number,
+  maxLogLines: Schema.optional(Schema.Number),
   nonTtyUpdateStep: Schema.Number,
 });
 

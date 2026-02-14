@@ -80,6 +80,12 @@ Effect.runPromise(program);
 - `examples/simpleExample.ts` - low-boilerplate real-world flow
 - `examples/advancedExample.ts` - full API usage with custom config and manual task control
 
+## Log retention
+
+- `maxLogLines` controls in-memory log retention.
+- `maxLogLines` omitted or set to `0` means no log history is kept in memory.
+- `maxLogLines > 0` keeps only the latest `N` log lines in memory.
+
 ## Notes
 
 - This is a WIP library, so expect breaking changes. Feedback and contributions are very welcome!

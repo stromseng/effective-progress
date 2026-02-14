@@ -60,16 +60,26 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): Ta
 export const makeProgressService = Effect.gen(function* () {
   const configOption = yield* Effect.serviceOption(ProgressBarConfig);
   const config = Option.getOrElse(configOption, () => defaultProgressBarConfig);
+  const maxRetainedLogLines = Math.max(0, Math.floor(config.maxLogLines ?? 0));
 
   const nextTaskIdRef = yield* Ref.make(0);
   const tasksRef = yield* Ref.make(new Map<TaskId, TaskSnapshot>());
-  const nextLogIdRef = yield* Ref.make(0);
-  const logsRef = yield* Ref.make<ReadonlyArray<{ id: number; message: string }>>([]);
+  const logsRef = yield* Ref.make<ReadonlyArray<string>>([]);
+  const pendingLogsRef = yield* Ref.make<ReadonlyArray<string>>([]);
   const dirtyRef = yield* Ref.make(true);
   const dirtyScheduledRef = yield* Ref.make(false);
   const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
 
-  yield* Effect.forkScoped(runProgressServiceRenderer(tasksRef, logsRef, dirtyRef, config));
+  yield* Effect.forkScoped(
+    runProgressServiceRenderer(
+      tasksRef,
+      logsRef,
+      pendingLogsRef,
+      dirtyRef,
+      config,
+      maxRetainedLogLines,
+    ),
+  );
 
   const markDirty = Effect.gen(function* () {
     const shouldSchedule = yield* Ref.modify(dirtyScheduledRef, (scheduled) =>
@@ -227,7 +237,6 @@ export const makeProgressService = Effect.gen(function* () {
 
   const log = (...args: ReadonlyArray<unknown>) =>
     Effect.gen(function* () {
-      const id = yield* Ref.updateAndGet(nextLogIdRef, (current) => current + 1);
       const message = formatWithOptions(
         {
           colors: config.isTTY,
@@ -236,17 +245,17 @@ export const makeProgressService = Effect.gen(function* () {
         ...args,
       );
 
-      yield* Ref.update(logsRef, (logs) => {
-        const maxLogLines = Math.floor(config.maxLogLines);
-        const next = [...logs, { id, message }];
-        if (maxLogLines <= 0) {
-          return next;
-        }
-        if (next.length <= maxLogLines) {
-          return next;
-        }
-        return next.slice(next.length - maxLogLines);
-      });
+      yield* Ref.update(pendingLogsRef, (logs) => [...logs, message]);
+      if (maxRetainedLogLines > 0) {
+        yield* Ref.update(logsRef, (logs) => {
+          const next = [...logs, message];
+          if (next.length <= maxRetainedLogLines) {
+            return next;
+          }
+          return next.slice(next.length - maxRetainedLogLines);
+        });
+      }
+
       yield* markDirty;
     });
 

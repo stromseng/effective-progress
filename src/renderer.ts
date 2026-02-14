@@ -9,11 +9,6 @@ const CLEAR_LINE = "\x1b[2K";
 const MOVE_UP_ONE = "\x1b[1A";
 const RENDER_INTERVAL = "80 millis";
 
-export interface LogEntry {
-  readonly id: number;
-  readonly message: string;
-}
-
 const renderDeterminate = (units: DeterminateTaskUnits, config: ProgressBarConfigShape): string => {
   const safeTotal = units.total <= 0 ? 1 : units.total;
   const ratio = Math.min(1, Math.max(0, units.completed / safeTotal));
@@ -76,82 +71,105 @@ const orderTasksForRender = (
 
 export const runProgressServiceRenderer = (
   tasksRef: Ref.Ref<Map<TaskId, TaskSnapshot>>,
-  logsRef: Ref.Ref<ReadonlyArray<LogEntry>>,
+  logsRef: Ref.Ref<ReadonlyArray<string>>,
+  pendingLogsRef: Ref.Ref<ReadonlyArray<string>>,
   dirtyRef: Ref.Ref<boolean>,
   config: ProgressBarConfigShape,
+  maxRetainedLogLines: number,
 ) => {
   const isTTY = config.isTTY;
+  const retainLogHistory = maxRetainedLogLines > 0;
   let previousLineCount = 0;
-  let nonTTYLastLogId = 0;
+  let previousTaskLineCount = 0;
   let nonTTYTaskSignatureById = new Map<number, string>();
   let tick = 0;
   let teardownInput: (() => void) | undefined;
 
-  return Effect.gen(function* () {
-    const clearTTY = () => {
-      let output = "\r" + CLEAR_LINE;
-      for (let i = 1; i < previousLineCount; i++) {
-        output += MOVE_UP_ONE + CLEAR_LINE;
+  const clearTTYLines = (lineCount: number) => {
+    if (lineCount <= 0) {
+      return;
+    }
+
+    let output = "\r" + CLEAR_LINE;
+    for (let i = 1; i < lineCount; i++) {
+      output += MOVE_UP_ONE + CLEAR_LINE;
+    }
+    process.stderr.write(output + "\r");
+  };
+
+  const renderNonTTYTaskUpdates = (
+    ordered: ReadonlyArray<{ snapshot: TaskSnapshot; depth: number }>,
+    taskLines: ReadonlyArray<string>,
+  ) => {
+    const nextTaskSignatureById = new Map<number, string>();
+    const changedTaskLines: Array<string> = [];
+    const nonTtyUpdateStep = Math.max(1, Math.floor(config.nonTtyUpdateStep));
+
+    for (let i = 0; i < ordered.length; i++) {
+      const taskId = ordered[i]!.snapshot.id as number;
+      const snapshot = ordered[i]!.snapshot;
+      const line = taskLines[i]!;
+      const signature =
+        snapshot.units._tag === "DeterminateTaskUnits"
+          ? `${snapshot.status}:${snapshot.description}:${Math.floor(snapshot.units.completed / nonTtyUpdateStep)}:${snapshot.units.total}`
+          : `${snapshot.status}:${snapshot.description}`;
+
+      nextTaskSignatureById.set(taskId, signature);
+      if (nonTTYTaskSignatureById.get(taskId) !== signature) {
+        changedTaskLines.push(line);
       }
-      process.stderr.write(output + "\r");
-      previousLineCount = 0;
-    };
+    }
 
-    const renderFrame = (mode: "tick" | "final") =>
-      Effect.gen(function* () {
-        const logs = yield* Ref.get(logsRef);
-        const snapshots = Array.from((yield* Ref.get(tasksRef)).values()).filter(
-          (task) => !(task.transient && task.status !== "running"),
-        );
-        const ordered = orderTasksForRender(snapshots);
-        const frameTick = mode === "final" ? tick + 1 : tick;
-        const taskLines = ordered.map(({ snapshot, depth }) => {
-          const lineTick = isTTY ? frameTick : 0;
-          return buildTaskLine(snapshot, depth, lineTick, config);
-        });
-        const logLines = logs.map((log) => log.message);
-        const lines = [...logLines, ...taskLines];
+    if (changedTaskLines.length > 0) {
+      process.stderr.write(changedTaskLines.join("\n") + "\n");
+    }
 
-        if (isTTY) {
-          clearTTY();
-          if (lines.length > 0) {
-            process.stderr.write(lines.join("\n"));
-            previousLineCount = lines.length;
-          }
-        } else {
-          const appendedLogs = logs.filter((log) => log.id > nonTTYLastLogId);
-          if (appendedLogs.length > 0) {
-            process.stderr.write(appendedLogs.map((log) => log.message).join("\n") + "\n");
-            nonTTYLastLogId = appendedLogs[appendedLogs.length - 1]?.id ?? nonTTYLastLogId;
-          }
+    nonTTYTaskSignatureById = nextTaskSignatureById;
+  };
 
-          const nextTaskSignatureById = new Map<number, string>();
-          const changedTaskLines: Array<string> = [];
-          const nonTtyUpdateStep = Math.max(1, Math.floor(config.nonTtyUpdateStep));
-
-          for (let i = 0; i < ordered.length; i++) {
-            const taskId = ordered[i]!.snapshot.id as number;
-            const snapshot = ordered[i]!.snapshot;
-            const line = taskLines[i]!;
-            const signature =
-              snapshot.units._tag === "DeterminateTaskUnits"
-                ? `${snapshot.status}:${snapshot.description}:${Math.floor(snapshot.units.completed / nonTtyUpdateStep)}:${snapshot.units.total}`
-                : `${snapshot.status}:${snapshot.description}`;
-
-            nextTaskSignatureById.set(taskId, signature);
-            if (nonTTYTaskSignatureById.get(taskId) !== signature) {
-              changedTaskLines.push(line);
-            }
-          }
-
-          if (changedTaskLines.length > 0) {
-            process.stderr.write(changedTaskLines.join("\n") + "\n");
-          }
-
-          nonTTYTaskSignatureById = nextTaskSignatureById;
-        }
+  const renderFrame = (mode: "tick" | "final") =>
+    Effect.gen(function* () {
+      const drainedLogs = yield* Ref.getAndSet(pendingLogsRef, []);
+      const snapshots = Array.from((yield* Ref.get(tasksRef)).values()).filter(
+        (task) => !(task.transient && task.status !== "running"),
+      );
+      const ordered = orderTasksForRender(snapshots);
+      const frameTick = mode === "final" ? tick + 1 : tick;
+      const taskLines = ordered.map(({ snapshot, depth }) => {
+        const lineTick = isTTY ? frameTick : 0;
+        return buildTaskLine(snapshot, depth, lineTick, config);
       });
 
+      if (isTTY) {
+        if (retainLogHistory) {
+          const historyLogs = yield* Ref.get(logsRef);
+          const lines = [...historyLogs, ...taskLines];
+          clearTTYLines(previousLineCount);
+          if (lines.length > 0) {
+            process.stderr.write(lines.join("\n"));
+          }
+          previousLineCount = lines.length;
+          return;
+        }
+
+        clearTTYLines(previousTaskLineCount);
+        if (drainedLogs.length > 0) {
+          process.stderr.write(drainedLogs.join("\n") + "\n");
+        }
+        if (taskLines.length > 0) {
+          process.stderr.write(taskLines.join("\n"));
+        }
+        previousTaskLineCount = taskLines.length;
+        return;
+      }
+
+      if (drainedLogs.length > 0) {
+        process.stderr.write(drainedLogs.join("\n") + "\n");
+      }
+      renderNonTTYTaskUpdates(ordered, taskLines);
+    });
+
+  return Effect.gen(function* () {
     if (isTTY) {
       process.stderr.write(HIDE_CURSOR);
 
@@ -201,60 +219,7 @@ export const runProgressServiceRenderer = (
   }).pipe(
     Effect.ensuring(
       Effect.gen(function* () {
-        const logs = yield* Ref.get(logsRef);
-        const snapshots = Array.from((yield* Ref.get(tasksRef)).values()).filter(
-          (task) => !(task.transient && task.status !== "running"),
-        );
-        const ordered = orderTasksForRender(snapshots);
-        const taskLines = ordered.map(({ snapshot, depth }) =>
-          buildTaskLine(snapshot, depth, tick + 1, config),
-        );
-        const logLines = logs.map((log) => log.message);
-        const lines = [...logLines, ...taskLines];
-
-        if (isTTY) {
-          let output = "\r" + CLEAR_LINE;
-          for (let i = 1; i < previousLineCount; i++) {
-            output += MOVE_UP_ONE + CLEAR_LINE;
-          }
-
-          if (lines.length > 0) {
-            process.stderr.write(output + "\r" + lines.join("\n"));
-          } else {
-            process.stderr.write(output + "\r");
-          }
-        } else {
-          const appendedLogs = logs.filter((log) => log.id > nonTTYLastLogId);
-          if (appendedLogs.length > 0) {
-            process.stderr.write(appendedLogs.map((log) => log.message).join("\n") + "\n");
-            nonTTYLastLogId = appendedLogs[appendedLogs.length - 1]?.id ?? nonTTYLastLogId;
-          }
-
-          const nextTaskSignatureById = new Map<number, string>();
-          const changedTaskLines: Array<string> = [];
-          const nonTtyUpdateStep = Math.max(1, Math.floor(config.nonTtyUpdateStep));
-
-          for (let i = 0; i < ordered.length; i++) {
-            const taskId = ordered[i]!.snapshot.id as number;
-            const snapshot = ordered[i]!.snapshot;
-            const line = taskLines[i]!;
-            const signature =
-              snapshot.units._tag === "DeterminateTaskUnits"
-                ? `${snapshot.status}:${snapshot.description}:${Math.floor(snapshot.units.completed / nonTtyUpdateStep)}:${snapshot.units.total}`
-                : `${snapshot.status}:${snapshot.description}`;
-
-            nextTaskSignatureById.set(taskId, signature);
-            if (nonTTYTaskSignatureById.get(taskId) !== signature) {
-              changedTaskLines.push(line);
-            }
-          }
-
-          if (changedTaskLines.length > 0) {
-            process.stderr.write(changedTaskLines.join("\n") + "\n");
-          }
-
-          nonTTYTaskSignatureById = nextTaskSignatureById;
-        }
+        yield* renderFrame("final");
 
         if (isTTY) {
           teardownInput?.();
