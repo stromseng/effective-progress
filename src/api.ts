@@ -130,5 +130,4 @@ export const track = <A, B, E, R>(
   iterable: Iterable<A>,
   options: TrackOptions,
   f: (item: A, index: number) => Effect.Effect<B, E, R>,
-): Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress>> =>
-  forEach(iterable, f, options);
+): Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress>> => forEach(iterable, f, options);

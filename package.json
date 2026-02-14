@@ -2,28 +2,32 @@
   "name": "effective-progress",
   "version": "0.1.0",
   "description": "Effect-first terminal progress bars with nested multibar support",
+  "homepage": "https://github.com/stromseng/effective-progress#readme",
+  "bugs": {
+    "url": "https://github.com/stromseng/effective-progress/issues"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/stromseng/effective-progress.git"
   },
-  "bugs": {
-    "url": "https://github.com/stromseng/effective-progress/issues"
-  },
-  "homepage": "https://github.com/stromseng/effective-progress#readme",
-  "type": "module",
-  "module": "index.ts",
   "files": [
     "index.ts",
     "src",
     "README.md",
     "LICENSE"
   ],
+  "type": "module",
+  "module": "index.ts",
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "prepare": "effect-language-service patch"
+    "prepare": "effect-language-service patch",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint .",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check ."
   },
   "dependencies": {
     "chalk": "^5.6.2",
@@ -32,6 +36,7 @@
   "devDependencies": {
     "@effect/language-service": "^0.73.1",
     "@types/bun": "latest",
+    "oxfmt": "^0.32.0",
     "oxlint": "^1.47.0"
   },
   "peerDependencies": {

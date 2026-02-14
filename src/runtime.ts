@@ -1,12 +1,7 @@
 import { Effect, Exit, FiberRef, Option, Ref } from "effect";
 import { formatWithOptions } from "node:util";
 import { runProgressServiceRenderer } from "./renderer";
-import type {
-  AddTaskOptions,
-  ProgressService,
-  TrackOptions,
-  UpdateTaskOptions,
-} from "./types";
+import type { AddTaskOptions, ProgressService, UpdateTaskOptions } from "./types";
 import {
   defaultProgressBarConfig,
   DeterminateTaskUnits,

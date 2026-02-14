@@ -1,11 +1,7 @@
 import { Effect, Ref } from "effect";
 import chalk from "chalk";
 import type { ProgressBarConfigShape } from "./types";
-import {
-  DeterminateTaskUnits,
-  TaskId,
-  TaskSnapshot,
-} from "./types";
+import { DeterminateTaskUnits, TaskId, TaskSnapshot } from "./types";
 
 const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
