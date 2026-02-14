@@ -82,9 +82,9 @@ Effect.runPromise(program);
 
 ## Log retention
 
-- `maxLogLines` controls in-memory log retention.
-- `maxLogLines` omitted or set to `0` means no log history is kept in memory.
-- `maxLogLines > 0` keeps only the latest `N` log lines in memory.
+- `renderer.maxLogLines` controls in-memory log retention.
+- `renderer.maxLogLines` omitted or set to `0` means no log history is kept in memory.
+- `renderer.maxLogLines > 0` keeps only the latest `N` log lines in memory.
 
 ## Notes
 

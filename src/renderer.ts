@@ -1,6 +1,6 @@
 import { Effect, Ref } from "effect";
 import chalk from "chalk";
-import type { ProgressBarConfigShape } from "./types";
+import type { ProgressConfigShape } from "./types";
 import { DeterminateTaskUnits, TaskId, TaskSnapshot } from "./types";
 
 const HIDE_CURSOR = "\x1b[?25l";
@@ -8,20 +8,23 @@ const SHOW_CURSOR = "\x1b[?25h";
 const CLEAR_LINE = "\x1b[2K";
 const MOVE_UP_ONE = "\x1b[1A";
 
-const renderDeterminate = (units: DeterminateTaskUnits, config: ProgressBarConfigShape): string => {
+const renderDeterminate = (
+  units: DeterminateTaskUnits,
+  progressbar: ProgressConfigShape["progressbar"],
+): string => {
   const safeTotal = units.total <= 0 ? 1 : units.total;
   const ratio = Math.min(1, Math.max(0, units.completed / safeTotal));
-  const filled = Math.round(ratio * config.barWidth);
-  const bar = `${chalk.cyan(config.fillChar.repeat(filled))}${chalk.dim(config.emptyChar.repeat(config.barWidth - filled))}`;
+  const filled = Math.round(ratio * progressbar.barWidth);
+  const bar = `${chalk.cyan(progressbar.fillChar.repeat(filled))}${chalk.dim(progressbar.emptyChar.repeat(progressbar.barWidth - filled))}`;
   const percent = String(Math.round(ratio * 100)).padStart(3, " ");
-  return `${chalk.dim(config.leftBracket)}${bar}${chalk.dim(config.rightBracket)} ${units.completed}/${units.total} ${chalk.bold(percent + "%")}`;
+  return `${chalk.dim(progressbar.leftBracket)}${bar}${chalk.dim(progressbar.rightBracket)} ${units.completed}/${units.total} ${chalk.bold(percent + "%")}`;
 };
 
 const buildTaskLine = (
   snapshot: TaskSnapshot,
   depth: number,
   tick: number,
-  config: ProgressBarConfigShape,
+  progressbar: ProgressConfigShape["progressbar"],
 ): string => {
   const prefix = `${"  ".repeat(depth)}- ${snapshot.description}: `;
 
@@ -37,10 +40,10 @@ const buildTaskLine = (
   }
 
   if (snapshot.units._tag === "DeterminateTaskUnits") {
-    return prefix + renderDeterminate(snapshot.units, config);
+    return prefix + renderDeterminate(snapshot.units, progressbar);
   }
 
-  const frames = config.spinnerFrames;
+  const frames = progressbar.spinnerFrames;
   const frameIndex = (snapshot.units.spinnerFrame + tick) % frames.length;
   return `${prefix}${chalk.yellow(frames[frameIndex])}`;
 };
@@ -73,10 +76,12 @@ export const runProgressServiceRenderer = (
   logsRef: Ref.Ref<ReadonlyArray<string>>,
   pendingLogsRef: Ref.Ref<ReadonlyArray<string>>,
   dirtyRef: Ref.Ref<boolean>,
-  config: ProgressBarConfigShape,
+  config: ProgressConfigShape,
   maxRetainedLogLines: number,
 ) => {
-  const isTTY = config.isTTY;
+  const rendererConfig = config.renderer;
+  const progressbarConfig = config.progressbar;
+  const isTTY = rendererConfig.isTTY;
   const retainLogHistory = maxRetainedLogLines > 0;
   let previousLineCount = 0;
   let previousTaskLineCount = 0;
@@ -102,7 +107,7 @@ export const runProgressServiceRenderer = (
   ) => {
     const nextTaskSignatureById = new Map<number, string>();
     const changedTaskLines: Array<string> = [];
-    const nonTtyUpdateStep = Math.max(1, Math.floor(config.nonTtyUpdateStep));
+    const nonTtyUpdateStep = Math.max(1, Math.floor(rendererConfig.nonTtyUpdateStep));
 
     for (let i = 0; i < ordered.length; i++) {
       const taskId = ordered[i]!.snapshot.id as number;
@@ -136,7 +141,7 @@ export const runProgressServiceRenderer = (
       const frameTick = mode === "final" ? tick + 1 : tick;
       const taskLines = ordered.map(({ snapshot, depth }) => {
         const lineTick = isTTY ? frameTick : 0;
-        return buildTaskLine(snapshot, depth, lineTick, config);
+        return buildTaskLine(snapshot, depth, lineTick, progressbarConfig);
       });
 
       if (isTTY) {
@@ -172,7 +177,7 @@ export const runProgressServiceRenderer = (
     if (isTTY) {
       process.stderr.write(HIDE_CURSOR);
 
-      if (config.disableUserInput && process.stdin.isTTY) {
+      if (rendererConfig.disableUserInput && process.stdin.isTTY) {
         const stdin = process.stdin;
         const wasRaw = Boolean(stdin.isRaw);
         stdin.resume();
@@ -213,7 +218,7 @@ export const runProgressServiceRenderer = (
       }
 
       tick += 1;
-      yield* Effect.sleep(Math.max(1, Math.floor(config.renderIntervalMillis)));
+      yield* Effect.sleep(Math.max(1, Math.floor(rendererConfig.renderIntervalMillis)));
     }
   }).pipe(
     Effect.ensuring(

@@ -1,41 +1,50 @@
 import { Brand, Context, Effect, Option, Schema } from "effect";
 
-export const SPINNER_FRAMES = ["-", "\\", "|", "/"] as const;
-export const DEFAULT_PROGRESS_BAR_WIDTH = 30;
-
-export const ProgressBarConfigSchema = Schema.Struct({
+export const RendererConfigSchema = Schema.Struct({
   isTTY: Schema.Boolean,
   disableUserInput: Schema.Boolean,
-  spinnerFrames: Schema.NonEmptyArray(Schema.String),
   renderIntervalMillis: Schema.Number,
+  maxLogLines: Schema.optional(Schema.Number),
+  nonTtyUpdateStep: Schema.Number,
+});
+
+export const ProgressBarDisplayConfigSchema = Schema.Struct({
+  spinnerFrames: Schema.NonEmptyArray(Schema.String),
   barWidth: Schema.Number,
   fillChar: Schema.String,
   emptyChar: Schema.String,
   leftBracket: Schema.String,
   rightBracket: Schema.String,
-  maxLogLines: Schema.optional(Schema.Number),
-  nonTtyUpdateStep: Schema.Number,
 });
 
-export type ProgressBarConfigShape = typeof ProgressBarConfigSchema.Type;
+export const ProgressConfigSchema = Schema.Struct({
+  renderer: RendererConfigSchema,
+  progressbar: ProgressBarDisplayConfigSchema,
+});
 
-export const defaultProgressBarConfig: ProgressBarConfigShape = {
-  isTTY: Boolean(process.stderr.isTTY),
-  disableUserInput: true,
-  spinnerFrames: SPINNER_FRAMES,
-  renderIntervalMillis: 80,
-  barWidth: DEFAULT_PROGRESS_BAR_WIDTH,
-  fillChar: "━",
-  emptyChar: "─",
-  leftBracket: "",
-  rightBracket: "",
-  maxLogLines: 0,
-  nonTtyUpdateStep: 5,
+export type ProgressConfigShape = typeof ProgressConfigSchema.Type;
+
+export const defaultProgressConfig: ProgressConfigShape = {
+  renderer: {
+    isTTY: Boolean(process.stderr.isTTY),
+    disableUserInput: true,
+    renderIntervalMillis: 50, // 20 FPS
+    maxLogLines: 0,
+    nonTtyUpdateStep: 5,
+  },
+  progressbar: {
+    spinnerFrames: ["-", "\\", "|", "/"],
+    barWidth: 30,
+    fillChar: "━",
+    emptyChar: "─",
+    leftBracket: "",
+    rightBracket: "",
+  },
 };
 
-export class ProgressBarConfig extends Context.Tag("stromseng.dev/ProgressBarConfig")<
-  ProgressBarConfig,
-  ProgressBarConfigShape
+export class ProgressConfig extends Context.Tag("stromseng.dev/ProgressConfig")<
+  ProgressConfig,
+  ProgressConfigShape
 >() {}
 
 const TaskIdSchema = Schema.Number.pipe(Schema.brand("TaskId"));

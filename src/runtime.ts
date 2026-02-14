@@ -3,11 +3,11 @@ import { formatWithOptions } from "node:util";
 import { runProgressServiceRenderer } from "./renderer";
 import type { AddTaskOptions, ProgressService, UpdateTaskOptions } from "./types";
 import {
-  defaultProgressBarConfig,
+  defaultProgressConfig,
   DeterminateTaskUnits,
   IndeterminateTaskUnits,
   Progress,
-  ProgressBarConfig,
+  ProgressConfig,
   TaskId,
   TaskSnapshot,
 } from "./types";
@@ -58,9 +58,9 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): Ta
 };
 
 export const makeProgressService = Effect.gen(function* () {
-  const configOption = yield* Effect.serviceOption(ProgressBarConfig);
-  const config = Option.getOrElse(configOption, () => defaultProgressBarConfig);
-  const maxRetainedLogLines = Math.max(0, Math.floor(config.maxLogLines ?? 0));
+  const configOption = yield* Effect.serviceOption(ProgressConfig);
+  const config = Option.getOrElse(configOption, () => defaultProgressConfig);
+  const maxRetainedLogLines = Math.max(0, Math.floor(config.renderer.maxLogLines ?? 0));
 
   const nextTaskIdRef = yield* Ref.make(0);
   const tasksRef = yield* Ref.make(new Map<TaskId, TaskSnapshot>());
@@ -157,7 +157,8 @@ export const makeProgressService = Effect.gen(function* () {
             })
           : new IndeterminateTaskUnits({
               spinnerFrame:
-                (snapshot.units.spinnerFrame + amount) % Math.max(1, config.spinnerFrames.length),
+                (snapshot.units.spinnerFrame + amount) %
+                Math.max(1, config.progressbar.spinnerFrames.length),
             });
 
       next.set(
@@ -243,7 +244,7 @@ export const makeProgressService = Effect.gen(function* () {
 
       const message = formatWithOptions(
         {
-          colors: config.isTTY,
+          colors: config.renderer.isTTY,
           depth: 6,
         },
         ...args,

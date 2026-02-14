@@ -74,11 +74,17 @@ const advancedProgram = Effect.gen(function* () {
   yield* Console.log("All advanced progress examples finished.");
 });
 
-const configuredProgram = Effect.provideService(advancedProgram, Progress.ProgressBarConfig, {
-  ...Progress.defaultProgressBarConfig,
-  barWidth: 36,
-  nonTtyUpdateStep: 2,
-  maxLogLines: 12,
+const configuredProgram = Effect.provideService(advancedProgram, Progress.ProgressConfig, {
+  ...Progress.defaultProgressConfig,
+  renderer: {
+    ...Progress.defaultProgressConfig.renderer,
+    nonTtyUpdateStep: 2,
+    maxLogLines: 12,
+  },
+  progressbar: {
+    ...Progress.defaultProgressConfig.progressbar,
+    barWidth: 36,
+  },
 });
 
 Effect.runPromise(Progress.withProgressService(configuredProgram));
