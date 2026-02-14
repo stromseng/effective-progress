@@ -16,7 +16,7 @@
 - nested child progress bars
 - spinner support for indeterminate work
 - clean log rendering alongside progress output, allowing you to simply use Effects `Console.log` or `Effect.logInfo`.
-- simple to use `.all` and `.forEach` APIs similar to the ones you already know and love from `effect`
+- simple to use `.all` and `.forEach` APIs similar to the ones you already know and love from `effect`. Just swap `Effect` for `Progress` and get progress bars for free!
 
 ## Install
 
