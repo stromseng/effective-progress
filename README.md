@@ -128,6 +128,10 @@ Supported modifiers:
 
 - `bold`, `dim`, `italic`, `underline`, `inverse`, `hidden`, `strikethrough`
 
+## Dependencies & package size
+
+The only dependencies in this project are `effect` and `chalk`. You will already be dependant on `effect` and most likely `chalk` if doing any coloring, so package size likely wont be a concern.
+
 ## Notes
 
 - This is a WIP library, so expect breaking changes. Feedback and contributions are very welcome!
