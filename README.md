@@ -1,6 +1,6 @@
 # effective-progress
 
-[![npm version](https://badgen.net/npm/v/effective-progress)](https://www.npmjs.com/package/effective-progress)
+[![npm version](https://img.shields.io/npm/v/effective-progress)](https://www.npmjs.com/package/effective-progress)
 
 > [!WARNING]
 > Pre-`1.0.0`, breaking changes may happen in any release. SemVer guarantees will begin at `1.0.0`.
