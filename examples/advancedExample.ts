@@ -84,6 +84,15 @@ const configuredProgram = Effect.provideService(advancedProgram, Progress.Progre
   progressbar: {
     ...Progress.defaultProgressConfig.progressbar,
     barWidth: 36,
+    colors: {
+      fill: { kind: "hex", value: "#00b894" },
+      empty: { kind: "named", value: "white", modifiers: ["dim"] },
+      brackets: { kind: "rgb", value: { r: 180, g: 190, b: 210 } },
+      percent: { kind: "named", value: "whiteBright", modifiers: ["bold"] },
+      spinner: { kind: "ansi256", value: 214 },
+      done: { kind: "named", value: "greenBright" },
+      failed: { kind: "named", value: "redBright", modifiers: ["bold"] },
+    },
   },
 });
 

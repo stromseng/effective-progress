@@ -86,6 +86,39 @@ Effect.runPromise(program);
 - `renderer.maxLogLines` omitted or set to `0` means no log history is kept in memory.
 - `renderer.maxLogLines > 0` keeps only the latest `N` log lines in memory.
 
+## Progress bar colors
+
+`progressbar.colors` is configured with typed color tokens that are validated by Effect Schema.
+
+```ts
+progressbar: {
+  spinnerFrames: ["-", "\\", "|", "/"],
+  barWidth: 30,
+  fillChar: "━",
+  emptyChar: "─",
+  leftBracket: "",
+  rightBracket: "",
+  colors: {
+    fill: { kind: "named", value: "cyan" },
+    empty: { kind: "hex", value: "#9ca3af", modifiers: ["dim"] },
+    brackets: { kind: "rgb", value: { r: 156, g: 163, b: 175 } },
+    percent: { kind: "named", value: "whiteBright", modifiers: ["bold"] },
+    spinner: { kind: "ansi256", value: 214 },
+    done: { kind: "named", value: "greenBright" },
+    failed: { kind: "named", value: "redBright", modifiers: ["bold"] },
+  },
+}
+```
+
+Supported color styles:
+- `named` (for example `cyan`, `greenBright`)
+- `hex` (for example `#00b894`)
+- `rgb` (for example `{ r: 0, g: 184, b: 148 }`)
+- `ansi256` (for example `214`)
+
+Supported modifiers:
+- `bold`, `dim`, `italic`, `underline`, `inverse`, `hidden`, `strikethrough`
+
 ## Notes
 
 - This is a WIP library, so expect breaking changes. Feedback and contributions are very welcome!

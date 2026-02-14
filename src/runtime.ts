@@ -3,6 +3,7 @@ import { formatWithOptions } from "node:util";
 import { runProgressServiceRenderer } from "./renderer";
 import type { AddTaskOptions, ProgressService, UpdateTaskOptions } from "./types";
 import {
+  decodeProgressConfigSync,
   defaultProgressConfig,
   DeterminateTaskUnits,
   IndeterminateTaskUnits,
@@ -59,7 +60,7 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): Ta
 
 export const makeProgressService = Effect.gen(function* () {
   const configOption = yield* Effect.serviceOption(ProgressConfig);
-  const config = Option.getOrElse(configOption, () => defaultProgressConfig);
+  const config = decodeProgressConfigSync(Option.getOrElse(configOption, () => defaultProgressConfig));
   const maxRetainedLogLines = Math.max(0, Math.floor(config.renderer.maxLogLines ?? 0));
 
   const nextTaskIdRef = yield* Ref.make(0);

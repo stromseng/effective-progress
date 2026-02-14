@@ -1,5 +1,8 @@
 import { Effect, Ref } from "effect";
-import chalk from "chalk";
+import {
+  type CompiledProgressBarColors,
+  compileProgressBarColors,
+} from "./colors";
 import type { ProgressConfigShape } from "./types";
 import { DeterminateTaskUnits, TaskId, TaskSnapshot } from "./types";
 
@@ -11,13 +14,14 @@ const MOVE_UP_ONE = "\x1b[1A";
 const renderDeterminate = (
   units: DeterminateTaskUnits,
   progressbar: ProgressConfigShape["progressbar"],
+  colors: CompiledProgressBarColors,
 ): string => {
   const safeTotal = units.total <= 0 ? 1 : units.total;
   const ratio = Math.min(1, Math.max(0, units.completed / safeTotal));
   const filled = Math.round(ratio * progressbar.barWidth);
-  const bar = `${chalk.cyan(progressbar.fillChar.repeat(filled))}${chalk.dim(progressbar.emptyChar.repeat(progressbar.barWidth - filled))}`;
+  const bar = `${colors.fill(progressbar.fillChar.repeat(filled))}${colors.empty(progressbar.emptyChar.repeat(progressbar.barWidth - filled))}`;
   const percent = String(Math.round(ratio * 100)).padStart(3, " ");
-  return `${chalk.dim(progressbar.leftBracket)}${bar}${chalk.dim(progressbar.rightBracket)} ${units.completed}/${units.total} ${chalk.bold(percent + "%")}`;
+  return `${colors.brackets(progressbar.leftBracket)}${bar}${colors.brackets(progressbar.rightBracket)} ${units.completed}/${units.total} ${colors.percent(percent + "%")}`;
 };
 
 const buildTaskLine = (
@@ -25,27 +29,29 @@ const buildTaskLine = (
   depth: number,
   tick: number,
   progressbar: ProgressConfigShape["progressbar"],
+  colors: CompiledProgressBarColors,
 ): string => {
   const prefix = `${"  ".repeat(depth)}- ${snapshot.description}: `;
 
   if (snapshot.status === "failed") {
-    return `${prefix}${chalk.red("[failed]")}`;
+    return `${prefix}${colors.failed("[failed]")}`;
   }
 
   if (snapshot.status === "done") {
     if (snapshot.units._tag === "DeterminateTaskUnits") {
-      return `${prefix}${chalk.green("[done]")} ${snapshot.units.completed}/${snapshot.units.total}`;
+      return `${prefix}${colors.done("[done]")} ${snapshot.units.completed}/${snapshot.units.total}`;
     }
-    return `${prefix}${chalk.green("[done]")}`;
+    return `${prefix}${colors.done("[done]")}`;
   }
 
   if (snapshot.units._tag === "DeterminateTaskUnits") {
-    return prefix + renderDeterminate(snapshot.units, progressbar);
+    return prefix + renderDeterminate(snapshot.units, progressbar, colors);
   }
 
   const frames = progressbar.spinnerFrames;
   const frameIndex = (snapshot.units.spinnerFrame + tick) % frames.length;
-  return `${prefix}${chalk.yellow(frames[frameIndex])}`;
+  const frame = frames[frameIndex] ?? frames[0]!;
+  return `${prefix}${colors.spinner(frame)}`;
 };
 
 const orderTasksForRender = (
@@ -81,6 +87,7 @@ export const runProgressServiceRenderer = (
 ) => {
   const rendererConfig = config.renderer;
   const progressbarConfig = config.progressbar;
+  const colors = compileProgressBarColors(progressbarConfig.colors);
   const isTTY = rendererConfig.isTTY;
   const retainLogHistory = maxRetainedLogLines > 0;
   let previousLineCount = 0;
@@ -141,7 +148,7 @@ export const runProgressServiceRenderer = (
       const frameTick = mode === "final" ? tick + 1 : tick;
       const taskLines = ordered.map(({ snapshot, depth }) => {
         const lineTick = isTTY ? frameTick : 0;
-        return buildTaskLine(snapshot, depth, lineTick, progressbarConfig);
+        return buildTaskLine(snapshot, depth, lineTick, progressbarConfig, colors);
       });
 
       if (isTTY) {

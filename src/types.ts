@@ -1,4 +1,5 @@
 import { Brand, Context, Effect, Option, Schema } from "effect";
+import { defaultProgressBarColors, ProgressBarColorsSchema } from "./colors";
 
 export const RendererConfigSchema = Schema.Struct({
   isTTY: Schema.Boolean,
@@ -15,6 +16,7 @@ export const ProgressBarDisplayConfigSchema = Schema.Struct({
   emptyChar: Schema.String,
   leftBracket: Schema.String,
   rightBracket: Schema.String,
+  colors: ProgressBarColorsSchema,
 });
 
 export const ProgressConfigSchema = Schema.Struct({
@@ -23,6 +25,7 @@ export const ProgressConfigSchema = Schema.Struct({
 });
 
 export type ProgressConfigShape = typeof ProgressConfigSchema.Type;
+export const decodeProgressConfigSync = Schema.decodeUnknownSync(ProgressConfigSchema);
 
 export const defaultProgressConfig: ProgressConfigShape = {
   renderer: {
@@ -39,6 +42,7 @@ export const defaultProgressConfig: ProgressConfigShape = {
     emptyChar: "─",
     leftBracket: "",
     rightBracket: "",
+    colors: defaultProgressBarColors,
   },
 };
 
