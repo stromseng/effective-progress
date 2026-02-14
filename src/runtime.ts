@@ -6,6 +6,7 @@ import {
   defaultProgressBarConfig,
   DeterminateTaskUnits,
   IndeterminateTaskUnits,
+  Progress,
   ProgressBarConfig,
   TaskId,
   TaskSnapshot,
@@ -62,10 +63,10 @@ export const makeProgressService = Effect.gen(function* () {
 
   const nextTaskIdRef = yield* Ref.make(0);
   const tasksRef = yield* Ref.make(new Map<TaskId, TaskSnapshot>());
+  const nextLogIdRef = yield* Ref.make(0);
   const logsRef = yield* Ref.make<ReadonlyArray<{ id: number; message: string }>>([]);
   const dirtyRef = yield* Ref.make(true);
   const dirtyScheduledRef = yield* Ref.make(false);
-  const nextLogIdRef = yield* Ref.make(0);
   const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
 
   yield* Effect.forkScoped(runProgressServiceRenderer(tasksRef, logsRef, dirtyRef, config));
@@ -297,7 +298,7 @@ export const makeProgressService = Effect.gen(function* () {
       },
     );
 
-  const service: ProgressService = {
+  return Progress.of({
     addTask,
     updateTask,
     advanceTask,
@@ -308,7 +309,5 @@ export const makeProgressService = Effect.gen(function* () {
     listTasks,
     withTask,
     trackIterable,
-  };
-
-  return service;
+  });
 });
