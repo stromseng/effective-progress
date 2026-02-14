@@ -82,6 +82,7 @@ Effect.runPromise(program);
 - `examples/simpleExample.ts` - low-boilerplate real-world flow
 - `examples/advancedExample.ts` - full API usage with custom config and manual task control
 - `examples/showcase.ts` - nested concurrent tasks, spinner workloads, and mixed Effect/Console logging
+- `examples/performance.ts` - stress-style run with high log volume and deeply nested progress updates
 
 ## Log retention
 
