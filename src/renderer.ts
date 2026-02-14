@@ -88,12 +88,12 @@ export const runProgressServiceRenderer = (
   rendererConfig: RendererConfigShape,
   maxRetainedLogLines: number,
   rendererLatch: Effect.Latch,
+  sessionIdleLatch: Effect.Latch,
 ) => {
   const isTTY = rendererConfig.isTTY;
   const retainLogHistory = maxRetainedLogLines > 0;
   const colorCache = new Map<string, CompiledProgressBarColors>();
   let previousLineCount = 0;
-  let previousTaskLineCount = 0;
   let nonTTYTaskSignatureById = new Map<number, string>();
   let tick = 0;
   let rendererActive = false;
@@ -111,18 +111,6 @@ export const runProgressServiceRenderer = (
     const compiled = compileProgressBarColors(progressbar.colors);
     colorCache.set(key, compiled);
     return compiled;
-  };
-
-  const clearTTYLines = (lineCount: number) => {
-    if (lineCount <= 0) {
-      return;
-    }
-
-    let output = "\r" + CLEAR_LINE;
-    for (let i = 1; i < lineCount; i++) {
-      output += MOVE_UP_ONE + CLEAR_LINE;
-    }
-    process.stderr.write(output + "\r");
   };
 
   const clipTTYFrameLines = (lines: ReadonlyArray<string>): ReadonlyArray<string> => {
@@ -147,11 +135,12 @@ export const runProgressServiceRenderer = (
     ];
   };
 
-  const startTTYSession = () => {
+  const startTTYSession = Effect.gen(function* () {
     if (!isTTY || sessionActive) {
       return;
     }
 
+    yield* sessionIdleLatch.close;
     process.stderr.write(HIDE_CURSOR);
 
     if (rendererConfig.disableUserInput && process.stdin.isTTY) {
@@ -180,9 +169,9 @@ export const runProgressServiceRenderer = (
     }
 
     sessionActive = true;
-  };
+  });
 
-  const stopTTYSession = () => {
+  const stopTTYSession = Effect.gen(function* () {
     if (!isTTY || !sessionActive) {
       return;
     }
@@ -191,10 +180,22 @@ export const runProgressServiceRenderer = (
     teardownInput = undefined;
     process.stderr.write("\n" + SHOW_CURSOR);
     previousLineCount = 0;
-    previousTaskLineCount = 0;
     sessionActive = false;
     sessionHadRunningTasks = false;
-  };
+
+    // Purge completed tasks and log history so the next session starts clean.
+    yield* Ref.set(logsRef, []);
+    yield* Ref.update(tasksRef, (tasks) => {
+      const next = new Map(tasks);
+      for (const [id, snapshot] of tasks) {
+        if (snapshot.status === "done" || snapshot.status === "failed") {
+          next.delete(id);
+        }
+      }
+      return next;
+    });
+    yield* sessionIdleLatch.open;
+  });
 
   const renderNonTTYTaskUpdates = (
     ordered: ReadonlyArray<{ snapshot: TaskSnapshot; depth: number }>,
@@ -240,25 +241,39 @@ export const runProgressServiceRenderer = (
       });
 
       if (isTTY) {
+        let frame = "";
+
+        // 1. Cursor reset — move up and clear previous frame lines
+        if (previousLineCount > 0) {
+          frame += "\r" + CLEAR_LINE;
+          for (let i = 1; i < previousLineCount; i++) {
+            frame += MOVE_UP_ONE + CLEAR_LINE;
+          }
+        }
+
         if (retainLogHistory) {
           const historyLogs = yield* Ref.get(logsRef);
           const lines = clipTTYFrameLines([...historyLogs, ...taskLines]);
-          clearTTYLines(previousLineCount);
           if (lines.length > 0) {
-            process.stderr.write(lines.join("\n"));
+            frame += lines.join("\n");
           }
           previousLineCount = lines.length;
-          return;
+        } else {
+          // 2. Logs (scroll above the task block)
+          if (drainedLogs.length > 0) {
+            frame += drainedLogs.join("\n") + "\n";
+          }
+          // 3. Task lines
+          if (taskLines.length > 0) {
+            frame += taskLines.join("\n");
+          }
+          previousLineCount = taskLines.length;
         }
 
-        clearTTYLines(previousTaskLineCount);
-        if (drainedLogs.length > 0) {
-          process.stderr.write(drainedLogs.join("\n") + "\n");
+        // 4. Single atomic write
+        if (frame) {
+          process.stderr.write(frame);
         }
-        if (taskLines.length > 0) {
-          process.stderr.write(taskLines.join("\n"));
-        }
-        previousTaskLineCount = taskLines.length;
         return;
       }
 
@@ -286,7 +301,7 @@ export const runProgressServiceRenderer = (
 
       if (isTTY) {
         if (!sessionActive && (hasRunningTasks || hasPendingLogs || hasTopLevelCapture)) {
-          startTTYSession();
+          yield* startTTYSession;
         }
 
         if (sessionActive) {
@@ -316,7 +331,7 @@ export const runProgressServiceRenderer = (
             if (sessionHadRunningTasks) {
               yield* renderFrame("final");
             }
-            stopTTYSession();
+            yield* stopTTYSession;
           }
         }
       } else if (dirty || hasActiveSpinners) {
@@ -336,7 +351,7 @@ export const runProgressServiceRenderer = (
         if (isTTY) {
           if (sessionActive) {
             yield* renderFrame("final");
-            stopTTYSession();
+            yield* stopTTYSession;
           }
           return;
         }

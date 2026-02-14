@@ -105,6 +105,7 @@ export const makeProgressService = Effect.gen(function* () {
   const dirtyRef = yield* Ref.make(true);
   const rendererStartedRef = yield* Ref.make(false);
   const rendererLatch = yield* Effect.makeLatch(false);
+  const sessionIdleLatch = yield* Effect.makeLatch(true);
   const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
   const scope = yield* Effect.scope;
 
@@ -127,6 +128,7 @@ export const makeProgressService = Effect.gen(function* () {
       rendererConfig,
       maxRetainedLogLines,
       rendererLatch,
+      sessionIdleLatch,
     ),
     scope,
   );
@@ -139,8 +141,7 @@ export const makeProgressService = Effect.gen(function* () {
     }
 
     yield* Ref.set(dirtyRef, true);
-    const settleMillis = Math.max(1, Math.floor(rendererConfig.renderIntervalMillis)) * 2;
-    yield* Effect.sleep(`${settleMillis} millis`);
+    yield* sessionIdleLatch.await;
   });
 
   const addTask = (options: AddTaskOptions) =>
@@ -335,6 +336,7 @@ export const makeProgressService = Effect.gen(function* () {
       }
 
       yield* openRendererIfNeeded;
+      yield* settleTopLevelRender;
       yield* Ref.update(topLevelCaptureCountRef, (count) => count + 1);
       yield* Ref.set(dirtyRef, true);
 
@@ -349,6 +351,7 @@ export const makeProgressService = Effect.gen(function* () {
         ),
       );
 
+      yield* sessionIdleLatch.close;
       yield* settleTopLevelRender;
 
       return yield* Exit.match(exit, {
@@ -367,6 +370,10 @@ export const makeProgressService = Effect.gen(function* () {
       const inheritedParentId = yield* FiberRef.get(currentParentRef);
       const resolvedParentId =
         options.parentId === undefined ? inheritedParentId : Option.some(options.parentId);
+
+      if (Option.isNone(resolvedParentId)) {
+        yield* settleTopLevelRender;
+      }
 
       const taskId = yield* addTask({
         ...options,
