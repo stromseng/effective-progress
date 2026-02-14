@@ -5,7 +5,7 @@
 - multiple progress bars
 - nested child progress bars
 - spinner support for indeterminate work
-- clean log rendering alongside progress output
+- clean log rendering alongside progress output, allowing you to simply use Effects `Console.log` or `Effect.logInfo`.
 
 ## Install
 
