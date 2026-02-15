@@ -1,4 +1,4 @@
-import { Console, Effect, Exit, FiberRef, Option, Ref } from "effect";
+import { Effect, Exit, FiberRef, Option, Ref } from "effect";
 import { mergeWith } from "es-toolkit/object";
 import { formatWithOptions } from "node:util";
 import type { PartialDeep } from "type-fest";
