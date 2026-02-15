@@ -8,7 +8,11 @@ const advancedProgram = Effect.gen(function* () {
     {
       description: "Bootstrapping environment",
     },
-    () => Effect.sleep("2 seconds"),
+    Effect.gen(function* () {
+      yield* Effect.sleep("2 seconds");
+      const currentTask = yield* Progress.Task;
+      yield* Console.log("Bootstrapped", { taskId: currentTask });
+    }),
   );
 
   yield* Progress.forEach(
@@ -30,33 +34,32 @@ const advancedProgram = Effect.gen(function* () {
         {
           description: `Worker ${index + 1}`,
         },
-        () =>
-          Effect.gen(function* () {
-            yield* Effect.sleep("700 millis");
+        Effect.gen(function* () {
+          yield* Effect.sleep("700 millis");
 
-            yield* Progress.forEach(
-              ["fetch", "transform", "persist"],
-              (stage) =>
-                Effect.gen(function* () {
-                  yield* Effect.sleep("650 millis");
-                  yield* Console.log(`Worker ${index + 1}: ${stage}`);
-                  return stage;
-                }),
-              {
-                description: `Worker ${index + 1} pipeline`,
-                progressbar: {
-                  barWidth: 20,
-                  spinnerFrames: [".", "o", "O", "0"],
-                  colors: {
-                    fill: { kind: "named", value: "blueBright" },
-                    spinner: { kind: "named", value: "magentaBright" },
-                  },
+          yield* Progress.forEach(
+            ["fetch", "transform", "persist"],
+            (stage) =>
+              Effect.gen(function* () {
+                yield* Effect.sleep("650 millis");
+                yield* Console.log(`Worker ${index + 1}: ${stage}`);
+                return stage;
+              }),
+            {
+              description: `Worker ${index + 1} pipeline`,
+              progressbar: {
+                barWidth: 20,
+                spinnerFrames: [".", "o", "O", "0"],
+                colors: {
+                  fill: { kind: "named", value: "blueBright" },
+                  spinner: { kind: "named", value: "magentaBright" },
                 },
               },
-            );
+            },
+          );
 
-            return `worker-${index + 1}`;
-          }),
+          return `worker-${index + 1}`;
+        }),
       ),
     ),
     {
@@ -79,10 +82,13 @@ const advancedProgram = Effect.gen(function* () {
   }
 
   yield* progress.completeTask(deployTask);
-  yield* progress.withCapturedLogs(Console.log("All advanced progress examples finished."));
+  yield* Console.log("All advanced progress examples finished.");
 });
 
-const configuredProgram = Progress.provide(advancedProgram).pipe(
+const configuredProgram = Progress.withTask(
+  { description: "Advanced example", transient: false },
+  advancedProgram,
+).pipe(
   Effect.provideService(Progress.RendererConfig, {
     nonTtyUpdateStep: 2,
     maxLogLines: 12,

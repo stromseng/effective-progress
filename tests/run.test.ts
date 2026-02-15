@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Console, Effect } from "effect";
+import { Console, Effect, Option } from "effect";
 import * as Progress from "../src";
 
 const withLogSpy = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
@@ -38,15 +38,9 @@ describe("Progress.run", () => {
   test("plain logs are not swallowed when no tasks are created", async () => {
     const message = "plain-log-no-task";
     const { logs } = await Effect.runPromise(
-      withLogSpy(
-        withNonTTYRenderer(
-          Progress.provide(
-            Effect.gen(function* () {
-              yield* Console.log(message);
-            }),
-          ),
-        ),
-      ),
+      withLogSpy(withNonTTYRenderer(Effect.gen(function* () {
+        yield* Console.log(message);
+      }))),
     );
 
     expect(logs.some((args) => args[0] === message)).toBeTrue();
@@ -55,10 +49,12 @@ describe("Progress.run", () => {
   test("nested run reuses the outer service", async () => {
     const reused = await Effect.runPromise(
       withNonTTYRenderer(
-        Progress.provide(
+        Progress.withTask(
+          { description: "outer-service", transient: true },
           Effect.gen(function* () {
             const outer = yield* Progress.Progress;
-            return yield* Progress.provide(
+            return yield* Progress.withTask(
+              { description: "inner-service", transient: true },
               Effect.gen(function* () {
                 const inner = yield* Progress.Progress;
                 return outer === inner;
@@ -72,34 +68,57 @@ describe("Progress.run", () => {
     expect(reused).toBeTrue();
   });
 
-  test("manual mode requires explicit withCapturedLogs for progress log capture", async () => {
-    const uncapturedMessage = "manual-uncaptured";
+  test("manual withTask auto-captures logs and provides Task context", async () => {
     const capturedMessage = "manual-captured";
 
-    const { logs } = await Effect.runPromise(
+    const { result, logs } = await Effect.runPromise(
       withLogSpy(
         withNonTTYRenderer(
-          Progress.provide(
+          Progress.withTask(
+            { description: "manual-context", transient: true },
             Effect.gen(function* () {
               const progress = yield* Progress.Progress;
 
-              yield* progress.withTask(
-                { description: "uncaptured-task" },
-                () => Console.log(uncapturedMessage),
+              const taskIdFromContext = yield* progress.withTask(
+                { description: "captured-task", transient: false },
+                Effect.gen(function* () {
+                  yield* Console.log(capturedMessage);
+                  return yield* Progress.Task;
+                }),
               );
 
-              yield* progress.withTask(
-                { description: "captured-task" },
-                () => progress.withCapturedLogs(Console.log(capturedMessage)),
-              );
+              const task = yield* progress.getTask(taskIdFromContext);
+              return Option.isSome(task);
             }),
           ),
         ),
       ),
     );
 
-    expect(logs.some((args) => args[0] === uncapturedMessage)).toBeTrue();
     expect(logs.some((args) => args[0] === capturedMessage)).toBeFalse();
+    expect(result).toBeTrue();
+  });
+
+  test("top-level Progress.withTask auto-provides Progress service", async () => {
+    const capturedMessage = "top-level-with-task";
+    const { result, logs } = await Effect.runPromise(
+      withLogSpy(
+        withNonTTYRenderer(
+          Progress.withTask(
+            { description: "top-level-task" },
+            Effect.gen(function* () {
+              const progress = yield* Progress.Progress;
+              const taskId = yield* Progress.Task;
+              yield* Console.log(capturedMessage);
+              return yield* progress.getTask(taskId).pipe(Effect.map(Option.isSome));
+            }),
+          ),
+        ),
+      ),
+    );
+
+    expect(logs.some((args) => args[0] === capturedMessage)).toBeFalse();
+    expect(result).toBeTrue();
   });
 
   test("all auto-captures callback Console.log", async () => {

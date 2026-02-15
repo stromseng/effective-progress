@@ -48,7 +48,8 @@ const program = Effect.gen(function* () {
   const progress = yield* Progress.Progress;
 
   // Fill log history early to exercise retention behavior while tasks render.
-  yield* progress.withCapturedLogs(
+  yield* progress.withTask(
+    { description: "Warmup logs", transient: true },
     Effect.forEach(
       Array.from({ length: BURST_LOG_LINES }, (_, i) => i + 1),
       (line) => Console.log(`warmup log ${line}/${BURST_LOG_LINES}`),
@@ -67,7 +68,10 @@ const program = Effect.gen(function* () {
   yield* Console.log("Performance stress example complete.");
 });
 
-const configuredProgram = Progress.provide(program).pipe(
+const configuredProgram = Progress.withTask(
+  { description: "Performance run", transient: false },
+  program,
+).pipe(
   Effect.provideService(Progress.RendererConfig, {
     maxLogLines: 10,
     renderIntervalMillis: 10,

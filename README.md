@@ -130,25 +130,19 @@ yield *
         },
       },
     },
-    () => Effect.sleep("1 second"),
+    Effect.sleep("1 second"),
   );
 ```
 
-For manual service usage, capture logs explicitly:
+For manual usage, `withTask` captures logs implicitly and provides the current `Task` context:
 
 ```ts
-const program = Progress.provide(
+const program = Progress.withTask(
+  { description: "Manual task" },
   Effect.gen(function* () {
-    const progress = yield* Progress.Progress;
-
-    yield* progress.withTask({ description: "Manual task" }, () =>
-      progress.withCapturedLogs(
-        Effect.gen(function* () {
-          yield* Console.log("This log is rendered through progress output");
-          yield* Effect.sleep("1 second");
-        }),
-      ),
-    );
+    const currentTask = yield* Progress.Task;
+    yield* Console.log("This log is rendered through progress output", { taskId: currentTask });
+    yield* Effect.sleep("1 second");
   }),
 );
 ```

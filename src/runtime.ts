@@ -15,6 +15,7 @@ import {
   Progress,
   ProgressBarConfig,
   RendererConfig,
+  Task,
   TaskId,
   TaskSnapshot,
 } from "./types";
@@ -100,48 +101,23 @@ export const makeProgressService = Effect.gen(function* () {
   const tasksRef = yield* Ref.make(new Map<TaskId, TaskSnapshot>());
   const logsRef = yield* Ref.make<ReadonlyArray<string>>([]);
   const pendingLogsRef = yield* Ref.make<ReadonlyArray<string>>([]);
-  const topLevelCaptureCountRef = yield* Ref.make(0);
   const dirtyRef = yield* Ref.make(true);
-  const rendererStartedRef = yield* Ref.make(false);
-  const rendererLatch = yield* Effect.makeLatch(false);
-  const sessionIdleLatch = yield* Effect.makeLatch(true);
   const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
   const scope = yield* Effect.scope;
-
-  const openRendererIfNeeded = Effect.gen(function* () {
-    const shouldOpenRenderer = yield* Ref.modify(rendererStartedRef, (started) =>
-      started ? [false, true] : [true, true],
-    );
-    if (shouldOpenRenderer) {
-      yield* rendererLatch.open;
-    }
-  });
 
   yield* Effect.forkIn(
     runProgressServiceRenderer(
       tasksRef,
       logsRef,
       pendingLogsRef,
-      topLevelCaptureCountRef,
       dirtyRef,
       rendererConfig,
       maxRetainedLogLines,
-      rendererLatch,
-      sessionIdleLatch,
     ),
     scope,
   );
 
   const markDirty = Ref.set(dirtyRef, true);
-
-  const settleTopLevelRender = Effect.gen(function* () {
-    if (!rendererConfig.isTTY) {
-      return;
-    }
-
-    yield* Ref.set(dirtyRef, true);
-    yield* sessionIdleLatch.await;
-  });
 
   const addTask = (options: AddTaskOptions) =>
     Effect.gen(function* () {
@@ -160,7 +136,6 @@ export const makeProgressService = Effect.gen(function* () {
       const resolvedProgressBarConfig = decodeProgressBarConfigSync(
         mergeConfig(inheritedProgressBarConfig, options.progressbar),
       );
-      yield* openRendererIfNeeded;
 
       const snapshot = new TaskSnapshot({
         id: taskId,
@@ -320,42 +295,7 @@ export const makeProgressService = Effect.gen(function* () {
 
   const log = (...args: ReadonlyArray<unknown>) =>
     Effect.gen(function* () {
-      yield* openRendererIfNeeded;
       yield* appendLog(args);
-    });
-
-  const withCapturedLogs: ProgressService["withCapturedLogs"] = (effect) =>
-    Effect.gen(function* () {
-      const outerConsole = yield* Effect.console;
-      const currentParent = yield* FiberRef.get(currentParentRef);
-
-      if (Option.isSome(currentParent)) {
-        return yield* Effect.withConsole(effect, makeProgressConsole(log, outerConsole));
-      }
-
-      yield* openRendererIfNeeded;
-      yield* settleTopLevelRender;
-      yield* Ref.update(topLevelCaptureCountRef, (count) => count + 1);
-      yield* Ref.set(dirtyRef, true);
-
-      const exit = yield* Effect.exit(
-        Effect.withConsole(effect, makeProgressConsole(log, outerConsole)),
-      ).pipe(
-        Effect.ensuring(
-          Effect.gen(function* () {
-            yield* Ref.update(topLevelCaptureCountRef, (count) => Math.max(0, count - 1));
-            yield* Ref.set(dirtyRef, true);
-          }),
-        ),
-      );
-
-      yield* sessionIdleLatch.close;
-      yield* settleTopLevelRender;
-
-      return yield* Exit.match(exit, {
-        onFailure: Effect.failCause,
-        onSuccess: Effect.succeed,
-      });
     });
 
   const getTask = (taskId: TaskId) =>
@@ -365,13 +305,10 @@ export const makeProgressService = Effect.gen(function* () {
 
   const withTask: ProgressService["withTask"] = (options, effect) =>
     Effect.gen(function* () {
+      const outerConsole = yield* Effect.console;
       const inheritedParentId = yield* FiberRef.get(currentParentRef);
       const resolvedParentId =
         options.parentId === undefined ? inheritedParentId : Option.some(options.parentId);
-
-      if (Option.isNone(resolvedParentId)) {
-        yield* settleTopLevelRender;
-      }
 
       const taskId = yield* addTask({
         ...options,
@@ -380,17 +317,20 @@ export const makeProgressService = Effect.gen(function* () {
       });
 
       const exit = yield* Effect.exit(
-        Effect.locally(effect(taskId), currentParentRef, Option.some(taskId)),
+        Effect.locally(
+          Effect.withConsole(
+            Effect.provideService(effect, Task, taskId),
+            makeProgressConsole(log, outerConsole),
+          ),
+          currentParentRef,
+          Option.some(taskId),
+        ),
       );
 
       if (Exit.isSuccess(exit)) {
         yield* completeTask(taskId);
       } else {
         yield* failTask(taskId);
-      }
-
-      if (Option.isNone(resolvedParentId)) {
-        yield* settleTopLevelRender;
       }
 
       return yield* Exit.match(exit, {
@@ -407,11 +347,12 @@ export const makeProgressService = Effect.gen(function* () {
         transient: options.transient,
         progressbar: options.progressbar,
       },
-      (taskId) => {
-        return Effect.forEach(iterable, (item, index) =>
+      Effect.gen(function* () {
+        const taskId = yield* Task;
+        return yield* Effect.forEach(iterable, (item, index) =>
           Effect.tap(f(item, index), () => advanceTask(taskId, 1)),
         );
-      },
+      }),
     );
 
   const service: ProgressService = {
@@ -421,7 +362,6 @@ export const makeProgressService = Effect.gen(function* () {
     completeTask,
     failTask,
     log,
-    withCapturedLogs,
     getTask,
     listTasks,
     withTask,
@@ -430,3 +370,20 @@ export const makeProgressService = Effect.gen(function* () {
 
   return Progress.of(service);
 });
+
+export const provideProgressService = <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E, Exclude<R, Progress>> =>
+  Effect.gen(function* () {
+    const existing = yield* Effect.serviceOption(Progress);
+    if (Option.isSome(existing)) {
+      return yield* Effect.provideService(effect, Progress, existing.value);
+    }
+
+    return yield* Effect.scoped(
+      Effect.gen(function* () {
+        const service = yield* makeProgressService;
+        return yield* Effect.provideService(effect, Progress, service);
+      }),
+    );
+  }) as Effect.Effect<A, E, Exclude<R, Progress>>;

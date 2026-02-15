@@ -114,21 +114,21 @@ export interface ProgressService {
   readonly completeTask: (taskId: TaskId) => Effect.Effect<void>;
   readonly failTask: (taskId: TaskId) => Effect.Effect<void>;
   readonly log: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>;
-  readonly withCapturedLogs: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>;
   readonly getTask: (taskId: TaskId) => Effect.Effect<Option.Option<TaskSnapshot>>;
   readonly listTasks: Effect.Effect<ReadonlyArray<TaskSnapshot>>;
   readonly withTask: <A, E, R>(
     options: AddTaskOptions,
-    effect: (taskId: TaskId) => Effect.Effect<A, E, R>,
-  ) => Effect.Effect<A, E, R>;
+    effect: Effect.Effect<A, E, R>,
+  ) => Effect.Effect<A, E, Exclude<R, Task>>;
   readonly trackIterable: <A, B, E, R>(
     iterable: Iterable<A>,
     options: TrackOptions,
     f: (item: A, index: number) => Effect.Effect<B, E, R>,
-  ) => Effect.Effect<ReadonlyArray<B>, E, R>;
+  ) => Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Task>>;
 }
 
 export class Progress extends Context.Tag("stromseng.dev/Progress")<Progress, ProgressService>() {}
+export class Task extends Context.Tag("stromseng.dev/Task")<Task, TaskId>() {}
 
 export class TaskAddedEvent extends Schema.TaggedClass<TaskAddedEvent>()("TaskAdded", {
   taskId: TaskIdSchema,

@@ -113,11 +113,11 @@ const renderFinalScreen = (stream: string): Array<string> => {
 
 describe("TTY renderer integration", () => {
   test("preserves plain interstitial logs and renders final done frame", async () => {
-    const program = Progress.provide(
+    const program = Progress.withTask(
+      { description: "tty-session", transient: false },
       Effect.gen(function* () {
-        const progress = yield* Progress.Progress;
-
-        yield* progress.withCapturedLogs(
+        yield* Progress.withTask(
+          { description: "Warmup logs", transient: true },
           Effect.forEach(
             Array.from({ length: 20 }, (_, i) => i + 1),
             (line) => Console.log(`warmup-${line}`),
@@ -127,6 +127,7 @@ describe("TTY renderer integration", () => {
 
         yield* Progress.all([Effect.sleep("10 millis")], {
           description: "First task",
+          transient: false,
         });
 
         yield* Effect.sync(() => {
@@ -135,6 +136,7 @@ describe("TTY renderer integration", () => {
 
         yield* Progress.all([Effect.sleep("10 millis")], {
           description: "Second task",
+          transient: false,
         });
       }),
     ).pipe(
@@ -150,19 +152,23 @@ describe("TTY renderer integration", () => {
     const { stream } = await captureTerminalOutput(program);
     const finalScreen = renderFinalScreen(stream);
 
+    expect(stream.split("\x1b[?25l").length - 1).toBe(1);
+    expect(stream.split("\x1b[?25h").length - 1).toBe(1);
     expect(finalScreen.some((line) => line.includes("warmup-18"))).toBeTrue();
     expect(finalScreen.some((line) => line.includes("warmup-19"))).toBeTrue();
     expect(finalScreen.some((line) => line.includes("warmup-20"))).toBeTrue();
-    expect(finalScreen.some((line) => line.includes("between-log"))).toBeTrue();
+    expect(stream.includes("between-log")).toBeTrue();
+    expect(finalScreen.some((line) => line.includes("First task"))).toBeTrue();
+    expect(finalScreen.some((line) => line.includes("Second task"))).toBeTrue();
     expect(finalScreen.some((line) => line.includes("[done]"))).toBeTrue();
   });
 
   test("enforces max log history in retained TTY mode", async () => {
-    const program = Progress.provide(
+    const program = Progress.withTask(
+      { description: "tty-session", transient: false },
       Effect.gen(function* () {
-        const progress = yield* Progress.Progress;
-
-        yield* progress.withCapturedLogs(
+        yield* Progress.withTask(
+          { description: "Warmup logs", transient: true },
           Effect.forEach(
             Array.from({ length: 20 }, (_, i) => i + 1),
             (line) => Console.log(`warmup-${line}`),
@@ -172,6 +178,7 @@ describe("TTY renderer integration", () => {
 
         yield* Progress.all([Effect.sleep("10 millis")], {
           description: "History task",
+          transient: false,
         });
       }),
     ).pipe(

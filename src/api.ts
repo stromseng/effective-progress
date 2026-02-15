@@ -1,8 +1,8 @@
-import { Effect, Option } from "effect";
+import { Effect } from "effect";
 import type { Concurrency } from "effect/Types";
-import { makeProgressService } from "./runtime";
-import { Progress } from "./types";
-import type { TrackOptions } from "./types";
+import { provideProgressService } from "./runtime";
+import { Progress, Task } from "./types";
+import type { AddTaskOptions, TrackOptions } from "./types";
 import { inferTotal } from "./utils";
 
 export interface EffectExecutionOptions {
@@ -22,7 +22,7 @@ export type AllReturn<
   O extends EffectAllExecutionOptions,
 > =
   [Effect.All.ReturnTuple<Arg, Effect.All.IsDiscard<O>, Effect.All.ExtractMode<O>>] extends
-    [Effect.Effect<infer A, infer E, infer R>] ? Effect.Effect<A, E, Exclude<R, Progress>>
+    [Effect.Effect<infer A, infer E, infer R>] ? Effect.Effect<A, E, Exclude<R, Progress | Task>>
   : never;
 
 export interface ForEachExecutionOptions extends EffectExecutionOptions {
@@ -31,20 +31,16 @@ export interface ForEachExecutionOptions extends EffectExecutionOptions {
 
 export type ForEachOptions = TrackOptions & ForEachExecutionOptions;
 
-export const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  Effect.gen(function* () {
-    const existing = yield* Effect.serviceOption(Progress);
-    if (Option.isSome(existing)) {
-      return yield* Effect.provideService(effect, Progress, existing.value);
-    }
-
-    return yield* Effect.scoped(
-      Effect.gen(function* () {
-        const service = yield* makeProgressService;
-        return yield* Effect.provideService(effect, Progress, service);
-      }),
-    );
-  });
+export const withTask = <A, E, R>(
+  options: AddTaskOptions,
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E, Exclude<R, Progress | Task>> =>
+  provideProgressService(
+    Effect.gen(function* () {
+      const progress = yield* Progress;
+      return yield* progress.withTask(options, effect);
+    }),
+  ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>;
 
 export const all = <
   const Arg extends ReadonlyArray<Effect.Effect<any, any, any>>,
@@ -53,7 +49,7 @@ export const all = <
   effects: Arg,
   options: Omit<TrackOptions, "total"> & O,
 ): AllReturn<Arg, O> =>
-  provide(
+  provideProgressService(
     Effect.gen(function* () {
       const progress = yield* Progress;
       return yield* progress.withTask(
@@ -63,11 +59,10 @@ export const all = <
           transient: options.transient,
           progressbar: options.progressbar,
         },
-        (taskId) =>
-          Effect.all(
-            effects.map((effect) =>
-              Effect.tap(progress.withCapturedLogs(effect), () => progress.advanceTask(taskId, 1)),
-            ),
+        Effect.gen(function* () {
+          const taskId = yield* Task;
+          return yield* Effect.all(
+            effects.map((effect) => Effect.tap(effect, () => progress.advanceTask(taskId, 1))),
             {
               concurrency: options.concurrency,
               batching: options.batching,
@@ -75,7 +70,8 @@ export const all = <
               mode: options.mode,
               concurrentFinalizers: options.concurrentFinalizers,
             },
-          ),
+          );
+        }),
       );
     }),
   ) as AllReturn<Arg, O>;
@@ -84,8 +80,8 @@ export const forEach = <A, B, E, R>(
   iterable: Iterable<A>,
   f: (item: A, index: number) => Effect.Effect<B, E, R>,
   options: ForEachOptions,
-): Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress>> =>
-  provide(
+): Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress | Task>> =>
+  provideProgressService(
     Effect.gen(function* () {
       const progress = yield* Progress;
 
@@ -96,20 +92,20 @@ export const forEach = <A, B, E, R>(
           transient: options.transient,
           progressbar: options.progressbar,
         },
-        (taskId) =>
-          Effect.forEach(
+        Effect.gen(function* () {
+          const taskId = yield* Task;
+          return yield* Effect.forEach(
             iterable,
             (item, index) =>
-              Effect.tap(progress.withCapturedLogs(f(item, index)), () =>
-                progress.advanceTask(taskId, 1),
-              ),
+              Effect.tap(f(item, index), () => progress.advanceTask(taskId, 1)),
             {
               concurrency: options.concurrency,
               batching: options.batching,
               discard: options.discard,
               concurrentFinalizers: options.concurrentFinalizers,
             },
-          ),
+          );
+        }),
       );
     }),
-  );
+  ) as Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress | Task>>;

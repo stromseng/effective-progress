@@ -83,12 +83,9 @@ export const runProgressServiceRenderer = (
   tasksRef: Ref.Ref<Map<TaskId, TaskSnapshot>>,
   logsRef: Ref.Ref<ReadonlyArray<string>>,
   pendingLogsRef: Ref.Ref<ReadonlyArray<string>>,
-  topLevelCaptureCountRef: Ref.Ref<number>,
   dirtyRef: Ref.Ref<boolean>,
   rendererConfig: RendererConfigShape,
   maxRetainedLogLines: number,
-  rendererLatch: Effect.Latch,
-  sessionIdleLatch: Effect.Latch,
 ) => {
   const isTTY = rendererConfig.isTTY;
   const retainLogHistory = maxRetainedLogLines > 0;
@@ -98,7 +95,6 @@ export const runProgressServiceRenderer = (
   let tick = 0;
   let rendererActive = false;
   let sessionActive = false;
-  let sessionHadRunningTasks = false;
   let teardownInput: (() => void) | undefined;
 
   const getCompiledColors = (progressbar: ProgressBarConfigShape): CompiledProgressBarColors => {
@@ -140,7 +136,6 @@ export const runProgressServiceRenderer = (
       return;
     }
 
-    yield* sessionIdleLatch.close;
     process.stderr.write(HIDE_CURSOR);
 
     if (rendererConfig.disableUserInput && process.stdin.isTTY) {
@@ -181,20 +176,6 @@ export const runProgressServiceRenderer = (
     process.stderr.write("\n" + SHOW_CURSOR);
     previousLineCount = 0;
     sessionActive = false;
-    sessionHadRunningTasks = false;
-
-    // Purge completed tasks and log history so the next session starts clean.
-    yield* Ref.set(logsRef, []);
-    yield* Ref.update(tasksRef, (tasks) => {
-      const next = new Map(tasks);
-      for (const [id, snapshot] of tasks) {
-        if (snapshot.status === "done" || snapshot.status === "failed") {
-          next.delete(id);
-        }
-      }
-      return next;
-    });
-    yield* sessionIdleLatch.open;
   });
 
   const renderNonTTYTaskUpdates = (
@@ -284,55 +265,24 @@ export const runProgressServiceRenderer = (
     });
 
   return Effect.gen(function* () {
-    yield* rendererLatch.await;
     rendererActive = true;
+    if (isTTY) {
+      yield* startTTYSession;
+    }
 
     while (true) {
       const dirty = yield* Ref.getAndSet(dirtyRef, false);
       const tasks = Array.from((yield* Ref.get(tasksRef)).values()).filter(
         (task) => !(task.transient && task.status !== "running"),
       );
-      const hasRunningTasks = tasks.some((task) => task.status === "running");
       const hasActiveSpinners = tasks.some(
         (task) => task.status === "running" && task.units._tag === "IndeterminateTaskUnits",
       );
       const hasPendingLogs = (yield* Ref.get(pendingLogsRef)).length > 0;
-      const hasTopLevelCapture = (yield* Ref.get(topLevelCaptureCountRef)) > 0;
 
       if (isTTY) {
-        if (!sessionActive && (hasRunningTasks || hasPendingLogs || hasTopLevelCapture)) {
-          yield* startTTYSession;
-        }
-
-        if (sessionActive) {
-          if (hasRunningTasks) {
-            sessionHadRunningTasks = true;
-          }
-
-          if (dirty || hasActiveSpinners || hasPendingLogs || hasTopLevelCapture) {
-            yield* renderFrame("tick");
-          }
-
-          const hasPendingLogsAfterRender = (yield* Ref.get(pendingLogsRef)).length > 0;
-          const dirtyAfterRender = yield* Ref.get(dirtyRef);
-          const hasTopLevelCaptureAfterRender = (yield* Ref.get(topLevelCaptureCountRef)) > 0;
-          const hasRunningTasksAfterRender = yield* Ref.get(tasksRef).pipe(
-            Effect.map((taskMap) =>
-              Array.from(taskMap.values()).some((task) => task.status === "running"),
-            ),
-          );
-          const isIdle =
-            !hasRunningTasksAfterRender &&
-            !hasPendingLogsAfterRender &&
-            !dirtyAfterRender &&
-            !hasTopLevelCaptureAfterRender;
-
-          if (isIdle) {
-            if (sessionHadRunningTasks) {
-              yield* renderFrame("final");
-            }
-            yield* stopTTYSession;
-          }
+        if (dirty || hasActiveSpinners || hasPendingLogs) {
+          yield* renderFrame("tick");
         }
       } else if (dirty || hasActiveSpinners) {
         yield* renderFrame("tick");
