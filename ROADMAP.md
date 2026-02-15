@@ -3,7 +3,6 @@
 ## Phase 1 — Foundation cleanup
 
 - [ ] Clean up architecture and API.
-- [ ] Optimize task storage to a data structure that natively supports depth first traversal to make printing nested task frames faster.
 - [ ] Add support for Effect.all Records, not only arrays.
 - [ ] Replace Maps with LRU Caches to prevent memory growth on long running tasks with many subtasks.
 
