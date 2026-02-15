@@ -124,6 +124,19 @@ describe("Progress.run", () => {
     expect(result).toBeTrue();
   });
 
+  test("all returns the values from each effect", async () => {
+    const result = await Effect.runPromise(
+      withNonTTYRenderer(
+        Progress.all(
+          [Effect.succeed(1), Effect.succeed("two"), Effect.succeed(true)],
+          { description: "return-values" },
+        ),
+      ),
+    );
+
+    expect(result).toEqual([1, "two", true]);
+  });
+
   test("all auto-captures callback Console.log", async () => {
     const capturedMessage = "all-auto-captured";
 
