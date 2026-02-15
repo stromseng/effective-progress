@@ -2,9 +2,7 @@ import { Console, Effect } from "effect";
 import * as Progress from "../src";
 
 const advancedProgram = Effect.gen(function* () {
-  const progress = yield* Progress.Progress;
-
-  yield* progress.withTask(
+  yield* Progress.withTask(
     {
       description: "Bootstrapping environment",
     },
@@ -30,7 +28,7 @@ const advancedProgram = Effect.gen(function* () {
 
   yield* Progress.all(
     Array.from({ length: 8 }, (_, index) =>
-      progress.withTask(
+      Progress.withTask(
         {
           description: `Worker ${index + 1}`,
         },
@@ -68,9 +66,12 @@ const advancedProgram = Effect.gen(function* () {
     },
   );
 
+  const progress = yield* Progress.Progress;
+
   const deployTask = yield* progress.addTask({
     description: "Manual deployment",
     total: 5,
+    transient: true,
   });
 
   for (let step = 1; step <= 5; step++) {
