@@ -3,6 +3,7 @@ import { dual } from "effect/Function";
 import { mergeWith } from "es-toolkit/object";
 import { formatWithOptions } from "node:util";
 import type { PartialDeep } from "type-fest";
+import { Colorizer, type ColorizerService } from "./colors";
 import { makeProgressConsole } from "./console";
 import { runProgressServiceRenderer } from "./renderer";
 import { ProgressTerminal } from "./terminal";
@@ -119,7 +120,6 @@ const removeFromRenderOrder = (
 const makeProgressService = Effect.gen(function* () {
   const rendererConfigOption = yield* Effect.serviceOption(RendererConfig);
   const progressBarConfigOption = yield* Effect.serviceOption(ProgressBarConfig);
-
   const rendererConfig = decodeRendererConfigSync(
     mergeConfig(
       defaultRendererConfig,
@@ -140,6 +140,7 @@ const makeProgressService = Effect.gen(function* () {
   const storeRef = yield* Ref.make<TaskStore>({
     tasks: new Map<TaskId, TaskSnapshot>(),
     renderOrder: [],
+    colorizers: new Map<TaskId, ColorizerService>(),
   });
   const logsRef = yield* Ref.make<ReadonlyArray<string>>([]);
   const pendingLogsRef = yield* Ref.make<ReadonlyArray<string>>([]);
@@ -169,6 +170,7 @@ const makeProgressService = Effect.gen(function* () {
         options.parentId === undefined
           ? yield* FiberRef.get(currentParentRef)
           : Option.some(options.parentId);
+      const colorizerOption = yield* Effect.serviceOption(Colorizer);
       const taskId = TaskId(yield* Ref.updateAndGet(nextTaskIdRef, (id) => id + 1));
       const units =
         options.total === undefined || options.total <= 0
@@ -203,7 +205,11 @@ const makeProgressService = Effect.gen(function* () {
         const { index, depth } = findInsertionIndex(s.renderOrder, parentIdValue);
         const nextOrder = [...s.renderOrder];
         nextOrder.splice(index, 0, { id: taskId, depth });
-        return { tasks: nextTasks, renderOrder: nextOrder };
+        const nextColorizers = new Map(s.colorizers);
+        if (Option.isSome(colorizerOption)) {
+          nextColorizers.set(taskId, colorizerOption.value);
+        }
+        return { tasks: nextTasks, renderOrder: nextOrder, colorizers: nextColorizers };
       });
       yield* markDirty;
 
@@ -216,7 +222,7 @@ const makeProgressService = Effect.gen(function* () {
       if (!snapshot) return store;
       const nextTasks = new Map(store.tasks);
       nextTasks.set(taskId, updatedSnapshot(snapshot, options));
-      return { tasks: nextTasks, renderOrder: store.renderOrder };
+      return { tasks: nextTasks, renderOrder: store.renderOrder, colorizers: store.colorizers };
     }).pipe(Effect.zipRight(markDirty));
 
   const advanceTask = (taskId: TaskId, amount = 1) =>
@@ -250,7 +256,7 @@ const makeProgressService = Effect.gen(function* () {
         }),
       );
 
-      return { tasks: nextTasks, renderOrder: store.renderOrder };
+      return { tasks: nextTasks, renderOrder: store.renderOrder, colorizers: store.colorizers };
     }).pipe(Effect.zipRight(markDirty));
 
   const completeTask = (taskId: TaskId) =>
@@ -263,7 +269,13 @@ const makeProgressService = Effect.gen(function* () {
         const nextTasks = new Map(store.tasks);
         if (snapshot.transient) {
           nextTasks.delete(taskId);
-          return { tasks: nextTasks, renderOrder: removeFromRenderOrder(store.renderOrder, taskId) };
+          const nextColorizers = new Map(store.colorizers);
+          nextColorizers.delete(taskId);
+          return {
+            tasks: nextTasks,
+            renderOrder: removeFromRenderOrder(store.renderOrder, taskId),
+            colorizers: nextColorizers,
+          };
         }
 
         nextTasks.set(
@@ -286,7 +298,7 @@ const makeProgressService = Effect.gen(function* () {
             completedAt: now,
           }),
         );
-        return { tasks: nextTasks, renderOrder: store.renderOrder };
+        return { tasks: nextTasks, renderOrder: store.renderOrder, colorizers: store.colorizers };
       });
       yield* markDirty;
     });
@@ -301,7 +313,13 @@ const makeProgressService = Effect.gen(function* () {
         const nextTasks = new Map(store.tasks);
         if (snapshot.transient) {
           nextTasks.delete(taskId);
-          return { tasks: nextTasks, renderOrder: removeFromRenderOrder(store.renderOrder, taskId) };
+          const nextColorizers = new Map(store.colorizers);
+          nextColorizers.delete(taskId);
+          return {
+            tasks: nextTasks,
+            renderOrder: removeFromRenderOrder(store.renderOrder, taskId),
+            colorizers: nextColorizers,
+          };
         }
 
         nextTasks.set(
@@ -318,7 +336,7 @@ const makeProgressService = Effect.gen(function* () {
             completedAt: now,
           }),
         );
-        return { tasks: nextTasks, renderOrder: store.renderOrder };
+        return { tasks: nextTasks, renderOrder: store.renderOrder, colorizers: store.colorizers };
       });
       yield* markDirty;
     });
@@ -424,22 +442,19 @@ const makeProgressService = Effect.gen(function* () {
   return Progress.of(service);
 });
 
-export class Progress extends Context.Tag("stromseng.dev/effective-progress/Progress")<Progress, ProgressService>() {
-  static readonly Default = Layer.scoped(Progress, makeProgressService);
+export class Progress extends Context.Tag("stromseng.dev/effective-progress/Progress")<
+  Progress,
+  ProgressService
+>() {
+  static readonly Default = Layer.unwrapEffect(
+    Effect.gen(function* () {
+      const colorizerOption = yield* Effect.serviceOption(Colorizer);
+      const terminalOption = yield* Effect.serviceOption(ProgressTerminal);
+      const base = Layer.scoped(Progress, makeProgressService);
+      return base.pipe(
+        Option.isNone(colorizerOption) ? Layer.provide(Colorizer.Default) : (l) => l,
+        Option.isNone(terminalOption) ? Layer.provide(ProgressTerminal.Default) : (l) => l,
+      );
+    }),
+  );
 }
-
-export const provideProgressService = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  Effect.gen(function* () {
-    const existing = yield* Effect.serviceOption(Progress);
-    if (Option.isSome(existing)) {
-      return yield* Effect.provideService(effect, Progress, existing.value);
-    }
-
-    const existingTerminal = yield* Effect.serviceOption(ProgressTerminal);
-    if (Option.isSome(existingTerminal)) {
-      return yield* Effect.scoped(effect.pipe(Effect.provide(Progress.Default)));
-    }
-
-    const defaultLayers = Layer.provide(Progress.Default, ProgressTerminal.Default);
-    return yield* Effect.scoped(effect.pipe(Effect.provide(defaultLayers)));
-  });

@@ -1,5 +1,7 @@
+import chalk from "chalk";
 import { Console, Effect } from "effect";
 import * as Progress from "../src";
+import { Colorizer } from "../src/colors";
 
 const advancedProgram = Effect.gen(function* () {
   yield* Progress.task(
@@ -45,12 +47,21 @@ const advancedProgram = Effect.gen(function* () {
               progressbar: {
                 barWidth: 20,
                 spinnerFrames: [".", "o", "O", "0"],
-                colors: {
-                  fill: { kind: "named", value: "blueBright" },
-                  spinner: { kind: "named", value: "magentaBright" },
-                },
               },
             },
+          ).pipe(
+            Effect.provideService(
+              Colorizer,
+              Colorizer.of({
+                fill: chalk.red,
+                empty: chalk.white.dim,
+                brackets: chalk.white.dim,
+                percent: chalk.white.bold,
+                spinner: chalk.magentaBright,
+                done: chalk.greenBright,
+                failed: chalk.redBright,
+              }),
+            ),
           );
 
           return `worker-${index + 1}`;
@@ -96,16 +107,19 @@ const configuredProgram = Progress.task(advancedProgram, {
   }),
   Effect.provideService(Progress.ProgressBarConfig, {
     barWidth: 36,
-    colors: {
-      fill: { kind: "hex", value: "#00b894" },
-      empty: { kind: "named", value: "white", modifiers: ["dim"] },
-      brackets: { kind: "rgb", value: { r: 180, g: 190, b: 210 } },
-      percent: { kind: "named", value: "whiteBright", modifiers: ["bold"] },
-      spinner: { kind: "ansi256", value: 214 },
-      done: { kind: "named", value: "greenBright" },
-      failed: { kind: "named", value: "redBright", modifiers: ["bold"] },
-    },
   }),
+  Effect.provideService(
+    Colorizer,
+    Colorizer.of({
+      fill: chalk.hex("#00b894"),
+      empty: chalk.white.dim,
+      brackets: chalk.rgb(180, 190, 210),
+      percent: chalk.whiteBright.bold,
+      spinner: chalk.ansi256(214),
+      done: chalk.greenBright,
+      failed: chalk.redBright.bold,
+    }),
+  ),
 );
 
 Effect.runPromise(configuredProgram);

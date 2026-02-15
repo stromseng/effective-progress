@@ -42,18 +42,20 @@ const withRawInputCapture: ProgressTerminalService["withRawInputCapture"] = (eff
     );
   });
 
+const defaultTerminalService: ProgressTerminalService = {
+  isTTY: Effect.sync(() => Boolean(process.stderr.isTTY)),
+  stderrRows: Effect.sync(() => process.stderr.rows),
+  stderrColumns: Effect.sync(() => process.stderr.columns),
+  writeStderr: (text) =>
+    Effect.sync(() => {
+      process.stderr.write(text);
+    }),
+  withRawInputCapture,
+};
+
 export class ProgressTerminal extends Context.Tag("stromseng.dev/ProgressTerminal")<
   ProgressTerminal,
   ProgressTerminalService
 >() {
-  static readonly Default = Layer.succeed(ProgressTerminal, {
-    isTTY: Effect.sync(() => Boolean(process.stderr.isTTY)),
-    stderrRows: Effect.sync(() => process.stderr.rows),
-    stderrColumns: Effect.sync(() => process.stderr.columns),
-    writeStderr: (text) =>
-      Effect.sync(() => {
-        process.stderr.write(text);
-      }),
-    withRawInputCapture,
-  } satisfies ProgressTerminalService);
+  static readonly Default = Layer.succeed(ProgressTerminal, defaultTerminalService);
 }

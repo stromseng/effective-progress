@@ -1,6 +1,6 @@
 import { Brand, Context, Effect, Option, Schema } from "effect";
 import type { PartialDeep } from "type-fest";
-import { defaultProgressBarColors, ProgressBarColorsSchema } from "./colors";
+import type { ColorizerService } from "./colors";
 
 export const RendererConfigSchema = Schema.Struct({
   disableUserInput: Schema.Boolean,
@@ -18,7 +18,6 @@ export const ProgressBarConfigSchema = Schema.Struct({
   emptyChar: Schema.String,
   leftBracket: Schema.String,
   rightBracket: Schema.String,
-  colors: ProgressBarColorsSchema,
 });
 export type ProgressBarConfigShape = typeof ProgressBarConfigSchema.Type;
 export const decodeProgressBarConfigSync = Schema.decodeUnknownSync(ProgressBarConfigSchema);
@@ -37,7 +36,6 @@ export const defaultProgressBarConfig: ProgressBarConfigShape = {
   emptyChar: "─",
   leftBracket: "",
   rightBracket: "",
-  colors: defaultProgressBarColors,
 };
 
 export class RendererConfig extends Context.Tag("stromseng.dev/effective-progress/RendererConfig")<
@@ -114,6 +112,7 @@ export interface RenderRow {
 export interface TaskStore {
   readonly tasks: Map<TaskId, TaskSnapshot>;
   readonly renderOrder: ReadonlyArray<RenderRow>;
+  readonly colorizers: Map<TaskId, ColorizerService>;
 }
 
 export interface ProgressService {

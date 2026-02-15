@@ -1,10 +1,19 @@
-import { Effect, Exit } from "effect";
+import { Effect, Exit, Option } from "effect";
 import { dual } from "effect/Function";
 import type { Concurrency } from "effect/Types";
-import { Progress, provideProgressService } from "./runtime";
+import { Progress } from "./runtime";
 import { Task } from "./types";
 import type { AddTaskOptions, TrackOptions } from "./types";
 import { inferTotal } from "./utils";
+
+const provideProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  Effect.gen(function* () {
+    const existing = yield* Effect.serviceOption(Progress);
+    if (Option.isSome(existing)) {
+      return yield* Effect.provideService(effect, Progress, existing.value);
+    }
+    return yield* Effect.scoped(effect.pipe(Effect.provide(Progress.Default)));
+  });
 
 export interface EffectExecutionOptions {
   readonly concurrency?: Concurrency;
@@ -19,7 +28,9 @@ export interface EffectAllExecutionOptions extends EffectExecutionOptions {
 
 export type AllOptions = Omit<TrackOptions, "total"> & EffectAllExecutionOptions;
 export type AllReturn<
-  Arg extends ReadonlyArray<Effect.Effect<any, any, any>> | Record<string, Effect.Effect<any, any, any>>,
+  Arg extends
+    | ReadonlyArray<Effect.Effect<any, any, any>>
+    | Record<string, Effect.Effect<any, any, any>>,
   O extends EffectAllExecutionOptions,
 > = [
   [Arg] extends [ReadonlyArray<Effect.Effect<any, any, any>>]
@@ -48,7 +59,7 @@ export const task: {
 } = dual(
   2,
   <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
-    provideProgressService(
+    provideProgress(
       Effect.gen(function* () {
         const progress = yield* Progress;
         return yield* progress.withTask(effect, options);
@@ -56,7 +67,9 @@ export const task: {
     ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>,
 );
 
-type AllArg = ReadonlyArray<Effect.Effect<any, any, any>> | Record<string, Effect.Effect<any, any, any>>;
+type AllArg =
+  | ReadonlyArray<Effect.Effect<any, any, any>>
+  | Record<string, Effect.Effect<any, any, any>>;
 
 const wrapEffects = (
   effects: AllArg,
@@ -83,7 +96,7 @@ export const all: {
     effects: Arg,
     options: Omit<TrackOptions, "total"> & O,
   ) =>
-    provideProgressService(
+    provideProgress(
       Effect.gen(function* () {
         const progress = yield* Progress;
         return yield* progress.runTask(
@@ -143,7 +156,7 @@ export const forEach: {
     f: (item: A, index: number) => Effect.Effect<B, E, R>,
     options: ForEachOptions,
   ) =>
-    provideProgressService(
+    provideProgress(
       Effect.gen(function* () {
         const progress = yield* Progress;
 

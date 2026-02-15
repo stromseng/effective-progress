@@ -105,10 +105,6 @@ const configured = program.pipe(
   }),
   Effect.provideService(Progress.ProgressBarConfig, {
     barWidth: 36,
-    colors: {
-      fill: { kind: "hex", value: "#00b894" },
-      spinner: { kind: "ansi256", value: 214 },
-    },
   }),
 );
 
@@ -124,9 +120,6 @@ yield *
     progressbar: {
       barWidth: 20,
       spinnerFrames: [".", "o", "O", "0"],
-      colors: {
-        spinner: { kind: "named", value: "magentaBright" },
-      },
     },
   });
 ```
@@ -177,38 +170,64 @@ const program = Progress.task(
 
 ## Progress bar colors
 
-`progressbar.colors` is configured with typed color tokens that are validated by Effect Schema.
+Colors are configured through the `Colorizer` service. You can set a global colorizer, or provide per-task overrides using `Effect.provideService`.
+
+### Global colorizer
+
+Provide a custom `Colorizer` at the top level to change colors for all tasks:
 
 ```ts
-progressbar: {
-  spinnerFrames: ["-", "\\", "|", "/"],
-  barWidth: 30,
-  fillChar: "━",
-  emptyChar: "─",
-  leftBracket: "",
-  rightBracket: "",
-  colors: {
-    fill: { kind: "named", value: "cyan" },
-    empty: { kind: "hex", value: "#9ca3af", modifiers: ["dim"] },
-    brackets: { kind: "rgb", value: { r: 156, g: 163, b: 175 } },
-    percent: { kind: "named", value: "whiteBright", modifiers: ["bold"] },
-    spinner: { kind: "ansi256", value: 214 },
-    done: { kind: "named", value: "greenBright" },
-    failed: { kind: "named", value: "redBright", modifiers: ["bold"] },
-  },
-}
+import chalk from "chalk";
+import { Effect } from "effect";
+import * as Progress from "effective-progress";
+
+const program = Progress.task(myEffect, { description: "Work" }).pipe(
+  Effect.provideService(
+    Progress.Colorizer,
+    Progress.Colorizer.of({
+      fill: chalk.hex("#00b894"),
+      empty: chalk.white.dim,
+      brackets: chalk.rgb(180, 190, 210),
+      percent: chalk.whiteBright.bold,
+      spinner: chalk.ansi256(214),
+      done: chalk.greenBright,
+      failed: chalk.redBright.bold,
+    }),
+  ),
+);
 ```
 
-Supported color styles:
+### Per-task colorizer
 
-- `named` (for example `cyan`, `greenBright`)
-- `hex` (for example `#00b894`)
-- `rgb` (for example `{ r: 0, g: 184, b: 148 }`)
-- `ansi256` (for example `214`)
+Wrap any effect with `Effect.provideService(Colorizer, ...)` to override colors for that task (and its children). The colorizer is captured at task-creation time, so each task can have its own colors:
 
-Supported modifiers:
+```ts
+Progress.forEach(
+  ["fetch", "transform", "persist"],
+  (stage) => Effect.gen(function* () {
+    yield* Effect.sleep("500 millis");
+    return stage;
+  }),
+  { description: "Worker pipeline" },
+).pipe(
+  Effect.provideService(
+    Progress.Colorizer,
+    Progress.Colorizer.of({
+      fill: chalk.red,
+      empty: chalk.white.dim,
+      brackets: chalk.white.dim,
+      percent: chalk.white.bold,
+      spinner: chalk.magentaBright,
+      done: chalk.greenBright,
+      failed: chalk.redBright,
+    }),
+  ),
+);
+```
 
-- `bold`, `dim`, `italic`, `underline`, `inverse`, `hidden`, `strikethrough`
+Tasks inherit the colorizer from their parent task.
+
+Each `ColorizerService` slot (`fill`, `empty`, `brackets`, `percent`, `spinner`, `done`, `failed`) is a `(text: string) => string` function. Use any chalk style — named colors, hex, rgb, ansi256, and modifiers like `.bold` or `.dim` all work.
 
 ## Dependencies & package size
 
