@@ -5,9 +5,7 @@ export interface ProgressTerminalService {
   readonly stderrRows: Effect.Effect<number | undefined>;
   readonly stderrColumns: Effect.Effect<number | undefined>;
   readonly writeStderr: (text: string) => Effect.Effect<void>;
-  readonly withRawInputCapture: <A, E, R>(
-    effect: Effect.Effect<A, E, R>,
-  ) => Effect.Effect<A, E, R>;
+  readonly withRawInputCapture: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>;
 }
 
 const withRawInputCapture: ProgressTerminalService["withRawInputCapture"] = (effect) =>

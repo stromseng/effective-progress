@@ -68,10 +68,10 @@ const program = Effect.gen(function* () {
   yield* Console.log("Performance stress example complete.");
 });
 
-const configuredProgram = Progress.withTask(
-  program,
-  { description: "Performance run", transient: false },
-).pipe(
+const configuredProgram = Progress.withTask(program, {
+  description: "Performance run",
+  transient: false,
+}).pipe(
   Effect.provideService(Progress.RendererConfig, {
     maxLogLines: 10,
     renderIntervalMillis: 10,

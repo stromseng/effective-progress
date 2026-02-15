@@ -119,19 +119,16 @@ Task-level `progressbar` config is optional and inherits from its parent task (o
 
 ```ts
 yield *
-  progress.withTask(
-    Effect.sleep("1 second"),
-    {
-      description: "Worker pipeline",
-      progressbar: {
-        barWidth: 20,
-        spinnerFrames: [".", "o", "O", "0"],
-        colors: {
-          spinner: { kind: "named", value: "magentaBright" },
-        },
+  progress.withTask(Effect.sleep("1 second"), {
+    description: "Worker pipeline",
+    progressbar: {
+      barWidth: 20,
+      spinnerFrames: [".", "o", "O", "0"],
+      colors: {
+        spinner: { kind: "named", value: "magentaBright" },
       },
     },
-  );
+  });
 ```
 
 ## Terminal service and mocking

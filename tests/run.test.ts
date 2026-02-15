@@ -165,12 +165,9 @@ describe("Progress.run", () => {
         withNonTTYRenderer(
           pipe(
             ["a", "b"],
-            Progress.forEach(
-              (item) => Console.log(`${capturedPrefix}:${item}`),
-              {
-                description: "auto-capture-foreach-pipe",
-              },
-            ),
+            Progress.forEach((item) => Console.log(`${capturedPrefix}:${item}`), {
+              description: "auto-capture-foreach-pipe",
+            }),
           ),
         ),
       ),

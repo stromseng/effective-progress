@@ -86,10 +86,10 @@ const advancedProgram = Effect.gen(function* () {
   yield* Console.log("All advanced progress examples finished.");
 });
 
-const configuredProgram = Progress.withTask(
-  advancedProgram,
-  { description: "Advanced example", transient: false },
-).pipe(
+const configuredProgram = Progress.withTask(advancedProgram, {
+  description: "Advanced example",
+  transient: false,
+}).pipe(
   Effect.provideService(Progress.RendererConfig, {
     nonTtyUpdateStep: 2,
     maxLogLines: 12,
