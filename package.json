@@ -1,6 +1,6 @@
 {
   "name": "effective-progress",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Effect-first terminal progress bars with nested multibar support",
   "homepage": "https://github.com/stromseng/effective-progress#readme",
   "bugs": {
