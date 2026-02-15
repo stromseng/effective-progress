@@ -1,9 +1,10 @@
-import { Effect, Exit, FiberRef, Option, Ref } from "effect";
+import { Context, Effect, Exit, FiberRef, Layer, Option, Ref } from "effect";
 import { mergeWith } from "es-toolkit/object";
 import { formatWithOptions } from "node:util";
 import type { PartialDeep } from "type-fest";
 import { makeProgressConsole } from "./console";
 import { runProgressServiceRenderer } from "./renderer";
+import { ProgressTerminal } from "./terminal";
 import type { AddTaskOptions, ProgressService, UpdateTaskOptions } from "./types";
 import {
   decodeProgressBarConfigSync,
@@ -12,7 +13,6 @@ import {
   defaultRendererConfig,
   DeterminateTaskUnits,
   IndeterminateTaskUnits,
-  Progress,
   ProgressBarConfig,
   RendererConfig,
   Task,
@@ -79,7 +79,7 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): Ta
   });
 };
 
-export const makeProgressService = Effect.gen(function* () {
+const makeProgressService = Effect.gen(function* () {
   const rendererConfigOption = yield* Effect.serviceOption(RendererConfig);
   const progressBarConfigOption = yield* Effect.serviceOption(ProgressBarConfig);
 
@@ -95,6 +95,8 @@ export const makeProgressService = Effect.gen(function* () {
       Option.isSome(progressBarConfigOption) ? progressBarConfigOption.value : undefined,
     ),
   );
+  const terminal = yield* ProgressTerminal;
+  const isTTY = yield* terminal.isTTY;
   const maxRetainedLogLines = Math.max(0, Math.floor(rendererConfig.maxLogLines ?? 0));
 
   const nextTaskIdRef = yield* Ref.make(0);
@@ -111,6 +113,8 @@ export const makeProgressService = Effect.gen(function* () {
       logsRef,
       pendingLogsRef,
       dirtyRef,
+      terminal,
+      isTTY,
       rendererConfig,
       maxRetainedLogLines,
     ),
@@ -273,7 +277,7 @@ export const makeProgressService = Effect.gen(function* () {
 
       const message = formatWithOptions(
         {
-          colors: rendererConfig.isTTY,
+          colors: isTTY,
           depth: 6,
         },
         ...args,
@@ -371,19 +375,22 @@ export const makeProgressService = Effect.gen(function* () {
   return Progress.of(service);
 });
 
-export const provideProgressService = <A, E, R>(
-  effect: Effect.Effect<A, E, R>,
-): Effect.Effect<A, E, Exclude<R, Progress>> =>
+export class Progress extends Context.Tag("stromseng.dev/Progress")<Progress, ProgressService>() {
+  static readonly Default = Layer.scoped(Progress, makeProgressService);
+}
+
+export const provideProgressService = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
     const existing = yield* Effect.serviceOption(Progress);
     if (Option.isSome(existing)) {
       return yield* Effect.provideService(effect, Progress, existing.value);
     }
 
-    return yield* Effect.scoped(
-      Effect.gen(function* () {
-        const service = yield* makeProgressService;
-        return yield* Effect.provideService(effect, Progress, service);
-      }),
-    );
-  }) as Effect.Effect<A, E, Exclude<R, Progress>>;
+    const existingTerminal = yield* Effect.serviceOption(ProgressTerminal);
+    if (Option.isSome(existingTerminal)) {
+      return yield* Effect.scoped(effect.pipe(Effect.provide(Progress.Default)));
+    }
+
+    const defaultLayers = Layer.provide(Progress.Default, ProgressTerminal.Default);
+    return yield* Effect.scoped(effect.pipe(Effect.provide(defaultLayers)));
+  });

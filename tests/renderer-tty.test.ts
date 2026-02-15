@@ -3,42 +3,27 @@ import { Console, Effect } from "effect";
 import * as Progress from "../src";
 
 const captureTerminalOutput = async <A, E, R>(effect: Effect.Effect<A, E, R>) => {
-  const originalStdoutWrite = process.stdout.write.bind(process.stdout);
-  const originalStderrWrite = process.stderr.write.bind(process.stderr);
-  const originalRows = (process.stderr as any).rows;
   let stream = "";
 
-  const captureWrite =
-    () =>
-    (chunk: unknown, encoding?: BufferEncoding, callback?: (error?: Error | null) => void) => {
-      if (typeof chunk === "string") {
-        stream += chunk;
-      } else if (Buffer.isBuffer(chunk)) {
-        stream += chunk.toString(encoding);
-      } else {
-        stream += String(chunk);
-      }
+  const terminal: Progress.ProgressTerminalService = {
+    isTTY: Effect.succeed(true),
+    stderrRows: Effect.succeed(200),
+    stderrColumns: Effect.succeed(160),
+    writeStderr: (text) =>
+      Effect.sync(() => {
+        stream += text;
+      }),
+    withRawInputCapture: (innerEffect) => innerEffect,
+  };
 
-      callback?.(null);
-      return true;
-    };
-
-  (process.stdout as any).write = captureWrite();
-  (process.stderr as any).write = captureWrite();
-  (process.stderr as any).rows = 200;
-
-  try {
-    const result = await Effect.runPromise(effect as Effect.Effect<A, E, never>);
-    return { result, stream };
-  } finally {
-    (process.stdout as any).write = originalStdoutWrite;
-    (process.stderr as any).write = originalStderrWrite;
-    if (originalRows === undefined) {
-      delete (process.stderr as any).rows;
-    } else {
-      (process.stderr as any).rows = originalRows;
-    }
-  }
+  const result = await Effect.runPromise(
+    effect.pipe(Effect.provideService(Progress.ProgressTerminal, terminal)) as Effect.Effect<
+      A,
+      E,
+      never
+    >,
+  );
+  return { result, stream };
 };
 
 const renderFinalScreen = (stream: string): Array<string> => {
@@ -130,9 +115,8 @@ describe("TTY renderer integration", () => {
           transient: false,
         });
 
-        yield* Effect.sync(() => {
-          process.stderr.write("between-log\n");
-        });
+        const terminal = yield* Progress.ProgressTerminal;
+        yield* terminal.writeStderr("between-log\n");
 
         yield* Progress.all([Effect.sleep("10 millis")], {
           description: "Second task",
@@ -141,7 +125,6 @@ describe("TTY renderer integration", () => {
       }),
     ).pipe(
       Effect.provideService(Progress.RendererConfig, {
-        isTTY: true,
         maxLogLines: 10,
         renderIntervalMillis: 5,
         nonTtyUpdateStep: 1,
@@ -183,7 +166,6 @@ describe("TTY renderer integration", () => {
       }),
     ).pipe(
       Effect.provideService(Progress.RendererConfig, {
-        isTTY: true,
         maxLogLines: 3,
         renderIntervalMillis: 5,
         nonTtyUpdateStep: 1,

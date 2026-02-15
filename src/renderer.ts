@@ -4,6 +4,7 @@ import {
   compileProgressBarColors,
   ProgressBarColorsSchema,
 } from "./colors";
+import type { ProgressTerminalService } from "./terminal";
 import type { ProgressBarConfigShape, RendererConfigShape } from "./types";
 import { DeterminateTaskUnits, TaskId, TaskSnapshot } from "./types";
 
@@ -84,10 +85,11 @@ export const runProgressServiceRenderer = (
   logsRef: Ref.Ref<ReadonlyArray<string>>,
   pendingLogsRef: Ref.Ref<ReadonlyArray<string>>,
   dirtyRef: Ref.Ref<boolean>,
+  terminal: ProgressTerminalService,
+  isTTY: boolean,
   rendererConfig: RendererConfigShape,
   maxRetainedLogLines: number,
 ) => {
-  const isTTY = rendererConfig.isTTY;
   const retainLogHistory = maxRetainedLogLines > 0;
   const colorCache = new Map<string, CompiledProgressBarColors>();
   let previousLineCount = 0;
@@ -95,7 +97,6 @@ export const runProgressServiceRenderer = (
   let tick = 0;
   let rendererActive = false;
   let sessionActive = false;
-  let teardownInput: (() => void) | undefined;
 
   const getCompiledColors = (progressbar: ProgressBarConfigShape): CompiledProgressBarColors => {
     const key = encodeProgressBarColorsKey(progressbar.colors);
@@ -109,60 +110,35 @@ export const runProgressServiceRenderer = (
     return compiled;
   };
 
-  const clipTTYFrameLines = (lines: ReadonlyArray<string>): ReadonlyArray<string> => {
-    const terminalRows = process.stderr.rows;
-    if (terminalRows === undefined) {
-      return lines;
-    }
+  const clipTTYFrameLines = (lines: ReadonlyArray<string>) =>
+    Effect.gen(function* () {
+      const terminalRows = yield* terminal.stderrRows;
+      if (terminalRows === undefined) {
+        return lines;
+      }
 
-    const visibleLineLimit = Math.max(1, terminalRows - 1);
-    if (lines.length <= visibleLineLimit) {
-      return lines;
-    }
+      const visibleLineLimit = Math.max(1, terminalRows - 1);
+      if (lines.length <= visibleLineLimit) {
+        return lines;
+      }
 
-    if (visibleLineLimit === 1) {
-      return [`... ${lines.length} lines hidden`];
-    }
+      if (visibleLineLimit === 1) {
+        return [`... ${lines.length} lines hidden`];
+      }
 
-    const hiddenLineCount = lines.length - visibleLineLimit + 1;
-    return [
-      `... ${hiddenLineCount} lines hidden (showing latest lines)`,
-      ...lines.slice(lines.length - (visibleLineLimit - 1)),
-    ];
-  };
+      const hiddenLineCount = lines.length - visibleLineLimit + 1;
+      return [
+        `... ${hiddenLineCount} lines hidden (showing latest lines)`,
+        ...lines.slice(lines.length - (visibleLineLimit - 1)),
+      ];
+    });
 
   const startTTYSession = Effect.gen(function* () {
     if (!isTTY || sessionActive) {
       return;
     }
 
-    process.stderr.write(HIDE_CURSOR);
-
-    if (rendererConfig.disableUserInput && process.stdin.isTTY) {
-      const stdin = process.stdin;
-      const wasRaw = Boolean(stdin.isRaw);
-      stdin.resume();
-      stdin.setRawMode?.(true);
-
-      const onData = (chunk: Buffer) => {
-        if (chunk.length === 1 && chunk[0] === 3) {
-          process.kill(process.pid, "SIGINT");
-        }
-      };
-
-      stdin.on("data", onData);
-
-      teardownInput = () => {
-        try {
-          stdin.off("data", onData);
-          stdin.setRawMode?.(wasRaw);
-          stdin.pause();
-        } catch {
-          // Best effort terminal restoration.
-        }
-      };
-    }
-
+    yield* terminal.writeStderr(HIDE_CURSOR);
     sessionActive = true;
   });
 
@@ -171,9 +147,7 @@ export const runProgressServiceRenderer = (
       return;
     }
 
-    teardownInput?.();
-    teardownInput = undefined;
-    process.stderr.write("\n" + SHOW_CURSOR);
+    yield* terminal.writeStderr("\n" + SHOW_CURSOR);
     previousLineCount = 0;
     sessionActive = false;
   });
@@ -201,11 +175,13 @@ export const runProgressServiceRenderer = (
       }
     }
 
-    if (changedTaskLines.length > 0) {
-      process.stderr.write(changedTaskLines.join("\n") + "\n");
-    }
+    return Effect.gen(function* () {
+      if (changedTaskLines.length > 0) {
+        yield* terminal.writeStderr(changedTaskLines.join("\n") + "\n");
+      }
 
-    nonTTYTaskSignatureById = nextTaskSignatureById;
+      nonTTYTaskSignatureById = nextTaskSignatureById;
+    });
   };
 
   const renderFrame = (mode: "tick" | "final") =>
@@ -234,7 +210,7 @@ export const runProgressServiceRenderer = (
 
         if (retainLogHistory) {
           const historyLogs = yield* Ref.get(logsRef);
-          const lines = clipTTYFrameLines([...historyLogs, ...taskLines]);
+          const lines = yield* clipTTYFrameLines([...historyLogs, ...taskLines]);
           if (lines.length > 0) {
             frame += lines.join("\n");
           }
@@ -253,18 +229,18 @@ export const runProgressServiceRenderer = (
 
         // 4. Single atomic write
         if (frame) {
-          process.stderr.write(frame);
+          yield* terminal.writeStderr(frame);
         }
         return;
       }
 
       if (drainedLogs.length > 0) {
-        process.stderr.write(drainedLogs.join("\n") + "\n");
+        yield* terminal.writeStderr(drainedLogs.join("\n") + "\n");
       }
-      renderNonTTYTaskUpdates(ordered, taskLines);
+      yield* renderNonTTYTaskUpdates(ordered, taskLines);
     });
 
-  return Effect.gen(function* () {
+  const renderLoop = Effect.gen(function* () {
     rendererActive = true;
     if (isTTY) {
       yield* startTTYSession;
@@ -310,4 +286,10 @@ export const runProgressServiceRenderer = (
       }),
     ),
   );
+
+  if (isTTY && rendererConfig.disableUserInput) {
+    return terminal.withRawInputCapture(renderLoop);
+  }
+
+  return renderLoop;
 };

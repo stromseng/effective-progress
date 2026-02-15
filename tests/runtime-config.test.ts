@@ -24,9 +24,15 @@ describe("task progressbar inheritance", () => {
       }),
     ).pipe(
       Effect.provideService(Progress.RendererConfig, {
-        isTTY: false,
         renderIntervalMillis: 1000,
       }),
+      Effect.provideService(Progress.ProgressTerminal, {
+        isTTY: Effect.succeed(false),
+        stderrRows: Effect.sync(() => undefined),
+        stderrColumns: Effect.sync(() => undefined),
+        writeStderr: () => Effect.void,
+        withRawInputCapture: (innerEffect) => innerEffect,
+      } satisfies Progress.ProgressTerminalService),
       Effect.provideService(Progress.ProgressBarConfig, {
         barWidth: 44,
         spinnerFrames: [".", "o", "O"],
@@ -87,9 +93,15 @@ describe("task progressbar inheritance", () => {
       }),
     ).pipe(
       Effect.provideService(Progress.RendererConfig, {
-        isTTY: false,
         renderIntervalMillis: 1000,
       }),
+      Effect.provideService(Progress.ProgressTerminal, {
+        isTTY: Effect.succeed(false),
+        stderrRows: Effect.sync(() => undefined),
+        stderrColumns: Effect.sync(() => undefined),
+        writeStderr: () => Effect.void,
+        withRawInputCapture: (innerEffect) => innerEffect,
+      } satisfies Progress.ProgressTerminalService),
       Effect.provideService(Progress.ProgressBarConfig, {
         barWidth: 32,
         spinnerFrames: ["-", "+"],

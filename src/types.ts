@@ -3,7 +3,6 @@ import type { PartialDeep } from "type-fest";
 import { defaultProgressBarColors, ProgressBarColorsSchema } from "./colors";
 
 export const RendererConfigSchema = Schema.Struct({
-  isTTY: Schema.Boolean,
   disableUserInput: Schema.Boolean,
   renderIntervalMillis: Schema.Number,
   maxLogLines: Schema.optional(Schema.Number),
@@ -25,7 +24,6 @@ export type ProgressBarConfigShape = typeof ProgressBarConfigSchema.Type;
 export const decodeProgressBarConfigSync = Schema.decodeUnknownSync(ProgressBarConfigSchema);
 
 export const defaultRendererConfig: RendererConfigShape = {
-  isTTY: Boolean(process.stderr.isTTY),
   disableUserInput: true,
   renderIntervalMillis: 50, // 20 FPS
   maxLogLines: 0,
@@ -127,7 +125,6 @@ export interface ProgressService {
   ) => Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Task>>;
 }
 
-export class Progress extends Context.Tag("stromseng.dev/Progress")<Progress, ProgressService>() {}
 export class Task extends Context.Tag("stromseng.dev/Task")<Task, TaskId>() {}
 
 export class TaskAddedEvent extends Schema.TaggedClass<TaskAddedEvent>()("TaskAdded", {

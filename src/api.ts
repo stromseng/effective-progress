@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import type { Concurrency } from "effect/Types";
-import { provideProgressService } from "./runtime";
-import { Progress, Task } from "./types";
+import { Progress, provideProgressService } from "./runtime";
+import { Task } from "./types";
 import type { AddTaskOptions, TrackOptions } from "./types";
 import { inferTotal } from "./utils";
 

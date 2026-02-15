@@ -115,6 +115,40 @@ const configured = program.pipe(
 Effect.runPromise(configured);
 ```
 
+## Terminal service and mocking
+
+`effective-progress` now exposes a `ProgressTerminal` service that controls terminal detection and I/O:
+
+- `isTTY`
+- `stderrRows`
+- `stderrColumns`
+- `writeStderr(text)`
+- `withRawInputCapture(effect)`
+
+You can provide a mock in tests instead of monkeypatching global process streams:
+
+```ts
+import { Effect } from "effect";
+import * as Progress from "effective-progress";
+
+const mockTerminal: Progress.ProgressTerminalService = {
+  isTTY: Effect.succeed(true),
+  stderrRows: Effect.succeed(40),
+  stderrColumns: Effect.succeed(120),
+  writeStderr: (_text) => Effect.void,
+  withRawInputCapture: (effect) => effect,
+};
+
+const program = Progress.withTask({ description: "work" }, Effect.sleep("100 millis")).pipe(
+  Effect.provideService(Progress.ProgressTerminal, mockTerminal),
+);
+```
+
+## Migration note
+
+`RendererConfig.isTTY` has been removed.
+TTY mode is now sourced from `ProgressTerminal.isTTY`.
+
 Task-level `progressbar` config is optional and inherits from its parent task (or from global `ProgressBarConfig` for root tasks):
 
 ```ts

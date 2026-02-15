@@ -28,10 +28,16 @@ const withLogSpy = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
 const withNonTTYRenderer = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   effect.pipe(
     Effect.provideService(Progress.RendererConfig, {
-      isTTY: false,
       renderIntervalMillis: 1000,
       disableUserInput: true,
     }),
+    Effect.provideService(Progress.ProgressTerminal, {
+      isTTY: Effect.succeed(false),
+      stderrRows: Effect.sync(() => undefined),
+      stderrColumns: Effect.sync(() => undefined),
+      writeStderr: () => Effect.void,
+      withRawInputCapture: (innerEffect) => innerEffect,
+    } satisfies Progress.ProgressTerminalService),
   );
 
 describe("Progress.run", () => {
