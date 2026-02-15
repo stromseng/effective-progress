@@ -20,6 +20,8 @@
 - [ ] Give helpers to override progressbarConfig context. I.e `Progress.withConfig({ ... })`
 - [ ] Theme presets. Can simply be predefined Config layers. `Progress.ProgressConfig.Oldschool` or something.
 
+- [ ] Rework non TTY mode for better configuration and consistency.
+
 ## Phase 4 — New surface area
 
 - [ ] Add non-effect api
