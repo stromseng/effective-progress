@@ -40,15 +40,14 @@ export const defaultProgressBarConfig: ProgressBarConfigShape = {
   colors: defaultProgressBarColors,
 };
 
-export class RendererConfig extends Context.Tag("stromseng.dev/RendererConfig")<
+export class RendererConfig extends Context.Tag("stromseng.dev/effective-progress/RendererConfig")<
   RendererConfig,
   PartialDeep<RendererConfigShape>
 >() {}
 
-export class ProgressBarConfig extends Context.Tag("stromseng.dev/ProgressBarConfig")<
-  ProgressBarConfig,
-  PartialDeep<ProgressBarConfigShape>
->() {}
+export class ProgressBarConfig extends Context.Tag(
+  "stromseng.dev/effective-progress/ProgressBarConfig",
+)<ProgressBarConfig, PartialDeep<ProgressBarConfigShape>>() {}
 
 const TaskIdSchema = Schema.Number.pipe(Schema.brand("TaskId"));
 
@@ -146,7 +145,7 @@ export interface ProgressService {
   };
 }
 
-export class Task extends Context.Tag("stromseng.dev/Task")<Task, TaskId>() {}
+export class Task extends Context.Tag("stromseng.dev/effective-progress/Task")<Task, TaskId>() {}
 
 export class TaskAddedEvent extends Schema.TaggedClass<TaskAddedEvent>()("TaskAdded", {
   taskId: TaskIdSchema,

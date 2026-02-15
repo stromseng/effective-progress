@@ -424,7 +424,7 @@ const makeProgressService = Effect.gen(function* () {
   return Progress.of(service);
 });
 
-export class Progress extends Context.Tag("stromseng.dev/Progress")<Progress, ProgressService>() {
+export class Progress extends Context.Tag("stromseng.dev/effective-progress/Progress")<Progress, ProgressService>() {
   static readonly Default = Layer.scoped(Progress, makeProgressService);
 }
 
