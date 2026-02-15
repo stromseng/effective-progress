@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Console, Effect, Option } from "effect";
+import { pipe } from "effect/Function";
 import * as Progress from "../src";
 
 const withLogSpy = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
@@ -135,5 +136,49 @@ describe("Progress.run", () => {
     );
 
     expect(logs.some((args) => args[0] === capturedMessage)).toBeFalse();
+  });
+
+  test("all supports pipe form", async () => {
+    const capturedMessage = "all-auto-captured-pipe";
+
+    const { logs } = await Effect.runPromise(
+      withLogSpy(
+        withNonTTYRenderer(
+          pipe(
+            [Console.log(capturedMessage)],
+            Progress.all({
+              description: "auto-capture-all-pipe",
+            }),
+          ),
+        ),
+      ),
+    );
+
+    expect(logs.some((args) => args[0] === capturedMessage)).toBeFalse();
+  });
+
+  test("forEach supports pipe form", async () => {
+    const capturedPrefix = "forEach-auto-captured-pipe";
+
+    const { result, logs } = await Effect.runPromise(
+      withLogSpy(
+        withNonTTYRenderer(
+          pipe(
+            ["a", "b"],
+            Progress.forEach(
+              (item) => Console.log(`${capturedPrefix}:${item}`),
+              {
+                description: "auto-capture-foreach-pipe",
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(result).toEqual([undefined, undefined]);
+    expect(
+      logs.some((args) => typeof args[0] === "string" && args[0].startsWith(capturedPrefix)),
+    ).toBeFalse();
   });
 });
