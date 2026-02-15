@@ -115,6 +115,25 @@ const configured = program.pipe(
 Effect.runPromise(configured);
 ```
 
+Task-level `progressbar` config is optional and inherits from its parent task (or from global `ProgressBarConfig` for root tasks):
+
+```ts
+yield *
+  progress.withTask(
+    {
+      description: "Worker pipeline",
+      progressbar: {
+        barWidth: 20,
+        spinnerFrames: [".", "o", "O", "0"],
+        colors: {
+          spinner: { kind: "named", value: "magentaBright" },
+        },
+      },
+    },
+    Effect.sleep("1 second"),
+  );
+```
+
 ## Terminal service and mocking
 
 `effective-progress` now exposes a `ProgressTerminal` service that controls terminal detection and I/O:
@@ -125,7 +144,7 @@ Effect.runPromise(configured);
 - `writeStderr(text)`
 - `withRawInputCapture(effect)`
 
-You can provide a mock in tests instead of monkeypatching global process streams:
+You can provide a mock if you want to alter the behavior of terminal detection or if you want to capture the output for testing:
 
 ```ts
 import { Effect } from "effect";
@@ -145,24 +164,6 @@ const program = Progress.withTask({ description: "work" }, Effect.sleep("100 mil
 ```
 
 
-Task-level `progressbar` config is optional and inherits from its parent task (or from global `ProgressBarConfig` for root tasks):
-
-```ts
-yield *
-  progress.withTask(
-    {
-      description: "Worker pipeline",
-      progressbar: {
-        barWidth: 20,
-        spinnerFrames: [".", "o", "O", "0"],
-        colors: {
-          spinner: { kind: "named", value: "magentaBright" },
-        },
-      },
-    },
-    Effect.sleep("1 second"),
-  );
-```
 
 ## Manual task control
 
