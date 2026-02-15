@@ -188,7 +188,7 @@ export const runProgressServiceRenderer = (
     Effect.gen(function* () {
       const drainedLogs = yield* Ref.getAndSet(pendingLogsRef, []);
       const snapshots = Array.from((yield* Ref.get(tasksRef)).values()).filter(
-        (task) => !(task.transient && task.status !== "running"),
+        (task) => !task.transient || task.status === "running",
       );
       const ordered = orderTasksForRender(snapshots);
       const frameTick = mode === "final" ? tick + 1 : tick;
