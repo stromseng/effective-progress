@@ -144,10 +144,6 @@ const program = Progress.withTask({ description: "work" }, Effect.sleep("100 mil
 );
 ```
 
-## Migration note
-
-`RendererConfig.isTTY` has been removed.
-TTY mode is now sourced from `ProgressTerminal.isTTY`.
 
 Task-level `progressbar` config is optional and inherits from its parent task (or from global `ProgressBarConfig` for root tasks):
 
@@ -167,6 +163,8 @@ yield *
     Effect.sleep("1 second"),
   );
 ```
+
+## Manual task control
 
 For manual usage, `withTask` captures logs implicitly and provides the current `Task` context:
 
