@@ -19,11 +19,15 @@ export interface EffectAllExecutionOptions extends EffectExecutionOptions {
 
 export type AllOptions = Omit<TrackOptions, "total"> & EffectAllExecutionOptions;
 export type AllReturn<
-  Arg extends ReadonlyArray<Effect.Effect<any, any, any>>,
+  Arg extends ReadonlyArray<Effect.Effect<any, any, any>> | Record<string, Effect.Effect<any, any, any>>,
   O extends EffectAllExecutionOptions,
-> = [Effect.All.ReturnTuple<Arg, Effect.All.IsDiscard<O>, Effect.All.ExtractMode<O>>] extends [
-  Effect.Effect<infer A, infer E, infer R>,
-]
+> = [
+  [Arg] extends [ReadonlyArray<Effect.Effect<any, any, any>>]
+    ? Effect.All.ReturnTuple<Arg, Effect.All.IsDiscard<O>, Effect.All.ExtractMode<O>>
+    : [Arg] extends [Record<string, Effect.Effect<any, any, any>>]
+      ? Effect.All.ReturnObject<Arg, Effect.All.IsDiscard<O>, Effect.All.ExtractMode<O>>
+      : never,
+] extends [Effect.Effect<infer A, infer E, infer R>]
   ? Effect.Effect<A, E, Exclude<R, Progress | Task>>
   : never;
 
@@ -52,25 +56,30 @@ export const task: {
     ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>,
 );
 
+type AllArg = ReadonlyArray<Effect.Effect<any, any, any>> | Record<string, Effect.Effect<any, any, any>>;
+
+const wrapEffects = (
+  effects: AllArg,
+  tap: (effect: Effect.Effect<any, any, any>) => Effect.Effect<any, any, any>,
+): AllArg =>
+  Array.isArray(effects)
+    ? effects.map(tap)
+    : Object.fromEntries(Object.entries(effects).map(([k, effect]) => [k, tap(effect)]));
+
+const countEffects = (effects: AllArg): number =>
+  Array.isArray(effects) ? effects.length : Object.keys(effects).length;
+
 export const all: {
-  <
-    const Arg extends ReadonlyArray<Effect.Effect<any, any, any>>,
-    O extends EffectAllExecutionOptions,
-  >(
+  <const Arg extends AllArg, O extends EffectAllExecutionOptions>(
     effects: Arg,
     options: Omit<TrackOptions, "total"> & O,
   ): AllReturn<Arg, O>;
   <O extends EffectAllExecutionOptions>(
     options: Omit<TrackOptions, "total"> & O,
-  ): <const Arg extends ReadonlyArray<Effect.Effect<any, any, any>>>(
-    effects: Arg,
-  ) => AllReturn<Arg, O>;
+  ): <const Arg extends AllArg>(effects: Arg) => AllReturn<Arg, O>;
 } = dual(
   2,
-  <
-    const Arg extends ReadonlyArray<Effect.Effect<any, any, any>>,
-    O extends EffectAllExecutionOptions,
-  >(
+  <const Arg extends AllArg, O extends EffectAllExecutionOptions>(
     effects: Arg,
     options: Omit<TrackOptions, "total"> & O,
   ) =>
@@ -82,7 +91,9 @@ export const all: {
             const taskId = yield* Task;
             const exit = yield* Effect.exit(
               Effect.all(
-                effects.map((effect) => Effect.tap(effect, () => progress.advanceTask(taskId, 1))),
+                wrapEffects(effects, (effect) =>
+                  Effect.tap(effect, () => progress.advanceTask(taskId, 1)),
+                ),
                 {
                   concurrency: options.concurrency,
                   batching: options.batching,
@@ -106,7 +117,7 @@ export const all: {
           }),
           {
             description: options.description,
-            total: effects.length,
+            total: countEffects(effects),
             transient: options.transient,
             progressbar: options.progressbar,
           },
