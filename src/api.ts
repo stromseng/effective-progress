@@ -1,4 +1,5 @@
 import { Effect } from "effect";
+import { dual } from "effect/Function";
 import type { Concurrency } from "effect/Types";
 import { Progress, provideProgressService } from "./runtime";
 import { Task } from "./types";
@@ -31,16 +32,22 @@ export interface ForEachExecutionOptions extends EffectExecutionOptions {
 
 export type ForEachOptions = TrackOptions & ForEachExecutionOptions;
 
-export const withTask = <A, E, R>(
-  options: AddTaskOptions,
-  effect: Effect.Effect<A, E, R>,
-): Effect.Effect<A, E, Exclude<R, Progress | Task>> =>
+export const withTask: {
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+    options: AddTaskOptions,
+  ): Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+  <A, E, R>(
+    options: AddTaskOptions,
+  ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+} = dual(2, <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
   provideProgressService(
     Effect.gen(function* () {
       const progress = yield* Progress;
-      return yield* progress.withTask(options, effect);
+      return yield* progress.withTask(effect, options);
     }),
-  ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+  ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>,
+);
 
 export const all = <
   const Arg extends ReadonlyArray<Effect.Effect<any, any, any>>,
@@ -53,12 +60,6 @@ export const all = <
     Effect.gen(function* () {
       const progress = yield* Progress;
       return yield* progress.withTask(
-        {
-          description: options.description,
-          total: effects.length,
-          transient: options.transient,
-          progressbar: options.progressbar,
-        },
         Effect.gen(function* () {
           const taskId = yield* Task;
           return yield* Effect.all(
@@ -72,6 +73,12 @@ export const all = <
             },
           );
         }),
+        {
+          description: options.description,
+          total: effects.length,
+          transient: options.transient,
+          progressbar: options.progressbar,
+        },
       );
     }),
   ) as AllReturn<Arg, O>;
@@ -86,12 +93,6 @@ export const forEach = <A, B, E, R>(
       const progress = yield* Progress;
 
       return yield* progress.withTask(
-        {
-          description: options.description,
-          total: options.total ?? inferTotal(iterable),
-          transient: options.transient,
-          progressbar: options.progressbar,
-        },
         Effect.gen(function* () {
           const taskId = yield* Task;
           return yield* Effect.forEach(
@@ -106,6 +107,12 @@ export const forEach = <A, B, E, R>(
             },
           );
         }),
+        {
+          description: options.description,
+          total: options.total ?? inferTotal(iterable),
+          transient: options.transient,
+          progressbar: options.progressbar,
+        },
       );
     }),
   ) as Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress | Task>>;

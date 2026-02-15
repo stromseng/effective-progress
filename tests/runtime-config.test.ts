@@ -13,7 +13,6 @@ const getTaskOrThrow = (taskOption: Option.Option<TaskSnapshot>, label: string):
 describe("task progressbar inheritance", () => {
   test("root task inherits global progressbar config", async () => {
     const program = Progress.withTask(
-      { description: "runtime-config-context", transient: true },
       Effect.gen(function* () {
         const progress = yield* Progress.Progress;
         const rootId = yield* progress.addTask({
@@ -22,6 +21,7 @@ describe("task progressbar inheritance", () => {
         const root = getTaskOrThrow(yield* progress.getTask(rootId), "root");
         return root;
       }),
+      { description: "runtime-config-context", transient: true },
     ).pipe(
       Effect.provideService(Progress.RendererConfig, {
         renderIntervalMillis: 1000,
@@ -51,7 +51,6 @@ describe("task progressbar inheritance", () => {
 
   test("inherits parent override, applies child partial override, and keeps siblings isolated", async () => {
     const program = Progress.withTask(
-      { description: "runtime-config-context", transient: true },
       Effect.gen(function* () {
         const progress = yield* Progress.Progress;
         const rootId = yield* progress.addTask({
@@ -91,6 +90,7 @@ describe("task progressbar inheritance", () => {
         const sibling = getTaskOrThrow(yield* progress.getTask(siblingId), "sibling");
         return { root, child, sibling };
       }),
+      { description: "runtime-config-context", transient: true },
     ).pipe(
       Effect.provideService(Progress.RendererConfig, {
         renderIntervalMillis: 1000,

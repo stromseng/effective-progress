@@ -99,15 +99,14 @@ const renderFinalScreen = (stream: string): Array<string> => {
 describe("TTY renderer integration", () => {
   test("preserves plain interstitial logs and renders final done frame", async () => {
     const program = Progress.withTask(
-      { description: "tty-session", transient: false },
       Effect.gen(function* () {
         yield* Progress.withTask(
-          { description: "Warmup logs", transient: true },
           Effect.forEach(
             Array.from({ length: 20 }, (_, i) => i + 1),
             (line) => Console.log(`warmup-${line}`),
             { discard: true },
           ),
+          { description: "Warmup logs", transient: true },
         );
 
         yield* Progress.all([Effect.sleep("10 millis")], {
@@ -123,6 +122,7 @@ describe("TTY renderer integration", () => {
           transient: false,
         });
       }),
+      { description: "tty-session", transient: false },
     ).pipe(
       Effect.provideService(Progress.RendererConfig, {
         maxLogLines: 10,
@@ -148,15 +148,14 @@ describe("TTY renderer integration", () => {
 
   test("enforces max log history in retained TTY mode", async () => {
     const program = Progress.withTask(
-      { description: "tty-session", transient: false },
       Effect.gen(function* () {
         yield* Progress.withTask(
-          { description: "Warmup logs", transient: true },
           Effect.forEach(
             Array.from({ length: 20 }, (_, i) => i + 1),
             (line) => Console.log(`warmup-${line}`),
             { discard: true },
           ),
+          { description: "Warmup logs", transient: true },
         );
 
         yield* Progress.all([Effect.sleep("10 millis")], {
@@ -164,6 +163,7 @@ describe("TTY renderer integration", () => {
           transient: false,
         });
       }),
+      { description: "tty-session", transient: false },
     ).pipe(
       Effect.provideService(Progress.RendererConfig, {
         maxLogLines: 3,

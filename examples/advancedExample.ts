@@ -3,14 +3,14 @@ import * as Progress from "../src";
 
 const advancedProgram = Effect.gen(function* () {
   yield* Progress.withTask(
-    {
-      description: "Bootstrapping environment",
-    },
     Effect.gen(function* () {
       yield* Effect.sleep("2 seconds");
       const currentTask = yield* Progress.Task;
       yield* Console.log("Bootstrapped", { taskId: currentTask });
     }),
+    {
+      description: "Bootstrapping environment",
+    },
   );
 
   yield* Progress.forEach(
@@ -29,9 +29,6 @@ const advancedProgram = Effect.gen(function* () {
   yield* Progress.all(
     Array.from({ length: 8 }, (_, index) =>
       Progress.withTask(
-        {
-          description: `Worker ${index + 1}`,
-        },
         Effect.gen(function* () {
           yield* Effect.sleep("700 millis");
 
@@ -58,6 +55,9 @@ const advancedProgram = Effect.gen(function* () {
 
           return `worker-${index + 1}`;
         }),
+        {
+          description: `Worker ${index + 1}`,
+        },
       ),
     ),
     {
@@ -87,8 +87,8 @@ const advancedProgram = Effect.gen(function* () {
 });
 
 const configuredProgram = Progress.withTask(
-  { description: "Advanced example", transient: false },
   advancedProgram,
+  { description: "Advanced example", transient: false },
 ).pipe(
   Effect.provideService(Progress.RendererConfig, {
     nonTtyUpdateStep: 2,

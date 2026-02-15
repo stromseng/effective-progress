@@ -52,17 +52,17 @@ describe("Progress.run", () => {
     const reused = await Effect.runPromise(
       withNonTTYRenderer(
         Progress.withTask(
-          { description: "outer-service", transient: true },
           Effect.gen(function* () {
             const outer = yield* Progress.Progress;
             return yield* Progress.withTask(
-              { description: "inner-service", transient: true },
               Effect.gen(function* () {
                 const inner = yield* Progress.Progress;
                 return outer === inner;
               }),
+              { description: "inner-service", transient: true },
             );
           }),
+          { description: "outer-service", transient: true },
         ),
       ),
     );
@@ -77,21 +77,21 @@ describe("Progress.run", () => {
       withLogSpy(
         withNonTTYRenderer(
           Progress.withTask(
-            { description: "manual-context", transient: true },
             Effect.gen(function* () {
               const progress = yield* Progress.Progress;
 
               const taskIdFromContext = yield* progress.withTask(
-                { description: "captured-task", transient: false },
                 Effect.gen(function* () {
                   yield* Console.log(capturedMessage);
                   return yield* Progress.Task;
                 }),
+                { description: "captured-task", transient: false },
               );
 
               const task = yield* progress.getTask(taskIdFromContext);
               return Option.isSome(task);
             }),
+            { description: "manual-context", transient: true },
           ),
         ),
       ),
@@ -107,13 +107,13 @@ describe("Progress.run", () => {
       withLogSpy(
         withNonTTYRenderer(
           Progress.withTask(
-            { description: "top-level-task" },
             Effect.gen(function* () {
               const progress = yield* Progress.Progress;
               const taskId = yield* Progress.Task;
               yield* Console.log(capturedMessage);
               return yield* progress.getTask(taskId).pipe(Effect.map(Option.isSome));
             }),
+            { description: "top-level-task" },
           ),
         ),
       ),

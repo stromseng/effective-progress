@@ -114,10 +114,15 @@ export interface ProgressService {
   readonly log: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>;
   readonly getTask: (taskId: TaskId) => Effect.Effect<Option.Option<TaskSnapshot>>;
   readonly listTasks: Effect.Effect<ReadonlyArray<TaskSnapshot>>;
-  readonly withTask: <A, E, R>(
-    options: AddTaskOptions,
-    effect: Effect.Effect<A, E, R>,
-  ) => Effect.Effect<A, E, Exclude<R, Task>>;
+  readonly withTask: {
+    <A, E, R>(
+      effect: Effect.Effect<A, E, R>,
+      options: AddTaskOptions,
+    ): Effect.Effect<A, E, Exclude<R, Task>>;
+    <A, E, R>(
+      options: AddTaskOptions,
+    ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Task>>;
+  };
   readonly trackIterable: <A, B, E, R>(
     iterable: Iterable<A>,
     options: TrackOptions,

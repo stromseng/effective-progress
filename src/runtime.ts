@@ -1,4 +1,5 @@
 import { Context, Effect, Exit, FiberRef, Layer, Option, Ref } from "effect";
+import { dual } from "effect/Function";
 import { mergeWith } from "es-toolkit/object";
 import { formatWithOptions } from "node:util";
 import type { PartialDeep } from "type-fest";
@@ -305,56 +306,59 @@ const makeProgressService = Effect.gen(function* () {
 
   const listTasks = Ref.get(tasksRef).pipe(Effect.map((tasks) => Array.from(tasks.values())));
 
-  const withTask: ProgressService["withTask"] = (options, effect) =>
-    Effect.gen(function* () {
-      const outerConsole = yield* Effect.console;
-      const inheritedParentId = yield* FiberRef.get(currentParentRef);
-      const resolvedParentId =
-        options.parentId === undefined ? inheritedParentId : Option.some(options.parentId);
+  const withTask: ProgressService["withTask"] = dual(
+    2,
+    <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
+      Effect.gen(function* () {
+        const outerConsole = yield* Effect.console;
+        const inheritedParentId = yield* FiberRef.get(currentParentRef);
+        const resolvedParentId =
+          options.parentId === undefined ? inheritedParentId : Option.some(options.parentId);
 
-      const taskId = yield* addTask({
-        ...options,
-        parentId: Option.isSome(resolvedParentId) ? resolvedParentId.value : undefined,
-        transient: options.transient ?? Option.isSome(resolvedParentId),
-      });
+        const taskId = yield* addTask({
+          ...options,
+          parentId: Option.isSome(resolvedParentId) ? resolvedParentId.value : undefined,
+          transient: options.transient ?? Option.isSome(resolvedParentId),
+        });
 
-      const exit = yield* Effect.exit(
-        Effect.locally(
-          Effect.withConsole(
-            Effect.provideService(effect, Task, taskId),
-            makeProgressConsole(log, outerConsole),
+        const exit = yield* Effect.exit(
+          Effect.locally(
+            Effect.withConsole(
+              Effect.provideService(effect, Task, taskId),
+              makeProgressConsole(log, outerConsole),
+            ),
+            currentParentRef,
+            Option.some(taskId),
           ),
-          currentParentRef,
-          Option.some(taskId),
-        ),
-      );
+        );
 
-      if (Exit.isSuccess(exit)) {
-        yield* completeTask(taskId);
-      } else {
-        yield* failTask(taskId);
-      }
+        if (Exit.isSuccess(exit)) {
+          yield* completeTask(taskId);
+        } else {
+          yield* failTask(taskId);
+        }
 
-      return yield* Exit.match(exit, {
-        onFailure: Effect.failCause,
-        onSuccess: Effect.succeed,
-      });
-    });
+        return yield* Exit.match(exit, {
+          onFailure: Effect.failCause,
+          onSuccess: Effect.succeed,
+        });
+      }),
+  );
 
   const trackIterable: ProgressService["trackIterable"] = (iterable, options, f) =>
     withTask(
-      {
-        description: options.description,
-        total: options.total ?? inferTotal(iterable),
-        transient: options.transient,
-        progressbar: options.progressbar,
-      },
       Effect.gen(function* () {
         const taskId = yield* Task;
         return yield* Effect.forEach(iterable, (item, index) =>
           Effect.tap(f(item, index), () => advanceTask(taskId, 1)),
         );
       }),
+      {
+        description: options.description,
+        total: options.total ?? inferTotal(iterable),
+        transient: options.transient,
+        progressbar: options.progressbar,
+      },
     );
 
   const service: ProgressService = {

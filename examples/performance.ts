@@ -49,12 +49,12 @@ const program = Effect.gen(function* () {
 
   // Fill log history early to exercise retention behavior while tasks render.
   yield* progress.withTask(
-    { description: "Warmup logs", transient: true },
     Effect.forEach(
       Array.from({ length: BURST_LOG_LINES }, (_, i) => i + 1),
       (line) => Console.log(`warmup log ${line}/${BURST_LOG_LINES}`),
       { discard: true },
     ),
+    { description: "Warmup logs", transient: true },
   );
 
   yield* Progress.all(
@@ -69,8 +69,8 @@ const program = Effect.gen(function* () {
 });
 
 const configuredProgram = Progress.withTask(
-  { description: "Performance run", transient: false },
   program,
+  { description: "Performance run", transient: false },
 ).pipe(
   Effect.provideService(Progress.RendererConfig, {
     maxLogLines: 10,

@@ -120,6 +120,7 @@ Task-level `progressbar` config is optional and inherits from its parent task (o
 ```ts
 yield *
   progress.withTask(
+    Effect.sleep("1 second"),
     {
       description: "Worker pipeline",
       progressbar: {
@@ -130,7 +131,6 @@ yield *
         },
       },
     },
-    Effect.sleep("1 second"),
   );
 ```
 
@@ -158,7 +158,7 @@ const mockTerminal: Progress.ProgressTerminalService = {
   withRawInputCapture: (effect) => effect,
 };
 
-const program = Progress.withTask({ description: "work" }, Effect.sleep("100 millis")).pipe(
+const program = Progress.withTask(Effect.sleep("100 millis"), { description: "work" }).pipe(
   Effect.provideService(Progress.ProgressTerminal, mockTerminal),
 );
 ```
@@ -169,12 +169,12 @@ For manual usage, `withTask` captures logs implicitly and provides the current `
 
 ```ts
 const program = Progress.withTask(
-  { description: "Manual task" },
   Effect.gen(function* () {
     const currentTask = yield* Progress.Task;
     yield* Console.log("This log is rendered through progress output", { taskId: currentTask });
     yield* Effect.sleep("1 second");
   }),
+  { description: "Manual task" },
 );
 ```
 

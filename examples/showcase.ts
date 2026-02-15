@@ -15,29 +15,19 @@ const serviceFlow = (service: string, serviceIndex: number) =>
     yield* Effect.logInfo(`${service}: pipeline started`);
 
     // Spinner: unknown duration external dependency.
-    yield* Progress.forEach(
-      [service],
-      () =>
-        sleepRandom(1400, 450),
-      {
-        description: `${service}: waiting for upstream`,
-        total: 0,
-      },
-    );
+    yield* Progress.forEach([service], () => sleepRandom(1400, 450), {
+      description: `${service}: waiting for upstream`,
+      total: 0,
+    });
 
     yield* Progress.all(
       Array.from({ length: 3 }, (_, batchIndex) =>
         Effect.gen(function* () {
           const batch = batchIndex + 1;
 
-          yield* Progress.forEach(
-            stages,
-            (_) =>
-              sleepRandom(950, 280),
-            {
-              description: `${service}: batch ${batch} stages`,
-            },
-          );
+          yield* Progress.forEach(stages, (_) => sleepRandom(950, 280), {
+            description: `${service}: batch ${batch} stages`,
+          });
 
           if (Math.random() < 0.4) {
             // Spinner: optional remote consistency probe with unknown duration.
@@ -65,12 +55,11 @@ const serviceFlow = (service: string, serviceIndex: number) =>
     );
 
     yield* Effect.logInfo(`${service}: pipeline finished`);
-    yield* Console.log(`${service}: complete`);
+    yield* Effect.logInfo(`${service}: complete`);
   });
 
 const program = Effect.gen(function* () {
-  yield* Console.log("Showcase: nested concurrent tasks with spinners and mixed logging.");
-  yield* Effect.logInfo("Starting showcase run");
+  yield* Effect.logInfo("Showcase: nested concurrent tasks with spinners and mixed logging.");
 
   yield* Progress.all(
     services.map((service, index) => serviceFlow(service, index)),
@@ -89,7 +78,7 @@ const program = Effect.gen(function* () {
           yield* Effect.logInfo("Webhook dispatch queued for async confirmation");
         }
         if (index === 2) {
-          yield* Console.log(`Post-step complete: ${step}`);
+          yield* Effect.logInfo(`Post-step complete: ${step}`);
         }
       }),
     {
@@ -97,6 +86,6 @@ const program = Effect.gen(function* () {
       concurrency: 2,
     },
   );
-});
+}).pipe(Progress.withTask({ description: "Showcase program", transient: false }));
 
 Effect.runPromise(program.pipe(Effect.provide(Logger.pretty)));
