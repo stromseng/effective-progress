@@ -18,9 +18,7 @@ const serviceFlow = (service: string, serviceIndex: number) =>
     yield* Progress.forEach(
       [service],
       () =>
-        Effect.gen(function* () {
-          yield* sleepRandom(1400, 450);
-        }),
+        sleepRandom(1400, 450),
       {
         description: `${service}: waiting for upstream`,
         total: 0,
@@ -35,9 +33,7 @@ const serviceFlow = (service: string, serviceIndex: number) =>
           yield* Progress.forEach(
             stages,
             (_) =>
-              Effect.gen(function* () {
-                yield* sleepRandom(950, 280);
-              }),
+              sleepRandom(950, 280),
             {
               description: `${service}: batch ${batch} stages`,
             },

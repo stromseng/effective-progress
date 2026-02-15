@@ -275,6 +275,7 @@ const makeProgressService = Effect.gen(function* () {
         return;
       }
 
+      // TODO: Might wanna replace this or make it configurable. Look for other options.
       const message = formatWithOptions(
         {
           colors: isTTY,
@@ -297,10 +298,7 @@ const makeProgressService = Effect.gen(function* () {
       yield* markDirty;
     });
 
-  const log = (...args: ReadonlyArray<unknown>) =>
-    Effect.gen(function* () {
-      yield* appendLog(args);
-    });
+  const log = (...args: ReadonlyArray<unknown>) => appendLog(args);
 
   const getTask = (taskId: TaskId) =>
     Ref.get(tasksRef).pipe(Effect.map((tasks) => Option.fromNullable(tasks.get(taskId))));

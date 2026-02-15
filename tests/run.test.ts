@@ -43,11 +43,7 @@ const withNonTTYRenderer = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
 describe("Progress.run", () => {
   test("plain logs are not swallowed when no tasks are created", async () => {
     const message = "plain-log-no-task";
-    const { logs } = await Effect.runPromise(
-      withLogSpy(withNonTTYRenderer(Effect.gen(function* () {
-        yield* Console.log(message);
-      }))),
-    );
+    const { logs } = await Effect.runPromise(withLogSpy(withNonTTYRenderer(Console.log(message))));
 
     expect(logs.some((args) => args[0] === message)).toBeTrue();
   });
@@ -133,14 +129,7 @@ describe("Progress.run", () => {
     const { logs } = await Effect.runPromise(
       withLogSpy(
         withNonTTYRenderer(
-          Progress.all(
-            [
-              Effect.gen(function* () {
-                yield* Console.log(capturedMessage);
-              }),
-            ],
-            { description: "auto-capture-all" },
-          ),
+          Progress.all([Console.log(capturedMessage)], { description: "auto-capture-all" }),
         ),
       ),
     );
