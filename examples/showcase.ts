@@ -1,4 +1,4 @@
-import { Console, Effect, Logger } from "effect";
+import { Effect, Logger } from "effect";
 import * as Progress from "../src";
 
 const randomMillis = (base: number, jitter: number) =>

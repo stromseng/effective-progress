@@ -20,7 +20,6 @@ import {
   TaskId,
   TaskSnapshot,
 } from "./types";
-import { inferTotal } from "./utils";
 
 const mergeConfig = <T extends Record<PropertyKey, any>>(
   base: T,
