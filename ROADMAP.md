@@ -1,10 +1,5 @@
 # Roadmap
 
-## Phase 1 — Foundation cleanup
-
-- [ ] Clean up architecture and API.
-- [ ] Replace Maps with LRU Caches to prevent memory growth on long running tasks with many subtasks.
-
 ## Phase 2 — Core display features
 
 - [ ] Rethink color styling etc, to allow for multiple chalk styles like strikethrough and color.
