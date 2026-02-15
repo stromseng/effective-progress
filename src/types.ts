@@ -103,6 +103,8 @@ export class TaskSnapshot extends Schema.TaggedClass<TaskSnapshot>()("TaskSnapsh
   transient: Schema.Boolean,
   units: TaskUnitsSchema,
   config: ProgressBarConfigSchema,
+  startedAt: Schema.Number,
+  completedAt: Schema.NullOr(Schema.Number),
 }) {}
 
 export interface RenderRow {

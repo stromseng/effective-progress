@@ -1,4 +1,4 @@
-import { Effect, Ref, Schema } from "effect";
+import { Clock, Duration, Effect, Ref, Schema } from "effect";
 import {
   type CompiledProgressBarColors,
   compileProgressBarColors,
@@ -27,34 +27,45 @@ const renderDeterminate = (
   return `${colors.brackets(progressbar.leftBracket)}${bar}${colors.brackets(progressbar.rightBracket)} ${units.completed}/${units.total} ${colors.percent(percent + "%")}`;
 };
 
+const formatElapsed = (snapshot: TaskSnapshot, now: number): string => {
+  const elapsedMillis = (snapshot.completedAt ?? now) - snapshot.startedAt;
+  const duration =
+    snapshot.status === "running"
+      ? Duration.seconds(Math.floor(elapsedMillis / 1000))
+      : Duration.millis(elapsedMillis);
+  return ` (${Duration.format(duration)})`;
+};
+
 const buildTaskLine = (
   snapshot: TaskSnapshot,
   depth: number,
   tick: number,
   colors: CompiledProgressBarColors,
+  now: number,
 ): string => {
   const progressbar = snapshot.config;
   const prefix = `${"  ".repeat(depth)}- ${snapshot.description}: `;
+  const elapsed = formatElapsed(snapshot, now);
 
   if (snapshot.status === "failed") {
-    return `${prefix}${colors.failed("[failed]")}`;
+    return `${prefix}${colors.failed("[failed]")}${elapsed}`;
   }
 
   if (snapshot.status === "done") {
     if (snapshot.units._tag === "DeterminateTaskUnits") {
-      return `${prefix}${colors.done("[done]")} ${snapshot.units.completed}/${snapshot.units.total}`;
+      return `${prefix}${colors.done("[done]")} ${snapshot.units.completed}/${snapshot.units.total}${elapsed}`;
     }
-    return `${prefix}${colors.done("[done]")}`;
+    return `${prefix}${colors.done("[done]")}${elapsed}`;
   }
 
   if (snapshot.units._tag === "DeterminateTaskUnits") {
-    return prefix + renderDeterminate(snapshot.units, progressbar, colors);
+    return prefix + renderDeterminate(snapshot.units, progressbar, colors) + elapsed;
   }
 
   const frames = progressbar.spinnerFrames;
   const frameIndex = (snapshot.units.spinnerFrame + tick) % frames.length;
   const frame = frames[frameIndex] ?? frames[0]!;
-  return `${prefix}${colors.spinner(frame)}`;
+  return `${prefix}${colors.spinner(frame)}${elapsed}`;
 };
 
 export const runProgressServiceRenderer = (
@@ -170,10 +181,11 @@ export const runProgressServiceRenderer = (
         if (!snapshot || (snapshot.transient && snapshot.status !== "running")) return [];
         return [{ snapshot, depth: row.depth }];
       });
+      const now = yield* Clock.currentTimeMillis;
       const frameTick = mode === "final" ? tick + 1 : tick;
       const taskLines = ordered.map(({ snapshot, depth }) => {
         const lineTick = isTTY ? frameTick : 0;
-        return buildTaskLine(snapshot, depth, lineTick, getCompiledColors(snapshot.config));
+        return buildTaskLine(snapshot, depth, lineTick, getCompiledColors(snapshot.config), now);
       });
 
       if (isTTY) {

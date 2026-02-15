@@ -1,4 +1,4 @@
-import { Context, Effect, Exit, FiberRef, Layer, Option, Ref } from "effect";
+import { Clock, Context, Effect, Exit, FiberRef, Layer, Option, Ref } from "effect";
 import { dual } from "effect/Function";
 import { mergeWith } from "es-toolkit/object";
 import { formatWithOptions } from "node:util";
@@ -82,6 +82,8 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): Ta
     transient: options.transient ?? snapshot.transient,
     units,
     config: snapshot.config,
+    startedAt: snapshot.startedAt,
+    completedAt: snapshot.completedAt,
   });
 };
 
@@ -181,6 +183,7 @@ const makeProgressService = Effect.gen(function* () {
         mergeConfig(inheritedProgressBarConfig, options.progressbar),
       );
 
+      const now = yield* Clock.currentTimeMillis;
       const parentIdValue = Option.getOrNull(resolvedParentId);
       const snapshot = new TaskSnapshot({
         id: taskId,
@@ -190,6 +193,8 @@ const makeProgressService = Effect.gen(function* () {
         transient: options.transient ?? false,
         units,
         config: resolvedProgressBarConfig,
+        startedAt: now,
+        completedAt: null,
       });
 
       yield* Ref.update(storeRef, (s) => {
@@ -240,6 +245,8 @@ const makeProgressService = Effect.gen(function* () {
           transient: snapshot.transient,
           units,
           config: snapshot.config,
+          startedAt: snapshot.startedAt,
+          completedAt: snapshot.completedAt,
         }),
       );
 
@@ -247,62 +254,74 @@ const makeProgressService = Effect.gen(function* () {
     }).pipe(Effect.zipRight(markDirty));
 
   const completeTask = (taskId: TaskId) =>
-    Ref.update(storeRef, (store) => {
-      const snapshot = store.tasks.get(taskId);
-      if (!snapshot) return store;
+    Effect.gen(function* () {
+      const now = yield* Clock.currentTimeMillis;
+      yield* Ref.update(storeRef, (store) => {
+        const snapshot = store.tasks.get(taskId);
+        if (!snapshot) return store;
 
-      const nextTasks = new Map(store.tasks);
-      if (snapshot.transient) {
-        nextTasks.delete(taskId);
-        return { tasks: nextTasks, renderOrder: removeFromRenderOrder(store.renderOrder, taskId) };
-      }
+        const nextTasks = new Map(store.tasks);
+        if (snapshot.transient) {
+          nextTasks.delete(taskId);
+          return { tasks: nextTasks, renderOrder: removeFromRenderOrder(store.renderOrder, taskId) };
+        }
 
-      nextTasks.set(
-        taskId,
-        new TaskSnapshot({
-          id: snapshot.id,
-          parentId: snapshot.parentId,
-          description: snapshot.description,
-          status: "done",
-          transient: snapshot.transient,
-          units:
-            snapshot.units._tag === "DeterminateTaskUnits"
-              ? new DeterminateTaskUnits({
-                  completed: snapshot.units.total,
-                  total: snapshot.units.total,
-                })
-              : snapshot.units,
-          config: snapshot.config,
-        }),
-      );
-      return { tasks: nextTasks, renderOrder: store.renderOrder };
-    }).pipe(Effect.zipRight(markDirty));
+        nextTasks.set(
+          taskId,
+          new TaskSnapshot({
+            id: snapshot.id,
+            parentId: snapshot.parentId,
+            description: snapshot.description,
+            status: "done",
+            transient: snapshot.transient,
+            units:
+              snapshot.units._tag === "DeterminateTaskUnits"
+                ? new DeterminateTaskUnits({
+                    completed: snapshot.units.total,
+                    total: snapshot.units.total,
+                  })
+                : snapshot.units,
+            config: snapshot.config,
+            startedAt: snapshot.startedAt,
+            completedAt: now,
+          }),
+        );
+        return { tasks: nextTasks, renderOrder: store.renderOrder };
+      });
+      yield* markDirty;
+    });
 
   const failTask = (taskId: TaskId) =>
-    Ref.update(storeRef, (store) => {
-      const snapshot = store.tasks.get(taskId);
-      if (!snapshot) return store;
+    Effect.gen(function* () {
+      const now = yield* Clock.currentTimeMillis;
+      yield* Ref.update(storeRef, (store) => {
+        const snapshot = store.tasks.get(taskId);
+        if (!snapshot) return store;
 
-      const nextTasks = new Map(store.tasks);
-      if (snapshot.transient) {
-        nextTasks.delete(taskId);
-        return { tasks: nextTasks, renderOrder: removeFromRenderOrder(store.renderOrder, taskId) };
-      }
+        const nextTasks = new Map(store.tasks);
+        if (snapshot.transient) {
+          nextTasks.delete(taskId);
+          return { tasks: nextTasks, renderOrder: removeFromRenderOrder(store.renderOrder, taskId) };
+        }
 
-      nextTasks.set(
-        taskId,
-        new TaskSnapshot({
-          id: snapshot.id,
-          parentId: snapshot.parentId,
-          description: snapshot.description,
-          status: "failed",
-          transient: snapshot.transient,
-          units: snapshot.units,
-          config: snapshot.config,
-        }),
-      );
-      return { tasks: nextTasks, renderOrder: store.renderOrder };
-    }).pipe(Effect.zipRight(markDirty));
+        nextTasks.set(
+          taskId,
+          new TaskSnapshot({
+            id: snapshot.id,
+            parentId: snapshot.parentId,
+            description: snapshot.description,
+            status: "failed",
+            transient: snapshot.transient,
+            units: snapshot.units,
+            config: snapshot.config,
+            startedAt: snapshot.startedAt,
+            completedAt: now,
+          }),
+        );
+        return { tasks: nextTasks, renderOrder: store.renderOrder };
+      });
+      yield* markDirty;
+    });
 
   const appendLog = (args: ReadonlyArray<unknown>) =>
     Effect.gen(function* () {
