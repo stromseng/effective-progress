@@ -75,7 +75,7 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): Ta
     status: snapshot.status,
     transient: options.transient ?? snapshot.transient,
     units,
-    progressbar: snapshot.progressbar,
+    config: snapshot.config,
   });
 };
 
@@ -136,7 +136,7 @@ const makeProgressService = Effect.gen(function* () {
           : new DeterminateTaskUnits({ completed: 0, total: Math.max(0, options.total) });
       const tasks = yield* Ref.get(tasksRef);
       const parentSnapshot = Option.isSome(parentId) ? tasks.get(parentId.value) : undefined;
-      const inheritedProgressBarConfig = parentSnapshot?.progressbar ?? progressBarConfig;
+      const inheritedProgressBarConfig = parentSnapshot?.config ?? progressBarConfig;
       const resolvedProgressBarConfig = decodeProgressBarConfigSync(
         mergeConfig(inheritedProgressBarConfig, options.progressbar),
       );
@@ -148,7 +148,7 @@ const makeProgressService = Effect.gen(function* () {
         status: "running",
         transient: options.transient ?? false,
         units,
-        progressbar: resolvedProgressBarConfig,
+        config: resolvedProgressBarConfig,
       });
 
       yield* Ref.update(tasksRef, (tasks) => {
@@ -200,7 +200,7 @@ const makeProgressService = Effect.gen(function* () {
           status: snapshot.status,
           transient: snapshot.transient,
           units,
-          progressbar: snapshot.progressbar,
+          config: snapshot.config,
         }),
       );
 
@@ -235,7 +235,7 @@ const makeProgressService = Effect.gen(function* () {
                   total: snapshot.units.total,
                 })
               : snapshot.units,
-          progressbar: snapshot.progressbar,
+          config: snapshot.config,
         }),
       );
       return next;
@@ -263,7 +263,7 @@ const makeProgressService = Effect.gen(function* () {
           status: "failed",
           transient: snapshot.transient,
           units: snapshot.units,
-          progressbar: snapshot.progressbar,
+          config: snapshot.config,
         }),
       );
       return next;

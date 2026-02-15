@@ -33,7 +33,7 @@ const buildTaskLine = (
   tick: number,
   colors: CompiledProgressBarColors,
 ): string => {
-  const progressbar = snapshot.progressbar;
+  const progressbar = snapshot.config;
   const prefix = `${"  ".repeat(depth)}- ${snapshot.description}: `;
 
   if (snapshot.status === "failed") {
@@ -194,7 +194,7 @@ export const runProgressServiceRenderer = (
       const frameTick = mode === "final" ? tick + 1 : tick;
       const taskLines = ordered.map(({ snapshot, depth }) => {
         const lineTick = isTTY ? frameTick : 0;
-        return buildTaskLine(snapshot, depth, lineTick, getCompiledColors(snapshot.progressbar));
+        return buildTaskLine(snapshot, depth, lineTick, getCompiledColors(snapshot.config));
       });
 
       if (isTTY) {

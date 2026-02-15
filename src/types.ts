@@ -102,7 +102,7 @@ export class TaskSnapshot extends Schema.TaggedClass<TaskSnapshot>()("TaskSnapsh
   status: TaskStatusSchema,
   transient: Schema.Boolean,
   units: TaskUnitsSchema,
-  progressbar: ProgressBarConfigSchema,
+  config: ProgressBarConfigSchema,
 }) {}
 
 export interface ProgressService {

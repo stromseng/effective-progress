@@ -44,9 +44,9 @@ describe("task progressbar inheritance", () => {
 
     const root = await Effect.runPromise(program);
 
-    expect(root.progressbar.barWidth).toBe(44);
-    expect(root.progressbar.spinnerFrames).toEqual([".", "o", "O"]);
-    expect(root.progressbar.colors.fill).toEqual({ kind: "named", value: "magentaBright" });
+    expect(root.config.barWidth).toBe(44);
+    expect(root.config.spinnerFrames).toEqual([".", "o", "O"]);
+    expect(root.config.colors.fill).toEqual({ kind: "named", value: "magentaBright" });
   });
 
   test("inherits parent override, applies child partial override, and keeps siblings isolated", async () => {
@@ -113,23 +113,23 @@ describe("task progressbar inheritance", () => {
 
     const { root, child, sibling } = await Effect.runPromise(program);
 
-    expect(root.progressbar.barWidth).toBe(40);
-    expect(root.progressbar.spinnerFrames).toEqual(["R", "r"]);
-    expect(root.progressbar.colors.fill).toEqual({ kind: "named", value: "blueBright" });
+    expect(root.config.barWidth).toBe(40);
+    expect(root.config.spinnerFrames).toEqual(["R", "r"]);
+    expect(root.config.colors.fill).toEqual({ kind: "named", value: "blueBright" });
 
-    expect(child.progressbar.barWidth).toBe(40);
-    expect(child.progressbar.spinnerFrames).toEqual(["C"]);
-    expect(child.progressbar.colors.fill).toEqual({ kind: "named", value: "blueBright" });
-    expect(child.progressbar.colors.spinner).toEqual({ kind: "named", value: "yellowBright" });
+    expect(child.config.barWidth).toBe(40);
+    expect(child.config.spinnerFrames).toEqual(["C"]);
+    expect(child.config.colors.fill).toEqual({ kind: "named", value: "blueBright" });
+    expect(child.config.colors.spinner).toEqual({ kind: "named", value: "yellowBright" });
 
-    expect(sibling.progressbar.barWidth).toBe(40);
-    expect(sibling.progressbar.spinnerFrames).toEqual(["R", "r"]);
-    expect(sibling.progressbar.colors.fill).toEqual({ kind: "named", value: "blueBright" });
-    expect(sibling.progressbar.colors.percent).toEqual({
+    expect(sibling.config.barWidth).toBe(40);
+    expect(sibling.config.spinnerFrames).toEqual(["R", "r"]);
+    expect(sibling.config.colors.fill).toEqual({ kind: "named", value: "blueBright" });
+    expect(sibling.config.colors.percent).toEqual({
       kind: "named",
       value: "cyanBright",
       modifiers: ["bold"],
     });
-    expect(sibling.progressbar.colors.spinner).toEqual({ kind: "named", value: "whiteBright" });
+    expect(sibling.config.colors.spinner).toEqual({ kind: "named", value: "whiteBright" });
   });
 });
