@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/effective-progress)](https://www.npmjs.com/package/effective-progress)
 
 > [!WARNING]
-> Pre-`1.0.0`, breaking changes may happen in any release. SemVer guarantees will begin at `1.0.0`.
+> Pre-`1.0.0`, breaking changes may happen in any release. SemVer guarantees will begin at `1.0.0`.  
 > I recommend using only the `Progress.all` and `Progress.forEach` APIs for now, as they will likely change the least. The lower-level APIs for manual progress bar control are more likely to see breaking changes as I iterate on the design.
 >
 > Please open an issue or reach out if you have any questions or want to contribute!
@@ -162,8 +162,6 @@ const program = Progress.withTask({ description: "work" }, Effect.sleep("100 mil
   Effect.provideService(Progress.ProgressTerminal, mockTerminal),
 );
 ```
-
-
 
 ## Manual task control
 
