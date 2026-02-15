@@ -212,7 +212,7 @@ Supported modifiers:
 
 ## Dependencies & package size
 
-This library is designed for CLI workflows, where package size is typically a lower-priority concern. Alongside `effect`, it relies on two mature runtime dependencies: `chalk` and `es-toolkit`.
+This library is designed for CLI workflows, where package size is typically a lower-priority concern. Alongside `effect` though, I will strive to only rely on other high quality packages.
 
 ## Notes
 
