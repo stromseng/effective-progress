@@ -20,7 +20,6 @@ import {
 } from "./types";
 import { inferTotal } from "./utils";
 
-
 const mergeConfig = <T extends Record<PropertyKey, any>>(
   base: T,
   override: PartialDeep<T> | undefined,
@@ -156,8 +155,7 @@ export const makeProgressService = Effect.gen(function* () {
           ? new IndeterminateTaskUnits({ spinnerFrame: 0 })
           : new DeterminateTaskUnits({ completed: 0, total: Math.max(0, options.total) });
       const tasks = yield* Ref.get(tasksRef);
-      const parentSnapshot =
-        Option.isSome(parentId) ? tasks.get(parentId.value) : undefined;
+      const parentSnapshot = Option.isSome(parentId) ? tasks.get(parentId.value) : undefined;
       const inheritedProgressBarConfig = parentSnapshot?.progressbar ?? progressBarConfig;
       const resolvedProgressBarConfig = decodeProgressBarConfigSync(
         mergeConfig(inheritedProgressBarConfig, options.progressbar),
@@ -328,7 +326,7 @@ export const makeProgressService = Effect.gen(function* () {
 
   const withCapturedLogs: ProgressService["withCapturedLogs"] = (effect) =>
     Effect.gen(function* () {
-      const outerConsole = yield* Console.consoleWith((console) => Effect.succeed(console));
+      const outerConsole = yield* Effect.console;
       const currentParent = yield* FiberRef.get(currentParentRef);
 
       if (Option.isSome(currentParent)) {
