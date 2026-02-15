@@ -12,7 +12,7 @@ export const makeProgressConsole = (
 
   const delegate = (effect: Effect.Effect<void, never, never>) => effect;
 
-  return {
+  return Console.Console.of({
     [Console.TypeId]: Console.TypeId,
     assert(condition, ...args) {
       return condition ? Effect.void : log("Assertion failed:", ...args);
@@ -81,5 +81,5 @@ export const makeProgressConsole = (
         unsafeLog(...args);
       },
     },
-  };
+  });
 };
