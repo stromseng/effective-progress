@@ -1,8 +1,6 @@
 # Roadmap
 
 - [ ] Clean up architecture and API.
-  - [ ] Replace `process.stderr.rows` with a service such that we can mock it alongside the isTTY and others. See effect-platform terminal service. Might have to extend.
-
 - [ ] Move `withTask` error handling out of it and into the higher level foreach and all internals. To support Records and failure modes better later down the line.
   - [ ] Give helpers to override progressbarConfig context. I.e `Progress.withConfig({ ... })`
   - [ ] Optimize task storage to a data structure that natively supports depth first traversal to make printing nested task frames faster.
