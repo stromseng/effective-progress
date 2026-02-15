@@ -5,8 +5,8 @@ import {
   ProgressBarColorsSchema,
 } from "./colors";
 import type { ProgressTerminalService } from "./terminal";
-import type { ProgressBarConfigShape, RendererConfigShape } from "./types";
-import { DeterminateTaskUnits, TaskId, TaskSnapshot } from "./types";
+import type { ProgressBarConfigShape, RendererConfigShape, TaskStore } from "./types";
+import { DeterminateTaskUnits, TaskSnapshot } from "./types";
 
 const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
@@ -57,31 +57,8 @@ const buildTaskLine = (
   return `${prefix}${colors.spinner(frame)}`;
 };
 
-const orderTasksForRender = (
-  tasks: ReadonlyArray<TaskSnapshot>,
-): ReadonlyArray<{ snapshot: TaskSnapshot; depth: number }> => {
-  const byParent = new Map<number | null, Array<TaskSnapshot>>();
-  for (const task of tasks) {
-    const bucket = byParent.get(task.parentId) ?? [];
-    bucket.push(task);
-    byParent.set(task.parentId, bucket);
-  }
-
-  const ordered: Array<{ snapshot: TaskSnapshot; depth: number }> = [];
-  const visit = (parentId: number | null, depth: number) => {
-    const children = byParent.get(parentId) ?? [];
-    for (const child of children) {
-      ordered.push({ snapshot: child, depth });
-      visit(child.id, depth + 1);
-    }
-  };
-
-  visit(null, 0);
-  return ordered;
-};
-
 export const runProgressServiceRenderer = (
-  tasksRef: Ref.Ref<Map<TaskId, TaskSnapshot>>,
+  storeRef: Ref.Ref<TaskStore>,
   logsRef: Ref.Ref<ReadonlyArray<string>>,
   pendingLogsRef: Ref.Ref<ReadonlyArray<string>>,
   dirtyRef: Ref.Ref<boolean>,
@@ -187,10 +164,12 @@ export const runProgressServiceRenderer = (
   const renderFrame = (mode: "tick" | "final") =>
     Effect.gen(function* () {
       const drainedLogs = yield* Ref.getAndSet(pendingLogsRef, []);
-      const snapshots = Array.from((yield* Ref.get(tasksRef)).values()).filter(
-        (task) => !task.transient || task.status === "running",
-      );
-      const ordered = orderTasksForRender(snapshots);
+      const store = yield* Ref.get(storeRef);
+      const ordered = store.renderOrder.flatMap((row) => {
+        const snapshot = store.tasks.get(row.id);
+        if (!snapshot || (snapshot.transient && snapshot.status !== "running")) return [];
+        return [{ snapshot, depth: row.depth }];
+      });
       const frameTick = mode === "final" ? tick + 1 : tick;
       const taskLines = ordered.map(({ snapshot, depth }) => {
         const lineTick = isTTY ? frameTick : 0;
@@ -248,7 +227,7 @@ export const runProgressServiceRenderer = (
 
     while (true) {
       const dirty = yield* Ref.getAndSet(dirtyRef, false);
-      const tasks = Array.from((yield* Ref.get(tasksRef)).values()).filter(
+      const tasks = Array.from((yield* Ref.get(storeRef)).tasks.values()).filter(
         (task) => !(task.transient && task.status !== "running"),
       );
       const hasActiveSpinners = tasks.some(

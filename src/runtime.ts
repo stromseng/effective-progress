@@ -6,7 +6,13 @@ import type { PartialDeep } from "type-fest";
 import { makeProgressConsole } from "./console";
 import { runProgressServiceRenderer } from "./renderer";
 import { ProgressTerminal } from "./terminal";
-import type { AddTaskOptions, ProgressService, UpdateTaskOptions } from "./types";
+import type {
+  AddTaskOptions,
+  ProgressService,
+  RenderRow,
+  TaskStore,
+  UpdateTaskOptions,
+} from "./types";
 import {
   decodeProgressBarConfigSync,
   decodeRendererConfigSync,
@@ -79,6 +85,35 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): Ta
   });
 };
 
+const findInsertionIndex = (
+  renderOrder: ReadonlyArray<RenderRow>,
+  parentId: TaskId | null,
+): { index: number; depth: number } => {
+  if (parentId === null) {
+    return { index: renderOrder.length, depth: 0 };
+  }
+  const parentIdx = renderOrder.findIndex((row) => row.id === parentId);
+  if (parentIdx === -1) return { index: renderOrder.length, depth: 0 };
+  const parentDepth = renderOrder[parentIdx]!.depth;
+  let i = parentIdx + 1;
+  while (i < renderOrder.length && renderOrder[i]!.depth > parentDepth) i++;
+  return { index: i, depth: parentDepth + 1 };
+};
+
+const removeFromRenderOrder = (
+  renderOrder: ReadonlyArray<RenderRow>,
+  taskId: TaskId,
+): ReadonlyArray<RenderRow> => {
+  const idx = renderOrder.findIndex((row) => row.id === taskId);
+  if (idx === -1) return renderOrder;
+  const taskDepth = renderOrder[idx]!.depth;
+  let end = idx + 1;
+  while (end < renderOrder.length && renderOrder[end]!.depth > taskDepth) end++;
+  const next = [...renderOrder];
+  next.splice(idx, end - idx);
+  return next;
+};
+
 const makeProgressService = Effect.gen(function* () {
   const rendererConfigOption = yield* Effect.serviceOption(RendererConfig);
   const progressBarConfigOption = yield* Effect.serviceOption(ProgressBarConfig);
@@ -100,7 +135,10 @@ const makeProgressService = Effect.gen(function* () {
   const maxRetainedLogLines = Math.max(0, Math.floor(rendererConfig.maxLogLines ?? 0));
 
   const nextTaskIdRef = yield* Ref.make(0);
-  const tasksRef = yield* Ref.make(new Map<TaskId, TaskSnapshot>());
+  const storeRef = yield* Ref.make<TaskStore>({
+    tasks: new Map<TaskId, TaskSnapshot>(),
+    renderOrder: [],
+  });
   const logsRef = yield* Ref.make<ReadonlyArray<string>>([]);
   const pendingLogsRef = yield* Ref.make<ReadonlyArray<string>>([]);
   const dirtyRef = yield* Ref.make(true);
@@ -109,7 +147,7 @@ const makeProgressService = Effect.gen(function* () {
 
   yield* Effect.forkIn(
     runProgressServiceRenderer(
-      tasksRef,
+      storeRef,
       logsRef,
       pendingLogsRef,
       dirtyRef,
@@ -125,7 +163,7 @@ const makeProgressService = Effect.gen(function* () {
 
   const addTask = (options: AddTaskOptions) =>
     Effect.gen(function* () {
-      const parentId =
+      const resolvedParentId =
         options.parentId === undefined
           ? yield* FiberRef.get(currentParentRef)
           : Option.some(options.parentId);
@@ -134,16 +172,19 @@ const makeProgressService = Effect.gen(function* () {
         options.total === undefined || options.total <= 0
           ? new IndeterminateTaskUnits({ spinnerFrame: 0 })
           : new DeterminateTaskUnits({ completed: 0, total: Math.max(0, options.total) });
-      const tasks = yield* Ref.get(tasksRef);
-      const parentSnapshot = Option.isSome(parentId) ? tasks.get(parentId.value) : undefined;
+      const store = yield* Ref.get(storeRef);
+      const parentSnapshot = Option.isSome(resolvedParentId)
+        ? store.tasks.get(resolvedParentId.value)
+        : undefined;
       const inheritedProgressBarConfig = parentSnapshot?.config ?? progressBarConfig;
       const resolvedProgressBarConfig = decodeProgressBarConfigSync(
         mergeConfig(inheritedProgressBarConfig, options.progressbar),
       );
 
+      const parentIdValue = Option.getOrNull(resolvedParentId);
       const snapshot = new TaskSnapshot({
         id: taskId,
-        parentId: Option.getOrNull(parentId),
+        parentId: parentIdValue,
         description: options.description,
         status: "running",
         transient: options.transient ?? false,
@@ -151,10 +192,13 @@ const makeProgressService = Effect.gen(function* () {
         config: resolvedProgressBarConfig,
       });
 
-      yield* Ref.update(tasksRef, (tasks) => {
-        const next = new Map(tasks);
-        next.set(taskId, snapshot);
-        return next;
+      yield* Ref.update(storeRef, (s) => {
+        const nextTasks = new Map(s.tasks);
+        nextTasks.set(taskId, snapshot);
+        const { index, depth } = findInsertionIndex(s.renderOrder, parentIdValue);
+        const nextOrder = [...s.renderOrder];
+        nextOrder.splice(index, 0, { id: taskId, depth });
+        return { tasks: nextTasks, renderOrder: nextOrder };
       });
       yield* markDirty;
 
@@ -162,25 +206,19 @@ const makeProgressService = Effect.gen(function* () {
     });
 
   const updateTask = (taskId: TaskId, options: UpdateTaskOptions) =>
-    Ref.update(tasksRef, (tasks) => {
-      const snapshot = tasks.get(taskId);
-      if (!snapshot) {
-        return tasks;
-      }
-
-      const next = new Map(tasks);
-      next.set(taskId, updatedSnapshot(snapshot, options));
-      return next;
+    Ref.update(storeRef, (store) => {
+      const snapshot = store.tasks.get(taskId);
+      if (!snapshot) return store;
+      const nextTasks = new Map(store.tasks);
+      nextTasks.set(taskId, updatedSnapshot(snapshot, options));
+      return { tasks: nextTasks, renderOrder: store.renderOrder };
     }).pipe(Effect.zipRight(markDirty));
 
   const advanceTask = (taskId: TaskId, amount = 1) =>
-    Ref.update(tasksRef, (tasks) => {
-      const snapshot = tasks.get(taskId);
-      if (!snapshot) {
-        return tasks;
-      }
+    Ref.update(storeRef, (store) => {
+      const snapshot = store.tasks.get(taskId);
+      if (!snapshot) return store;
 
-      const next = new Map(tasks);
       const units =
         snapshot.units._tag === "DeterminateTaskUnits"
           ? new DeterminateTaskUnits({
@@ -191,7 +229,8 @@ const makeProgressService = Effect.gen(function* () {
               spinnerFrame: Math.max(0, snapshot.units.spinnerFrame + amount),
             });
 
-      next.set(
+      const nextTasks = new Map(store.tasks);
+      nextTasks.set(
         taskId,
         new TaskSnapshot({
           id: snapshot.id,
@@ -204,23 +243,21 @@ const makeProgressService = Effect.gen(function* () {
         }),
       );
 
-      return next;
+      return { tasks: nextTasks, renderOrder: store.renderOrder };
     }).pipe(Effect.zipRight(markDirty));
 
   const completeTask = (taskId: TaskId) =>
-    Ref.update(tasksRef, (tasks) => {
-      const snapshot = tasks.get(taskId);
-      if (!snapshot) {
-        return tasks;
-      }
+    Ref.update(storeRef, (store) => {
+      const snapshot = store.tasks.get(taskId);
+      if (!snapshot) return store;
 
-      const next = new Map(tasks);
+      const nextTasks = new Map(store.tasks);
       if (snapshot.transient) {
-        next.delete(taskId);
-        return next;
+        nextTasks.delete(taskId);
+        return { tasks: nextTasks, renderOrder: removeFromRenderOrder(store.renderOrder, taskId) };
       }
 
-      next.set(
+      nextTasks.set(
         taskId,
         new TaskSnapshot({
           id: snapshot.id,
@@ -238,23 +275,21 @@ const makeProgressService = Effect.gen(function* () {
           config: snapshot.config,
         }),
       );
-      return next;
+      return { tasks: nextTasks, renderOrder: store.renderOrder };
     }).pipe(Effect.zipRight(markDirty));
 
   const failTask = (taskId: TaskId) =>
-    Ref.update(tasksRef, (tasks) => {
-      const snapshot = tasks.get(taskId);
-      if (!snapshot) {
-        return tasks;
-      }
+    Ref.update(storeRef, (store) => {
+      const snapshot = store.tasks.get(taskId);
+      if (!snapshot) return store;
 
-      const next = new Map(tasks);
+      const nextTasks = new Map(store.tasks);
       if (snapshot.transient) {
-        next.delete(taskId);
-        return next;
+        nextTasks.delete(taskId);
+        return { tasks: nextTasks, renderOrder: removeFromRenderOrder(store.renderOrder, taskId) };
       }
 
-      next.set(
+      nextTasks.set(
         taskId,
         new TaskSnapshot({
           id: snapshot.id,
@@ -266,7 +301,7 @@ const makeProgressService = Effect.gen(function* () {
           config: snapshot.config,
         }),
       );
-      return next;
+      return { tasks: nextTasks, renderOrder: store.renderOrder };
     }).pipe(Effect.zipRight(markDirty));
 
   const appendLog = (args: ReadonlyArray<unknown>) =>
@@ -301,9 +336,9 @@ const makeProgressService = Effect.gen(function* () {
   const log = (...args: ReadonlyArray<unknown>) => appendLog(args);
 
   const getTask = (taskId: TaskId) =>
-    Ref.get(tasksRef).pipe(Effect.map((tasks) => Option.fromNullable(tasks.get(taskId))));
+    Ref.get(storeRef).pipe(Effect.map((store) => Option.fromNullable(store.tasks.get(taskId))));
 
-  const listTasks = Ref.get(tasksRef).pipe(Effect.map((tasks) => Array.from(tasks.values())));
+  const listTasks = Ref.get(storeRef).pipe(Effect.map((store) => Array.from(store.tasks.values())));
 
   const runTask: ProgressService["runTask"] = dual(
     2,

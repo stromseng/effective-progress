@@ -105,6 +105,16 @@ export class TaskSnapshot extends Schema.TaggedClass<TaskSnapshot>()("TaskSnapsh
   config: ProgressBarConfigSchema,
 }) {}
 
+export interface RenderRow {
+  readonly id: TaskId;
+  readonly depth: number;
+}
+
+export interface TaskStore {
+  readonly tasks: Map<TaskId, TaskSnapshot>;
+  readonly renderOrder: ReadonlyArray<RenderRow>;
+}
+
 export interface ProgressService {
   readonly addTask: (options: AddTaskOptions) => Effect.Effect<TaskId>;
   readonly updateTask: (taskId: TaskId, options: UpdateTaskOptions) => Effect.Effect<void>;
