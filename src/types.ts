@@ -123,11 +123,6 @@ export interface ProgressService {
       options: AddTaskOptions,
     ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Task>>;
   };
-  readonly trackIterable: <A, B, E, R>(
-    iterable: Iterable<A>,
-    options: TrackOptions,
-    f: (item: A, index: number) => Effect.Effect<B, E, R>,
-  ) => Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Task>>;
 }
 
 export class Task extends Context.Tag("stromseng.dev/Task")<Task, TaskId>() {}

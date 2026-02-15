@@ -345,22 +345,6 @@ const makeProgressService = Effect.gen(function* () {
       }),
   );
 
-  const trackIterable: ProgressService["trackIterable"] = (iterable, options, f) =>
-    withTask(
-      Effect.gen(function* () {
-        const taskId = yield* Task;
-        return yield* Effect.forEach(iterable, (item, index) =>
-          Effect.tap(f(item, index), () => advanceTask(taskId, 1)),
-        );
-      }),
-      {
-        description: options.description,
-        total: options.total ?? inferTotal(iterable),
-        transient: options.transient,
-        progressbar: options.progressbar,
-      },
-    );
-
   const service: ProgressService = {
     addTask,
     updateTask,
@@ -371,7 +355,6 @@ const makeProgressService = Effect.gen(function* () {
     getTask,
     listTasks,
     withTask,
-    trackIterable,
   };
 
   return Progress.of(service);
