@@ -104,10 +104,10 @@ export const defaultProgressBarColors: ProgressBarColors = {
 };
 
 const applyModifier = (instance: ChalkInstance, modifier: StyleModifier): ChalkInstance =>
-  instance[modifier] as ChalkInstance;
+  instance[modifier];
 
 const applyNamedColor = (instance: ChalkInstance, color: NamedColor): ChalkInstance =>
-  instance[color] as ChalkInstance;
+  instance[color];
 
 const resolveBaseStyle = (style: ColorStyle): ChalkInstance => {
   switch (style.kind) {
