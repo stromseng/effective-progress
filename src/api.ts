@@ -82,9 +82,7 @@ export const all: {
             const taskId = yield* Task;
             const exit = yield* Effect.exit(
               Effect.all(
-                effects.map((effect) =>
-                  Effect.tap(effect, () => progress.advanceTask(taskId, 1)),
-                ),
+                effects.map((effect) => Effect.tap(effect, () => progress.advanceTask(taskId, 1))),
                 {
                   concurrency: options.concurrency,
                   batching: options.batching,
@@ -144,8 +142,7 @@ export const forEach: {
             const exit = yield* Effect.exit(
               Effect.forEach(
                 iterable,
-                (item, index) =>
-                  Effect.tap(f(item, index), () => progress.advanceTask(taskId, 1)),
+                (item, index) => Effect.tap(f(item, index), () => progress.advanceTask(taskId, 1)),
                 {
                   concurrency: options.concurrency,
                   batching: options.batching,

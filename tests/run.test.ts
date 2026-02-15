@@ -127,10 +127,9 @@ describe("Progress.run", () => {
   test("all returns the values from each effect", async () => {
     const result = await Effect.runPromise(
       withNonTTYRenderer(
-        Progress.all(
-          [Effect.succeed(1), Effect.succeed("two"), Effect.succeed(true)],
-          { description: "return-values" },
-        ),
+        Progress.all([Effect.succeed(1), Effect.succeed("two"), Effect.succeed(true)], {
+          description: "return-values",
+        }),
       ),
     );
 
