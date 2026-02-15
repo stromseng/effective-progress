@@ -23,6 +23,13 @@
 
   - [ ] Give helpers to override progressbarConfig context. I.e `Progress.withConfig({ ... })`
 
+- [ ] Support full width progress bars. Protect against linewraps. Maybe add progressbars with title above and bar below. Like:
+
+  ```
+  Bootstrapping environment
+  [=====>             ] 25%
+  ```
+
 - [ ] ETA calculation. Deque of last N tasks.
 - [ ] Show elapsed Time.
 - [ ] Support failing tasks showing as red parts of the progress bar. Support Effect.all modes "validate" and "either"
