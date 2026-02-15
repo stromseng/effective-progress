@@ -25,7 +25,7 @@ export const decodeProgressBarConfigSync = Schema.decodeUnknownSync(ProgressBarC
 
 export const defaultRendererConfig: RendererConfigShape = {
   disableUserInput: true,
-  renderIntervalMillis: 50, // 20 FPS
+  renderIntervalMillis: 100, // 10 FPS
   maxLogLines: 0,
   nonTtyUpdateStep: 5,
 };
