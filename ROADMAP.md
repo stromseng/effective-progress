@@ -3,7 +3,6 @@
 ## Phase 1 — Foundation cleanup
 
 - [ ] Clean up architecture and API.
-- [ ] Add support for Effect.all Records, not only arrays.
 - [ ] Replace Maps with LRU Caches to prevent memory growth on long running tasks with many subtasks.
 
 ## Phase 2 — Core display features
