@@ -5,6 +5,7 @@
   - [ ] Give helpers to override progressbarConfig context. I.e `Progress.withConfig({ ... })`
   - [ ] Optimize task storage to a data structure that natively supports depth first traversal to make printing nested task frames faster.
 
+- [ ] Allow for individual task maxLogLines configuration. Maybe a per task `logRetentionStrategy` that can be set to "all", "none", or "latestN" with a number.
 - [ ] Support full width progress bars. Protect against linewraps. Maybe add progressbars with title above and bar below. Like:
 
   ```
