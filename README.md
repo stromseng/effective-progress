@@ -155,17 +155,17 @@ const mockTerminal: Progress.ProgressTerminalService = {
   withRawInputCapture: (effect) => effect,
 };
 
-const program = Progress.withTask(Effect.sleep("100 millis"), { description: "work" }).pipe(
+const program = Progress.task(Effect.sleep("100 millis"), { description: "work" }).pipe(
   Effect.provideService(Progress.ProgressTerminal, mockTerminal),
 );
 ```
 
 ## Manual task control
 
-For manual usage, `withTask` captures logs implicitly and provides the current `Task` context:
+For manual usage, `task` captures logs implicitly and provides the current `Task` context:
 
 ```ts
-const program = Progress.withTask(
+const program = Progress.task(
   Effect.gen(function* () {
     const currentTask = yield* Progress.Task;
     yield* Console.log("This log is rendered through progress output", { taskId: currentTask });

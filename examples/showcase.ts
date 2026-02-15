@@ -86,6 +86,6 @@ const program = Effect.gen(function* () {
       concurrency: 2,
     },
   );
-}).pipe(Progress.withTask({ description: "Showcase program", transient: false }));
+}).pipe(Progress.task({ description: "Showcase program", transient: false }));
 
 Effect.runPromise(program.pipe(Effect.provide(Logger.pretty)));

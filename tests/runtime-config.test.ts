@@ -12,7 +12,7 @@ const getTaskOrThrow = (taskOption: Option.Option<TaskSnapshot>, label: string):
 
 describe("task progressbar inheritance", () => {
   test("root task inherits global progressbar config", async () => {
-    const program = Progress.withTask(
+    const program = Progress.task(
       Effect.gen(function* () {
         const progress = yield* Progress.Progress;
         const rootId = yield* progress.addTask({
@@ -50,7 +50,7 @@ describe("task progressbar inheritance", () => {
   });
 
   test("inherits parent override, applies child partial override, and keeps siblings isolated", async () => {
-    const program = Progress.withTask(
+    const program = Progress.task(
       Effect.gen(function* () {
         const progress = yield* Progress.Progress;
         const rootId = yield* progress.addTask({

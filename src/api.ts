@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Exit } from "effect";
 import { dual } from "effect/Function";
 import type { Concurrency } from "effect/Types";
 import { Progress, provideProgressService } from "./runtime";
@@ -33,7 +33,7 @@ export interface ForEachExecutionOptions extends EffectExecutionOptions {
 
 export type ForEachOptions = TrackOptions & ForEachExecutionOptions;
 
-export const withTask: {
+export const task: {
   <A, E, R>(
     effect: Effect.Effect<A, E, R>,
     options: AddTaskOptions,
@@ -77,19 +77,34 @@ export const all: {
     provideProgressService(
       Effect.gen(function* () {
         const progress = yield* Progress;
-        return yield* progress.withTask(
+        return yield* progress.runTask(
           Effect.gen(function* () {
             const taskId = yield* Task;
-            return yield* Effect.all(
-              effects.map((effect) => Effect.tap(effect, () => progress.advanceTask(taskId, 1))),
-              {
-                concurrency: options.concurrency,
-                batching: options.batching,
-                discard: options.discard,
-                mode: options.mode,
-                concurrentFinalizers: options.concurrentFinalizers,
-              },
+            const exit = yield* Effect.exit(
+              Effect.all(
+                effects.map((effect) =>
+                  Effect.tap(effect, () => progress.advanceTask(taskId, 1)),
+                ),
+                {
+                  concurrency: options.concurrency,
+                  batching: options.batching,
+                  discard: options.discard,
+                  mode: options.mode,
+                  concurrentFinalizers: options.concurrentFinalizers,
+                },
+              ),
             );
+
+            if (Exit.isSuccess(exit)) {
+              yield* progress.completeTask(taskId);
+            } else {
+              yield* progress.failTask(taskId);
+            }
+
+            return yield* Exit.match(exit, {
+              onFailure: Effect.failCause,
+              onSuccess: Effect.succeed,
+            });
           }),
           {
             description: options.description,
@@ -123,19 +138,33 @@ export const forEach: {
       Effect.gen(function* () {
         const progress = yield* Progress;
 
-        return yield* progress.withTask(
+        return yield* progress.runTask(
           Effect.gen(function* () {
             const taskId = yield* Task;
-            return yield* Effect.forEach(
-              iterable,
-              (item, index) => Effect.tap(f(item, index), () => progress.advanceTask(taskId, 1)),
-              {
-                concurrency: options.concurrency,
-                batching: options.batching,
-                discard: options.discard,
-                concurrentFinalizers: options.concurrentFinalizers,
-              },
+            const exit = yield* Effect.exit(
+              Effect.forEach(
+                iterable,
+                (item, index) =>
+                  Effect.tap(f(item, index), () => progress.advanceTask(taskId, 1)),
+                {
+                  concurrency: options.concurrency,
+                  batching: options.batching,
+                  discard: options.discard,
+                  concurrentFinalizers: options.concurrentFinalizers,
+                },
+              ),
             );
+
+            if (Exit.isSuccess(exit)) {
+              yield* progress.completeTask(taskId);
+            } else {
+              yield* progress.failTask(taskId);
+            }
+
+            return yield* Exit.match(exit, {
+              onFailure: Effect.failCause,
+              onSuccess: Effect.succeed,
+            });
           }),
           {
             description: options.description,

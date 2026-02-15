@@ -68,7 +68,7 @@ const program = Effect.gen(function* () {
   yield* Console.log("Performance stress example complete.");
 });
 
-const configuredProgram = Progress.withTask(program, {
+const configuredProgram = Progress.task(program, {
   description: "Performance run",
   transient: false,
 }).pipe(

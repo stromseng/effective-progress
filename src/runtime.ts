@@ -305,7 +305,7 @@ const makeProgressService = Effect.gen(function* () {
 
   const listTasks = Ref.get(tasksRef).pipe(Effect.map((tasks) => Array.from(tasks.values())));
 
-  const withTask: ProgressService["withTask"] = dual(
+  const runTask: ProgressService["runTask"] = dual(
     2,
     <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
       Effect.gen(function* () {
@@ -320,28 +320,38 @@ const makeProgressService = Effect.gen(function* () {
           transient: options.transient ?? Option.isSome(resolvedParentId),
         });
 
-        const exit = yield* Effect.exit(
-          Effect.locally(
-            Effect.withConsole(
-              Effect.provideService(effect, Task, taskId),
-              makeProgressConsole(log, outerConsole),
-            ),
-            currentParentRef,
-            Option.some(taskId),
+        return yield* Effect.locally(
+          Effect.withConsole(
+            Effect.provideService(effect, Task, taskId),
+            makeProgressConsole(log, outerConsole),
           ),
+          currentParentRef,
+          Option.some(taskId),
         );
-
-        if (Exit.isSuccess(exit)) {
-          yield* completeTask(taskId);
-        } else {
-          yield* failTask(taskId);
-        }
-
-        return yield* Exit.match(exit, {
-          onFailure: Effect.failCause,
-          onSuccess: Effect.succeed,
-        });
       }),
+  );
+
+  const withTask: ProgressService["withTask"] = dual(
+    2,
+    <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
+      runTask(
+        Effect.gen(function* () {
+          const taskId = yield* Task;
+          const exit = yield* Effect.exit(effect);
+
+          if (Exit.isSuccess(exit)) {
+            yield* completeTask(taskId);
+          } else {
+            yield* failTask(taskId);
+          }
+
+          return yield* Exit.match(exit, {
+            onFailure: Effect.failCause,
+            onSuccess: Effect.succeed,
+          });
+        }),
+        options,
+      ),
   );
 
   const service: ProgressService = {
@@ -353,6 +363,7 @@ const makeProgressService = Effect.gen(function* () {
     log,
     getTask,
     listTasks,
+    runTask,
     withTask,
   };
 

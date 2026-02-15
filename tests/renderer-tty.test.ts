@@ -98,9 +98,9 @@ const renderFinalScreen = (stream: string): Array<string> => {
 
 describe("TTY renderer integration", () => {
   test("preserves plain interstitial logs and renders final done frame", async () => {
-    const program = Progress.withTask(
+    const program = Progress.task(
       Effect.gen(function* () {
-        yield* Progress.withTask(
+        yield* Progress.task(
           Effect.forEach(
             Array.from({ length: 20 }, (_, i) => i + 1),
             (line) => Console.log(`warmup-${line}`),
@@ -147,9 +147,9 @@ describe("TTY renderer integration", () => {
   });
 
   test("enforces max log history in retained TTY mode", async () => {
-    const program = Progress.withTask(
+    const program = Progress.task(
       Effect.gen(function* () {
-        yield* Progress.withTask(
+        yield* Progress.task(
           Effect.forEach(
             Array.from({ length: 20 }, (_, i) => i + 1),
             (line) => Console.log(`warmup-${line}`),

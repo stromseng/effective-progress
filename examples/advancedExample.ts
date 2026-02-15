@@ -2,7 +2,7 @@ import { Console, Effect } from "effect";
 import * as Progress from "../src";
 
 const advancedProgram = Effect.gen(function* () {
-  yield* Progress.withTask(
+  yield* Progress.task(
     Effect.gen(function* () {
       yield* Effect.sleep("2 seconds");
       const currentTask = yield* Progress.Task;
@@ -28,7 +28,7 @@ const advancedProgram = Effect.gen(function* () {
 
   yield* Progress.all(
     Array.from({ length: 8 }, (_, index) =>
-      Progress.withTask(
+      Progress.task(
         Effect.gen(function* () {
           yield* Effect.sleep("700 millis");
 
@@ -86,7 +86,7 @@ const advancedProgram = Effect.gen(function* () {
   yield* Console.log("All advanced progress examples finished.");
 });
 
-const configuredProgram = Progress.withTask(advancedProgram, {
+const configuredProgram = Progress.task(advancedProgram, {
   description: "Advanced example",
   transient: false,
 }).pipe(

@@ -52,10 +52,10 @@ describe("Progress.run", () => {
   test("nested run reuses the outer service", async () => {
     const reused = await Effect.runPromise(
       withNonTTYRenderer(
-        Progress.withTask(
+        Progress.task(
           Effect.gen(function* () {
             const outer = yield* Progress.Progress;
-            return yield* Progress.withTask(
+            return yield* Progress.task(
               Effect.gen(function* () {
                 const inner = yield* Progress.Progress;
                 return outer === inner;
@@ -71,13 +71,13 @@ describe("Progress.run", () => {
     expect(reused).toBeTrue();
   });
 
-  test("manual withTask auto-captures logs and provides Task context", async () => {
+  test("manual task auto-captures logs and provides Task context", async () => {
     const capturedMessage = "manual-captured";
 
     const { result, logs } = await Effect.runPromise(
       withLogSpy(
         withNonTTYRenderer(
-          Progress.withTask(
+          Progress.task(
             Effect.gen(function* () {
               const progress = yield* Progress.Progress;
 
@@ -102,12 +102,12 @@ describe("Progress.run", () => {
     expect(result).toBeTrue();
   });
 
-  test("top-level Progress.withTask auto-provides Progress service", async () => {
+  test("top-level Progress.task auto-provides Progress service", async () => {
     const capturedMessage = "top-level-with-task";
     const { result, logs } = await Effect.runPromise(
       withLogSpy(
         withNonTTYRenderer(
-          Progress.withTask(
+          Progress.task(
             Effect.gen(function* () {
               const progress = yield* Progress.Progress;
               const taskId = yield* Progress.Task;
