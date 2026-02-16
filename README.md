@@ -11,14 +11,13 @@
 
 <img alt="Showcase output" src="docs/images/showcase.gif" width="600" />
 
-`effective-progress` is an [Effect](https://effect.website/)-first terminal progress library with:
+`effective-progress` is an [Effect](https://effect.website/)-first terminal progress-bar library with:
 
-- multiple progress bars
-- nested child progress bars
-- spinner support for indeterminate work
-- clean log rendering alongside progress output, allowing you to simply use Effects `Console.log` or `Effect.logInfo`.
-- simple to use `.all` and `.forEach` APIs similar to the ones you already know and love from `effect`. Just swap `Effect` for `Progress` and get progress bars for free!
-- Flicker free (hopefully)! As we redner everything in one frame/print to the terminal
+- multiple nested tree-like progress bars
+- spinner support for “we have no idea how long this takes” work
+- clean log rendering alongside progress output, so you can keep using `Console.log` / `Effect.logInfo` without wrecking the UI
+- familiar `.all` and `.forEach` APIs — swap `Effect` for `Progress`, get progress bars basically for free
+- flicker-free rendering (in theory) by drawing everything in a single terminal frame
 
 ## Install
 
