@@ -18,8 +18,8 @@ const renderDeterminate = (
   const ratio = Math.min(1, Math.max(0, units.completed / safeTotal));
   const filled = Math.round(ratio * progressbar.barWidth);
   const bar = `${colors.fill(progressbar.fillChar.repeat(filled))}${colors.empty(progressbar.emptyChar.repeat(progressbar.barWidth - filled))}`;
-  const percent = String(Math.round(ratio * 100)).padStart(3, " ");
-  return `${colors.brackets(progressbar.leftBracket)}${bar}${colors.brackets(progressbar.rightBracket)} ${units.completed}/${units.total} ${colors.percent(percent + "%")}`;
+  // const percent = String(Math.round(ratio * 100)).padStart(3, " ");
+  return `${colors.brackets(progressbar.leftBracket)}${bar}${colors.brackets(progressbar.rightBracket)} ${units.completed}/${units.total}`; //${colors.percent(percent + "%")}
 };
 
 const formatElapsed = (snapshot: TaskSnapshot, now: number): string => {
@@ -28,7 +28,7 @@ const formatElapsed = (snapshot: TaskSnapshot, now: number): string => {
     snapshot.status === "running"
       ? Duration.seconds(Math.floor(elapsedMillis / 1000))
       : Duration.millis(elapsedMillis);
-  return ` (${Duration.format(duration)})`;
+  return `${Duration.format(duration)}`;
 };
 
 const buildTaskLine = (
@@ -39,28 +39,28 @@ const buildTaskLine = (
   now: number,
 ): string => {
   const progressbar = snapshot.config;
-  const prefix = `${"  ".repeat(depth)}- ${snapshot.description}: `;
+  const prefix = `${"  ".repeat(depth)}- ${snapshot.description} `;
   const elapsed = formatElapsed(snapshot, now);
 
   if (snapshot.status === "failed") {
-    return `${prefix}${colors.failed("[failed]")}${elapsed}`;
+    return `${prefix}${colors.failed("[failed]")}  ${elapsed}`;
   }
 
   if (snapshot.status === "done") {
     if (snapshot.units._tag === "DeterminateTaskUnits") {
-      return `${prefix}${colors.done("[done]")} ${snapshot.units.completed}/${snapshot.units.total}${elapsed}`;
+      return `${prefix}${colors.done("[done]")} ${snapshot.units.completed}/${snapshot.units.total}  ${elapsed}`;
     }
-    return `${prefix}${colors.done("[done]")}${elapsed}`;
+    return `${prefix}${colors.done("[done]")}  ${elapsed}`;
   }
 
   if (snapshot.units._tag === "DeterminateTaskUnits") {
-    return prefix + renderDeterminate(snapshot.units, progressbar, colors) + elapsed;
+    return `${prefix}${renderDeterminate(snapshot.units, progressbar, colors)}  ${elapsed}`;
   }
 
   const frames = progressbar.spinnerFrames;
   const frameIndex = (snapshot.units.spinnerFrame + tick) % frames.length;
   const frame = frames[frameIndex] ?? frames[0]!;
-  return `${prefix}${colors.spinner(frame)}${elapsed}`;
+  return `${prefix}${colors.spinner(frame)}  ${elapsed}`;
 };
 
 export const runProgressServiceRenderer = (
