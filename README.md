@@ -18,6 +18,7 @@
 - spinner support for indeterminate work
 - clean log rendering alongside progress output, allowing you to simply use Effects `Console.log` or `Effect.logInfo`.
 - simple to use `.all` and `.forEach` APIs similar to the ones you already know and love from `effect`. Just swap `Effect` for `Progress` and get progress bars for free!
+- Flicker free (hopefully)! As we redner everything in one frame/print to the terminal
 
 ## Install
 
@@ -204,10 +205,11 @@ Wrap any effect with `Effect.provideService(Colorizer, ...)` to override colors 
 ```ts
 Progress.forEach(
   ["fetch", "transform", "persist"],
-  (stage) => Effect.gen(function* () {
-    yield* Effect.sleep("500 millis");
-    return stage;
-  }),
+  (stage) =>
+    Effect.gen(function* () {
+      yield* Effect.sleep("500 millis");
+      return stage;
+    }),
   { description: "Worker pipeline" },
 ).pipe(
   Effect.provideService(

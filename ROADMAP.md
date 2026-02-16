@@ -2,6 +2,7 @@
 
 ## Phase 2 — Core display features
 
+- [ ] Support nested color palette by depth
 - [ ] Allow for individual task maxLogLines configuration. Maybe a per task `logRetentionStrategy` that can be set to "all", "none", or "latestN" with a number.
 - [ ] Support failing tasks showing as red parts of the progress bar. Support Effect.all modes "validate" and "either". Lets make the completed part of the bar show green, then if we hit a failure make the tip red. (Stop progressing depending on effect mode or accumulate success and errors into the bar)
 - [ ] Support full width progress bars. Protect against linewraps. Maybe add progressbars with title above and bar below. Like:
@@ -23,3 +24,5 @@
 ## Phase 4 — New surface area
 
 - [ ] Add non-effect api
+- [ ] Add support for capturing output from forked daemons and other fibers to avoid collision. Might require a top level service to capture all logs at all times.
+
