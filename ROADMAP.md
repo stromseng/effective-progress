@@ -14,6 +14,18 @@
 
 - [ ] Add a simple default rich like progress-bar  
        ⠏ scene_understanding ━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━ 23/40 0:00:51 ETA: 0:00:33
+- Ability to set spinner frame interval
+- Add BarRenderer as a service people can override to further customize rendering. Replaces `buildTaskLine` with the service. make sure to give it more inputs like delta time, terminal size etc. Need to handle multiline renders properly. Should allow setting custom task metadata such that we can render it, i.e. download size in MB etc. (maybe allow for simple column overrides here idk yet).
+- Allow custom units, so 5/10 tasks, 5/10 files etc
+- Support Rich tree like rendering with lines drawn to each item
+
+```
+root
+├─ src
+│  ├─ main.py
+│  └─ utils.py
+└─ README.md
+```
 
 ## Phase 3 — Extensibility
 
