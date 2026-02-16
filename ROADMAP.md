@@ -38,5 +38,6 @@ root
 
 ## Phase 4 — New surface area
 
+- [ ] rich style track() iterator? `for x of Progress.track(...)`
 - [ ] Add non-effect api
 - [ ] Add support for capturing output from forked daemons and other fibers to avoid collision. Might require a top level service to capture all logs at all times.
