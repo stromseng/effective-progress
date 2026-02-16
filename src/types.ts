@@ -30,7 +30,7 @@ export const defaultRendererConfig: RendererConfigShape = {
 };
 
 export const defaultProgressBarConfig: ProgressBarConfigShape = {
-  spinnerFrames: ["-", "\\", "|", "/"],
+  spinnerFrames: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
   barWidth: 30,
   fillChar: "━",
   emptyChar: "─",
