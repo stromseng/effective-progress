@@ -12,6 +12,9 @@
   [=====>             ] 25%
   ```
 
+- [ ] Add a simple default rich like progress-bar  
+       ⠏ scene_understanding ━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━ 23/40 0:00:51 ETA: 0:00:33
+
 ## Phase 3 — Extensibility
 
 - [ ] Columns configuration. Pluggable column system — compose [SpinnerColumn(), TextColumn("{task.description}"), BarColumn(), ...] freely
@@ -25,4 +28,3 @@
 
 - [ ] Add non-effect api
 - [ ] Add support for capturing output from forked daemons and other fibers to avoid collision. Might require a top level service to capture all logs at all times.
-
