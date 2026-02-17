@@ -1,5 +1,7 @@
 # Roadmap
 
+- Split TTY mode and Non TTY mode into two different services.
+
 ## Customization
 
 - Allow custom units, so 5/10 tasks, 5/10 files etc
