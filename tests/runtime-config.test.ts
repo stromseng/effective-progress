@@ -105,3 +105,117 @@ describe("task progressbar inheritance", () => {
     expect(sibling.config.spinnerFrames).toEqual(["R", "r"]);
   });
 });
+
+describe("transient propagation", () => {
+  const withProgressRuntime = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    Effect.scoped(
+      effect.pipe(
+        Effect.provideService(Progress.RendererConfig, {
+          renderIntervalMillis: 1000,
+        }),
+        Effect.provideService(Progress.ProgressTerminal, {
+          isTTY: Effect.succeed(false),
+          stderrRows: Effect.sync(() => undefined),
+          stderrColumns: Effect.sync(() => undefined),
+          writeStderr: () => Effect.void,
+          withRawInputCapture: (innerEffect) => innerEffect,
+        } satisfies Progress.ProgressTerminalService),
+        Effect.provide(Progress.Progress.Default),
+      ),
+    );
+
+  test("defaults root tasks to transient false", async () => {
+    const program = withProgressRuntime(
+      Effect.gen(function* () {
+        const progress = yield* Progress.Progress;
+        const rootId = yield* progress.addTask({ description: "root" });
+        return getTaskOrThrow(yield* progress.getTask(rootId), "root");
+      }),
+    );
+
+    const root = await Effect.runPromise(program);
+    expect(root.transient).toBeFalse();
+  });
+
+  test("children inherit parent transient=true even if child sets false", async () => {
+    const program = withProgressRuntime(
+      Effect.gen(function* () {
+        const progress = yield* Progress.Progress;
+        const parentId = yield* progress.addTask({
+          description: "parent",
+          transient: true,
+        });
+        const childId = yield* progress.addTask({
+          description: "child",
+          parentId,
+          transient: false,
+        });
+
+        const parent = getTaskOrThrow(yield* progress.getTask(parentId), "parent");
+        const child = getTaskOrThrow(yield* progress.getTask(childId), "child");
+        return { parent, child };
+      }),
+    );
+
+    const { parent, child } = await Effect.runPromise(program);
+    expect(parent.transient).toBeTrue();
+    expect(child.transient).toBeTrue();
+  });
+
+  test("children inherit parent transient=false even if child sets true", async () => {
+    const program = withProgressRuntime(
+      Effect.gen(function* () {
+        const progress = yield* Progress.Progress;
+        const parentId = yield* progress.addTask({
+          description: "parent",
+          transient: false,
+        });
+        const childId = yield* progress.addTask({
+          description: "child",
+          parentId,
+          transient: true,
+        });
+
+        const parent = getTaskOrThrow(yield* progress.getTask(parentId), "parent");
+        const child = getTaskOrThrow(yield* progress.getTask(childId), "child");
+        return { parent, child };
+      }),
+    );
+
+    const { parent, child } = await Effect.runPromise(program);
+    expect(parent.transient).toBeFalse();
+    expect(child.transient).toBeFalse();
+  });
+
+  test("updating parent transient propagates to descendants", async () => {
+    const program = withProgressRuntime(
+      Effect.gen(function* () {
+        const progress = yield* Progress.Progress;
+        const parentId = yield* progress.addTask({
+          description: "parent",
+          transient: false,
+        });
+        const childId = yield* progress.addTask({
+          description: "child",
+          parentId,
+        });
+        const grandchildId = yield* progress.addTask({
+          description: "grandchild",
+          parentId: childId,
+        });
+
+        yield* progress.updateTask(parentId, { transient: true });
+
+        const parent = getTaskOrThrow(yield* progress.getTask(parentId), "parent");
+        const child = getTaskOrThrow(yield* progress.getTask(childId), "child");
+        const grandchild = getTaskOrThrow(yield* progress.getTask(grandchildId), "grandchild");
+        return { parent, child, grandchild };
+      }),
+    );
+
+    const { parent, child, grandchild } = await Effect.runPromise(program);
+    expect(parent.transient).toBeTrue();
+    expect(child.transient).toBeTrue();
+    expect(grandchild.transient).toBeTrue();
+  });
+});

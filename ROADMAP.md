@@ -1,49 +1,44 @@
 # Roadmap
 
-- Split TTY mode and Non TTY mode into two different services.
-- Refactor determinate and indeterminate tasks to be the same. Only disctinction should be Total=undefined
+## Status snapshot (2026-02-17)
 
+- [x] Typed render pipeline (`BuildStage -> ShrinkStage -> ColorStage`).
+- [x] `Theme` API replaces `Colorizer` (including per-task override capture).
+- [x] Stage-level customization via public services (`BuildStage`, `ShrinkStage`, `ColorStage`, `FrameRenderer`).
+- [x] Defaults updated:
+  - determinate layout: `single-line`
+  - progress bar width: `40`
+  - no default `maxTaskWidth` cap
+- [x] Tree/multiline connector alignment fixes in TTY mode.
+- [x] Transient propagation from parent to descendants.
+
+## Next up
 
 ## Customization
 
-- Allow custom units, so 5/10 tasks, 5/10 files etc
-- Support nested color palette by depth
-- Allow for individual task maxLogLines configuration. Maybe a per task `logRetentionStrategy` that can be set to "all", "none", or "latestN" with a number.
-- Ability to set spinner frame interval
-- Add BarRenderer as a service people can override to further customize rendering. Replaces `buildTaskLine` with the service. make sure to give it more inputs like delta time, terminal size etc. Need to handle multiline renders properly. Should allow setting custom task metadata such that we can render it, i.e. download size in MB etc. (maybe allow for simple column overrides here idk yet).
-- Support full width progress bars. Protect against linewraps. Maybe add progressbars with title above and bar below. Like:
-- Columns configuration. Pluggable column system — compose [SpinnerColumn(), TextColumn("{task.description}"), BarColumn(), ...] freely
-- Give helpers to override progressbarConfig context. I.e `Progress.withConfig({ ... })`
-- Theme presets. Can simply be predefined Config layers. `Progress.ProgressConfig.Oldschool` or something.
+- [ ] Custom units (for example `files`, `items`, `MiB`) on determinate tasks.
+- [ ] Spinner frame interval as config/service.
+- [ ] Theme presets (`Oldschool`, `Minimal`, `Rainbow`) as ready-made layers.
+- [ ] Per-task log retention strategy (`all`, `none`, `latestN`).
+- [ ] High-level config helper API (`Progress.withConfig(...)`).
+- [ ] Pluggable column composition API on top of typed segments.
 
 ## Data model / behavior
 
-- ETA calculation. Deque of last N tasks. Becomes a column once the column system exists.
+- [ ] Unify determinate/indeterminate internals (`total?: number` as primary switch).
+- [ ] Smoothed ETA (rolling window/deque) instead of lifetime-average rate.
+- [ ] Failure-aware determinate bars for `Effect.all` modes (`validate` / `either`), e.g. red failure tip.
+- [ ] Better non-TTY strategy and configurability.
 
-- Support failing tasks showing as red parts of the progress bar. Support Effect.all modes "validate" and "either". Lets make the completed part of the bar show green, then if we hit a failure make the tip red. (Stop progressing depending on effect mode or accumulate success and errors into the bar)
+## Rendering
 
-  ```
-  Bootstrapping environment
-  [=====>             ] 25%
-  ```
-
-- Add a simple default rich like progress-bar  
-   ⠏ scene_understanding ━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━ 23/40 0:00:51 ETA: 0:00:33
-
-- Support Rich tree like rendering with lines drawn to each item
-
-```
-root
-├─ src
-│  ├─ main.py
-│  └─ utils.py
-└─ README.md
-```
-
-- Rework non TTY mode for better configuration and consistency.
+- [ ] Split TTY and non-TTY frame renderers into separate services.
+- [ ] Add a richer default preset (Rich-inspired compact single-line format).
+- [ ] Full-width safety and line-wrap protection options.
+- [ ] Optional title-above-bar layout preset for determinate tasks.
 
 ## API
 
-- rich style track() iterator? `for x of Progress.track(...)`
-- Add non-effect api
-- Add support for capturing output from forked daemons and other fibers to avoid collision. Might require a top level service to capture all logs at all times.
+- [ ] Rich-style iterator helpers (`Progress.track(...)`).
+- [ ] Non-Effect API surface for plain async usage.
+- [ ] Better output capture for forked fibers/daemons to prevent frame collisions.

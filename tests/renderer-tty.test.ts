@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Console, Effect } from "effect";
+import { Console, Effect, Fiber } from "effect";
 import * as Progress from "../src";
 
 const captureTerminalOutput = async <A, E, R>(effect: Effect.Effect<A, E, R>) => {
@@ -143,7 +143,7 @@ describe("TTY renderer integration", () => {
     expect(stream.includes("between-log")).toBeTrue();
     expect(finalScreen.some((line) => line.includes("First task"))).toBeTrue();
     expect(finalScreen.some((line) => line.includes("Second task"))).toBeTrue();
-    expect(finalScreen.some((line) => line.includes("[done]"))).toBeTrue();
+    expect(finalScreen.some((line) => line.includes("done"))).toBeTrue();
   });
 
   test("enforces max log history in retained TTY mode", async () => {
@@ -184,5 +184,132 @@ describe("TTY renderer integration", () => {
     expect(hasWarmupLine(1)).toBeFalse();
     expect(hasWarmupLine(2)).toBeFalse();
     expect(hasWarmupLine(3)).toBeFalse();
+  });
+
+  test("draws continuation connectors for multiline nodes with children", async () => {
+    const program = Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        Progress.task(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const parentId = yield* progress.addTask({
+              description: "parent",
+              total: 100,
+              transient: false,
+            });
+            yield* progress.addTask({
+              description: "child-1",
+              parentId,
+              total: 100,
+              transient: false,
+            });
+            yield* progress.addTask({
+              description: "child-2",
+              parentId,
+              total: 100,
+              transient: false,
+            });
+
+            while (true) {
+              yield* Effect.sleep("5 millis");
+              yield* progress.advanceTask(parentId, 1);
+            }
+          }),
+          { description: "root", transient: false },
+        ).pipe(
+          Effect.provideService(Progress.RendererConfig, {
+            maxLogLines: 0,
+            renderIntervalMillis: 5,
+            nonTtyUpdateStep: 1,
+            disableUserInput: false,
+            determinateTaskLayout: "two-lines",
+          }),
+        ),
+      );
+
+      yield* Effect.sleep("40 millis");
+      yield* Fiber.interrupt(fiber);
+    });
+
+    const { stream } = await captureTerminalOutput(program);
+    const finalScreen = renderFinalScreen(stream);
+    const parentLineIndex = finalScreen.findIndex((line) => line.includes("parent"));
+    const childLineIndex = finalScreen.findIndex((line) => line.includes("child-1"));
+
+    expect(parentLineIndex).toBeGreaterThanOrEqual(0);
+    expect(childLineIndex).toBeGreaterThan(parentLineIndex);
+
+    const continuationLine = finalScreen[parentLineIndex + 1] ?? "";
+    const childLine = finalScreen[childLineIndex] ?? "";
+    const continuationConnectorIndex = continuationLine.indexOf("│");
+    const childBranchIndex = childLine.indexOf("├");
+
+    expect(continuationConnectorIndex).toBeGreaterThanOrEqual(0);
+    expect(childBranchIndex).toBeGreaterThanOrEqual(0);
+    expect(continuationConnectorIndex).toBe(childBranchIndex);
+  });
+
+  test("does not draw dangling continuation connectors for multiline leaf nodes", async () => {
+    const program = Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        Progress.task(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const leafId = yield* progress.addTask({
+              description: "leaf",
+              total: 100,
+              transient: false,
+            });
+
+            while (true) {
+              yield* Effect.sleep("5 millis");
+              yield* progress.advanceTask(leafId, 1);
+            }
+          }),
+          { description: "root", transient: false },
+        ).pipe(
+          Effect.provideService(Progress.RendererConfig, {
+            maxLogLines: 0,
+            renderIntervalMillis: 5,
+            nonTtyUpdateStep: 1,
+            disableUserInput: false,
+            determinateTaskLayout: "two-lines",
+          }),
+        ),
+      );
+
+      yield* Effect.sleep("40 millis");
+      yield* Fiber.interrupt(fiber);
+    });
+
+    const { stream } = await captureTerminalOutput(program);
+    const finalScreen = renderFinalScreen(stream);
+    const leafLineIndex = finalScreen.findIndex((line) => line.includes("leaf"));
+
+    expect(leafLineIndex).toBeGreaterThanOrEqual(0);
+    expect(finalScreen[leafLineIndex + 1]?.includes("│") ?? false).toBeFalse();
+  });
+
+  test("completed determinate tasks keep a done-colored bar instead of done label", async () => {
+    const program = Progress.all([Effect.sleep("5 millis")], {
+      description: "single-determinate",
+      transient: false,
+    }).pipe(
+      Effect.provideService(Progress.RendererConfig, {
+        maxLogLines: 0,
+        renderIntervalMillis: 5,
+        nonTtyUpdateStep: 1,
+        disableUserInput: false,
+      }),
+    );
+
+    const { stream } = await captureTerminalOutput(program);
+    const finalScreen = renderFinalScreen(stream);
+    const determinateLine = finalScreen.find((line) => line.includes("single-determinate"));
+    const statsLine = finalScreen.find((line) => line.includes("1/1"));
+
+    expect(determinateLine !== undefined).toBeTrue();
+    expect(statsLine !== undefined).toBeTrue();
+    expect(finalScreen.some((line) => line.includes("done"))).toBeFalse();
   });
 });

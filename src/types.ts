@@ -1,12 +1,14 @@
 import { Brand, Context, Effect, Option, Schema } from "effect";
 import type { PartialDeep } from "type-fest";
-import type { ColorizerService } from "./colors";
+import type { ThemeService } from "./theme";
 
 export const RendererConfigSchema = Schema.Struct({
   disableUserInput: Schema.Boolean,
   renderIntervalMillis: Schema.Number,
   maxLogLines: Schema.optional(Schema.Number),
   nonTtyUpdateStep: Schema.Number,
+  determinateTaskLayout: Schema.Literal("single-line", "two-lines"),
+  maxTaskWidth: Schema.optional(Schema.Number),
 });
 export type RendererConfigShape = typeof RendererConfigSchema.Type;
 export const decodeRendererConfigSync = Schema.decodeUnknownSync(RendererConfigSchema);
@@ -27,11 +29,12 @@ export const defaultRendererConfig: RendererConfigShape = {
   renderIntervalMillis: 100, // 10 FPS
   maxLogLines: 0,
   nonTtyUpdateStep: 5,
+  determinateTaskLayout: "single-line",
 };
 
 export const defaultProgressBarConfig: ProgressBarConfigShape = {
   spinnerFrames: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
-  barWidth: 30,
+  barWidth: 40,
   fillChar: "━",
   emptyChar: "─",
   leftBracket: "",
@@ -112,7 +115,7 @@ export interface RenderRow {
 export interface TaskStore {
   readonly tasks: Map<TaskId, TaskSnapshot>;
   readonly renderOrder: ReadonlyArray<RenderRow>;
-  readonly colorizers: Map<TaskId, ColorizerService>;
+  readonly themes: Map<TaskId, ThemeService>;
 }
 
 export interface ProgressService {

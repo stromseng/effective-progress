@@ -92,7 +92,7 @@ describe("Progress.run", () => {
               const task = yield* progress.getTask(taskIdFromContext);
               return Option.isSome(task);
             }),
-            { description: "manual-context", transient: true },
+            { description: "manual-context", transient: false },
           ),
         ),
       ),

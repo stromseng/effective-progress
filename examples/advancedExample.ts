@@ -1,7 +1,6 @@
 import chalk from "chalk";
 import { Console, Effect } from "effect";
 import * as Progress from "../src";
-import { Colorizer } from "../src/colors";
 
 const advancedProgram = Effect.gen(function* () {
   yield* Progress.task(
@@ -51,15 +50,22 @@ const advancedProgram = Effect.gen(function* () {
             },
           ).pipe(
             Effect.provideService(
-              Colorizer,
-              Colorizer.of({
-                fill: chalk.red,
-                empty: chalk.white.dim,
-                brackets: chalk.white.dim,
-                percent: chalk.white.bold,
-                spinner: chalk.magentaBright,
-                done: chalk.greenBright,
-                failed: chalk.redBright,
+              Progress.Theme,
+              Progress.Theme.of({
+                styles: {
+                  plain: (text) => text,
+                  barFill: chalk.red,
+                  barEmpty: chalk.white.dim,
+                  barBracket: chalk.white.dim,
+                  spinner: chalk.magentaBright,
+                  statusDone: chalk.greenBright,
+                  statusFailed: chalk.redBright,
+                  text: chalk.white,
+                  units: chalk.white.bold,
+                  eta: chalk.gray,
+                  elapsed: chalk.gray,
+                  treeConnector: chalk.gray,
+                },
               }),
             ),
           );
@@ -109,15 +115,22 @@ const configuredProgram = Progress.task(advancedProgram, {
     barWidth: 36,
   }),
   Effect.provideService(
-    Colorizer,
-    Colorizer.of({
-      fill: chalk.hex("#00b894"),
-      empty: chalk.white.dim,
-      brackets: chalk.rgb(180, 190, 210),
-      percent: chalk.whiteBright.bold,
-      spinner: chalk.ansi256(214),
-      done: chalk.greenBright,
-      failed: chalk.redBright.bold,
+    Progress.Theme,
+    Progress.Theme.of({
+      styles: {
+        plain: (text) => text,
+        barFill: chalk.hex("#00b894"),
+        barEmpty: chalk.white.dim,
+        barBracket: chalk.rgb(180, 190, 210),
+        spinner: chalk.ansi256(214),
+        statusDone: chalk.greenBright,
+        statusFailed: chalk.redBright.bold,
+        text: chalk.whiteBright.bold,
+        units: chalk.whiteBright.bold,
+        eta: chalk.gray,
+        elapsed: chalk.gray,
+        treeConnector: chalk.gray,
+      },
     }),
   ),
 );

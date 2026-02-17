@@ -94,6 +94,12 @@ Effect.runPromise(program);
 
 Configure global renderer behavior once, and a global base progress bar style:
 
+Defaults:
+
+- determinate layout: `single-line`
+- max task width cap: unset (uses terminal width)
+- bar width: `40`
+
 ```ts
 import { Effect } from "effect";
 import * as Progress from "effective-progress";
@@ -168,13 +174,9 @@ const program = Progress.task(
 );
 ```
 
-## Progress bar colors
+## Themes and render stages
 
-Colors are configured through the `Colorizer` service. You can set a global colorizer, or provide per-task overrides using `Effect.provideService`.
-
-### Global colorizer
-
-Provide a custom `Colorizer` at the top level to change colors for all tasks:
+Coloring is configured through the `Theme` service.
 
 ```ts
 import chalk from "chalk";
@@ -183,52 +185,35 @@ import * as Progress from "effective-progress";
 
 const program = Progress.task(myEffect, { description: "Work" }).pipe(
   Effect.provideService(
-    Progress.Colorizer,
-    Progress.Colorizer.of({
-      fill: chalk.hex("#00b894"),
-      empty: chalk.white.dim,
-      brackets: chalk.rgb(180, 190, 210),
-      percent: chalk.whiteBright.bold,
-      spinner: chalk.ansi256(214),
-      done: chalk.greenBright,
-      failed: chalk.redBright.bold,
+    Progress.Theme,
+    Progress.Theme.of({
+      styles: {
+        plain: (text) => text,
+        barFill: chalk.hex("#00b894"),
+        barEmpty: chalk.white.dim,
+        barBracket: chalk.rgb(180, 190, 210),
+        spinner: chalk.ansi256(214),
+        statusDone: chalk.greenBright,
+        statusFailed: chalk.redBright.bold,
+        text: chalk.white,
+        units: chalk.whiteBright.bold,
+        eta: chalk.gray,
+        elapsed: chalk.gray,
+        treeConnector: chalk.gray,
+      },
+      depthPalette: (depth, role) => (role === "text" && depth > 0 ? chalk.cyanBright : undefined),
     }),
   ),
 );
 ```
 
-### Per-task colorizer
+Render internals are split into overrideable stages:
 
-Wrap any effect with `Effect.provideService(Colorizer, ...)` to override colors for that task (and its children). The colorizer is captured at task-creation time, so each task can have its own colors:
+- `BuildStage`: logical rows/cells/segments
+- `ShrinkStage`: width fitting/collapse
+- `ColorStage`: role -> styled terminal strings
 
-```ts
-Progress.forEach(
-  ["fetch", "transform", "persist"],
-  (stage) =>
-    Effect.gen(function* () {
-      yield* Effect.sleep("500 millis");
-      return stage;
-    }),
-  { description: "Worker pipeline" },
-).pipe(
-  Effect.provideService(
-    Progress.Colorizer,
-    Progress.Colorizer.of({
-      fill: chalk.red,
-      empty: chalk.white.dim,
-      brackets: chalk.white.dim,
-      percent: chalk.white.bold,
-      spinner: chalk.magentaBright,
-      done: chalk.greenBright,
-      failed: chalk.redBright,
-    }),
-  ),
-);
-```
-
-Tasks inherit the colorizer from their parent task.
-
-Each `ColorizerService` slot (`fill`, `empty`, `brackets`, `percent`, `spinner`, `done`, `failed`) is a `(text: string) => string` function. Use any chalk style — named colors, hex, rgb, ansi256, and modifiers like `.bold` or `.dim` all work.
+You can replace any stage with `Effect.provideService(...)` while keeping defaults for the rest.
 
 ## Dependencies & package size
 
