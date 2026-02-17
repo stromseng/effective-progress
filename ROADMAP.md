@@ -1,6 +1,8 @@
 # Roadmap
 
 - Split TTY mode and Non TTY mode into two different services.
+- Refactor determinate and indeterminate tasks to be the same. Only disctinction should be Total=undefined
+
 
 ## Customization
 
