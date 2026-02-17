@@ -290,6 +290,63 @@ describe("TTY renderer integration", () => {
     expect(finalScreen[leafLineIndex + 1]?.includes("│") ?? false).toBeFalse();
   });
 
+  test("keeps lead-row tree prefixes when multiline text is width-constrained", async () => {
+    const program = Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        Progress.task(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const parentId = yield* progress.addTask({
+              description: "parent-with-a-very-long-description-to-force-shrinking",
+              total: 100,
+              transient: false,
+            });
+            yield* progress.addTask({
+              description:
+                "child-1-very-long-description-to-demonstrate-tree-prefix-preservation-under-width-caps",
+              parentId,
+              total: 100,
+              transient: false,
+            });
+            yield* progress.addTask({
+              description:
+                "child-2-very-long-description-to-demonstrate-tree-prefix-preservation-under-width-caps",
+              parentId,
+              total: 100,
+              transient: false,
+            });
+
+            while (true) {
+              yield* Effect.sleep("5 millis");
+              yield* progress.advanceTask(parentId, 1);
+            }
+          }),
+          { description: "root", transient: false },
+        ).pipe(
+          Effect.provideService(Progress.RendererConfig, {
+            maxLogLines: 0,
+            maxTaskWidth: 60,
+            renderIntervalMillis: 5,
+            nonTtyUpdateStep: 1,
+            disableUserInput: false,
+            determinateTaskLayout: "two-lines",
+          }),
+        ),
+      );
+
+      yield* Effect.sleep("40 millis");
+      yield* Fiber.interrupt(fiber);
+    });
+
+    const { stream } = await captureTerminalOutput(program);
+    const finalScreen = renderFinalScreen(stream);
+    const childLeadLine =
+      finalScreen.find((line) => line.includes("child-1-very-long-description")) ?? "";
+
+    expect(childLeadLine.length).toBeGreaterThan(0);
+    expect(childLeadLine.includes("├") || childLeadLine.includes("└")).toBeTrue();
+  });
+
   test("completed determinate tasks keep a done-colored bar instead of done label", async () => {
     const program = Progress.all([Effect.sleep("5 millis")], {
       description: "single-determinate",

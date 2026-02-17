@@ -283,15 +283,14 @@ const shrinkByPriority = (
   cells: ReadonlyArray<CellModel>,
   overflow: number,
 ): number => {
-  // First collapse pass: only columns marked as wrapable/truncatable,
-  // processed by explicit collapse priority.
+  // First collapse pass: shrink columns by explicit collapse priority.
+  // Columns with no-wrap-ellipsis are still shrinkable; the wrap mode only
+  // decides whether we hard-truncate or append an ellipsis when fitted.
   const shrinkable = cells
     .map((cell, index) => ({
       index,
       priority: cell.collapsePriority ?? Number.MAX_SAFE_INTEGER,
-      wrapMode: cell.wrapMode ?? "truncate",
     }))
-    .filter((entry) => entry.wrapMode === "truncate")
     .sort((a, b) => a.priority - b.priority);
 
   let remainingOverflow = overflow;
