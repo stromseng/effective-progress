@@ -7,8 +7,8 @@ const randomMillis = (base: number, jitter: number) =>
 const sleepRandom = (base: number, jitter: number) =>
   Effect.sleep(`${randomMillis(base, jitter)} millis`);
 
-const stages = ["fetch", "transform", "validate", "persist"] as const;
-const services = ["identity", "catalog", "billing", "notifications"] as const;
+const stages = ["fetch", "transform", "persist"] as const;
+const services = ["identity", "catalog"] as const;
 
 const serviceFlow = (service: string, serviceIndex: number) =>
   Effect.gen(function* () {
