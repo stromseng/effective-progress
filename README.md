@@ -83,6 +83,9 @@ Effect.runPromise(program);
 - `examples/advancedExample.ts` - full API usage with custom config and manual task control
 - `examples/showcase.ts` - nested concurrent tasks, spinner workloads, and mixed Effect/Console logging
 - `examples/performance.ts` - stress-style run with high log volume and deeply nested progress updates
+- `examples/themeDepthPalette.ts` - depth-aware nested theming via `Theme.depthPalette`
+- `examples/twoLineWidthCap.ts` - two-line determinate layout with `maxTaskWidth` clamping
+- `examples/customColorStage.ts` - override `ColorStage` to emit plain (no ANSI) frame output
 
 ## Log retention
 
