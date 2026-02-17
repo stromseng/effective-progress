@@ -751,7 +751,7 @@ const statusCell = (snapshot: TaskSnapshot): CellModel => {
       minWidth: 8,
       wrapMode: "truncate",
       collapsePriority: 60,
-      segments: [createSegment("[failed]", "statusFailed")],
+      segments: [createSegment("failed", "statusFailed")],
     };
   }
 
