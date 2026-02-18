@@ -25,7 +25,9 @@
 bun add effective-progress
 ```
 
-This shows the simplest usage: iterate 100 items with a single progress bar.
+## Usage
+
+This shows the simplest usage: iterate items with a single progress bar.
 
 ```ts
 import { Console, Effect } from "effect";
@@ -46,7 +48,7 @@ Effect.runPromise(program);
 
 <img alt="Basic example output" src="docs/images/basic.gif" width="600" />
 
-## Nested example
+### Nested example
 
 Run:
 
@@ -77,7 +79,7 @@ Effect.runPromise(program);
 
 <img alt="Nested example output" src="docs/images/nesting.gif" width="600" />
 
-## Other examples
+### Other examples
 
 - `examples/simpleExample.ts` - low-boilerplate real-world flow
 - `examples/advancedExample.ts` - full API usage with custom config and manual task control
@@ -87,13 +89,15 @@ Effect.runPromise(program);
 - `examples/twoLineWidthCap.ts` - two-line determinate layout with `maxTaskWidth` clamping
 - `examples/customColorStage.ts` - override `ColorStage` to emit plain (no ANSI) frame output
 
-## Log retention
+## Configuration
+
+### Log retention
 
 - `maxLogLines` on `RendererConfig` controls in-memory log retention.
 - Omitted or set to `0` means no log history is kept in memory.
 - `maxLogLines > 0` keeps only the latest `N` log lines in memory.
 
-## Configuring renderer and progress bars
+### Configuring renderer and progress bars
 
 Configure global renderer behavior once, and a global base progress bar style:
 
@@ -131,35 +135,6 @@ yield *
       spinnerFrames: [".", "o", "O", "0"],
     },
   });
-```
-
-## Terminal service and mocking
-
-`effective-progress` now exposes a `ProgressTerminal` service that controls terminal detection and I/O:
-
-- `isTTY`
-- `stderrRows`
-- `stderrColumns`
-- `writeStderr(text)`
-- `withRawInputCapture(effect)`
-
-You can provide a mock if you want to alter the behavior of terminal detection or if you want to capture the output for testing:
-
-```ts
-import { Effect } from "effect";
-import * as Progress from "effective-progress";
-
-const mockTerminal: Progress.ProgressTerminalService = {
-  isTTY: Effect.succeed(true),
-  stderrRows: Effect.succeed(40),
-  stderrColumns: Effect.succeed(120),
-  writeStderr: (_text) => Effect.void,
-  withRawInputCapture: (effect) => effect,
-};
-
-const program = Progress.task(Effect.sleep("100 millis"), { description: "work" }).pipe(
-  Effect.provideService(Progress.ProgressTerminal, mockTerminal),
-);
 ```
 
 ## Manual task control
@@ -217,6 +192,35 @@ Render internals are split into overrideable stages:
 - `ColorStage`: role -> styled terminal strings
 
 You can replace any stage with `Effect.provideService(...)` while keeping defaults for the rest.
+
+## Terminal service and mocking
+
+`effective-progress` now exposes a `ProgressTerminal` service that controls terminal detection and I/O:
+
+- `isTTY`
+- `stderrRows`
+- `stderrColumns`
+- `writeStderr(text)`
+- `withRawInputCapture(effect)`
+
+You can provide a mock if you want to alter the behavior of terminal detection or if you want to capture the output for testing:
+
+```ts
+import { Effect } from "effect";
+import * as Progress from "effective-progress";
+
+const mockTerminal: Progress.ProgressTerminalService = {
+  isTTY: Effect.succeed(true),
+  stderrRows: Effect.succeed(40),
+  stderrColumns: Effect.succeed(120),
+  writeStderr: (_text) => Effect.void,
+  withRawInputCapture: (effect) => effect,
+};
+
+const program = Progress.task(Effect.sleep("100 millis"), { description: "work" }).pipe(
+  Effect.provideService(Progress.ProgressTerminal, mockTerminal),
+);
+```
 
 ## Dependencies & package size
 
