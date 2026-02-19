@@ -163,7 +163,7 @@ const makeProgressService = Effect.gen(function* () {
   const scope = yield* Effect.scope;
 
   yield* Effect.forkIn(
-    frameRenderer.run({
+    frameRenderer.run(
       storeRef,
       logsRef,
       pendingLogsRef,
@@ -172,7 +172,7 @@ const makeProgressService = Effect.gen(function* () {
       isTTY,
       rendererConfig,
       maxRetainedLogLines,
-    }),
+    ),
     scope,
   );
 

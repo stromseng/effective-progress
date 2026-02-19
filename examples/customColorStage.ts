@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import * as Progress from "../src";
 
 const PlainTextColorStage: Progress.ColorStageService = {
-  colorFrame: ({ frame }) =>
+  colorFrame: (frame) =>
     frame.taskBlocks.flatMap((block) =>
       block.rows.map((row) => {
         const gap = " ".repeat(row.gap);

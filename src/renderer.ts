@@ -279,18 +279,6 @@ export interface BuildStageService {
 }
 
 /**
- * Width constraints applied by the shrink stage.
- *
- * @example
- * - terminalColumns=160, maxTaskWidth=100 -> fit target = 100
- * - terminalColumns=80, maxTaskWidth=100 -> fit target = 80
- */
-export interface ShrinkWidthConstraints {
-  readonly terminalColumns: number | undefined;
-  readonly maxTaskWidth: number | undefined;
-}
-
-/**
  * Public extension point: resolve concrete widths and truncate content.
  *
  * @example
@@ -299,19 +287,11 @@ export interface ShrinkWidthConstraints {
  * Example: "very-long-task-name" -> "very-long-task…"
  */
 export interface ShrinkStageService {
-  readonly fitFrame: (frame: FrameModel, width: ShrinkWidthConstraints) => FittedFrameModel;
-}
-
-/**
- * Inputs for the color/materialization stage.
- *
- * @example
- * Contains fitted, unstyled rows such as:
- * "├─ migrate-db  ━━━━━━━━────  42/100  ETA: 3s"
- * where each substring still has a semantic role.
- */
-export interface ColorStageColorOptions {
-  readonly frame: FittedFrameModel;
+  readonly fitFrame: (
+    frame: FrameModel,
+    terminalColumns: number | undefined,
+    maxTaskWidth: number | undefined,
+  ) => FittedFrameModel;
 }
 
 /**
@@ -324,26 +304,7 @@ export interface ColorStageColorOptions {
  * Returns the final printable string array.
  */
 export interface ColorStageService {
-  readonly colorFrame: (options: ColorStageColorOptions) => ReadonlyArray<string>;
-}
-
-/**
- * Inputs for the top-level frame renderer loop.
- *
- * @example
- * One loop iteration:
- * read task/log refs -> build FrameModel -> fit FittedFrameModel
- * -> color to string[] -> write to terminal output.
- */
-export interface FrameRendererRunOptions {
-  readonly storeRef: Ref.Ref<TaskStore>;
-  readonly logsRef: Ref.Ref<ReadonlyArray<string>>;
-  readonly pendingLogsRef: Ref.Ref<ReadonlyArray<string>>;
-  readonly dirtyRef: Ref.Ref<boolean>;
-  readonly terminal: ProgressTerminalService;
-  readonly isTTY: boolean;
-  readonly rendererConfig: RendererConfigShape;
-  readonly maxRetainedLogLines: number;
+  readonly colorFrame: (frame: FittedFrameModel) => ReadonlyArray<string>;
 }
 
 /**
@@ -354,7 +315,16 @@ export interface FrameRendererRunOptions {
  * Non-TTY mode: emits line updates without in-place cursor control.
  */
 export interface FrameRendererService {
-  readonly run: (options: FrameRendererRunOptions) => Effect.Effect<void>;
+  readonly run: (
+    storeRef: Ref.Ref<TaskStore>,
+    logsRef: Ref.Ref<ReadonlyArray<string>>,
+    pendingLogsRef: Ref.Ref<ReadonlyArray<string>>,
+    dirtyRef: Ref.Ref<boolean>,
+    terminal: ProgressTerminalService,
+    isTTY: boolean,
+    rendererConfig: RendererConfigShape,
+    maxRetainedLogLines: number,
+  ) => Effect.Effect<void>;
 }
 
 const createSegment = (text: string, role: ThemeRole): Segment => ({ text, role });
@@ -404,20 +374,23 @@ const ratioDistribute = (
   return amounts;
 };
 
-const resolveTotalWidth = (width: ShrinkWidthConstraints): number | undefined => {
-  const maxTaskWidth =
-    width.maxTaskWidth === undefined ? undefined : Math.max(1, Math.floor(width.maxTaskWidth));
+const resolveTotalWidth = (
+  terminalColumns: number | undefined,
+  maxTaskWidth: number | undefined,
+): number | undefined => {
+  const resolvedMaxTaskWidth =
+    maxTaskWidth === undefined ? undefined : Math.max(1, Math.floor(maxTaskWidth));
 
-  if (width.terminalColumns === undefined) {
-    return maxTaskWidth;
+  if (terminalColumns === undefined) {
+    return resolvedMaxTaskWidth;
   }
 
-  const terminalColumns = Math.max(1, Math.floor(width.terminalColumns));
-  if (maxTaskWidth === undefined) {
-    return terminalColumns;
+  const resolvedTerminalColumns = Math.max(1, Math.floor(terminalColumns));
+  if (resolvedMaxTaskWidth === undefined) {
+    return resolvedTerminalColumns;
   }
 
-  return Math.min(terminalColumns, maxTaskWidth);
+  return Math.min(resolvedTerminalColumns, resolvedMaxTaskWidth);
 };
 
 const shrinkByPriority = (
@@ -1020,9 +993,9 @@ const defaultBuildStageService: BuildStageService = {
 };
 
 const defaultShrinkStageService: ShrinkStageService = {
-  fitFrame: (frame, width) => {
+  fitFrame: (frame, terminalColumns, maxTaskWidth) => {
     // Convert logical rows into concrete widths and fitted segments.
-    const totalWidth = resolveTotalWidth(width);
+    const totalWidth = resolveTotalWidth(terminalColumns, maxTaskWidth);
 
     return {
       taskBlocks: frame.taskBlocks.map((block) => ({
@@ -1065,7 +1038,7 @@ const styleSegment = (segment: Segment, depth: number, theme: ThemeService): str
 };
 
 const defaultColorStageService: ColorStageService = {
-  colorFrame: ({ frame }) =>
+  colorFrame: (frame) =>
     frame.taskBlocks.flatMap((block) =>
       block.rows.map((row) => {
         const gap = " ".repeat(row.gap);
@@ -1085,7 +1058,7 @@ const makeDefaultFrameRenderer = (
   colorStage: ColorStageService,
   fallbackTheme: ThemeService,
 ): FrameRendererService => ({
-  run: ({
+  run: (
     storeRef,
     logsRef,
     pendingLogsRef,
@@ -1094,7 +1067,7 @@ const makeDefaultFrameRenderer = (
     isTTY,
     rendererConfig,
     maxRetainedLogLines,
-  }) =>
+  ) =>
     Effect.gen(function* () {
       // The frame renderer owns terminal state (cursor/session), drives tick
       // updates, and coordinates build -> shrink -> color for each frame.
@@ -1212,12 +1185,9 @@ const makeDefaultFrameRenderer = (
             isTTY ? frameTick : 0,
           );
 
-          const fittedFrame = shrinkStage.fitFrame(frameModel, {
-            terminalColumns,
-            maxTaskWidth,
-          });
+          const fittedFrame = shrinkStage.fitFrame(frameModel, terminalColumns, maxTaskWidth);
 
-          const taskLines = colorStage.colorFrame({ frame: fittedFrame });
+          const taskLines = colorStage.colorFrame(fittedFrame);
 
           const taskLineMap = new Map<number, ReadonlyArray<string>>();
           let lineCursor = 0;
