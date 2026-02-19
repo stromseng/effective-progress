@@ -48,7 +48,16 @@ const formatEta = (snapshot: TaskSnapshot, now: number): string => {
   return `ETA: ${Duration.format(duration)}`;
 };
 
-/** Defines how a cell claims width during the shrink/fit stage. */
+/**
+ * Defines how a cell claims width during the shrink/fit stage.
+ *
+ * @example
+ * Frame line: "upload-assets  ━━━━━━━━━━━━━━━━───────  ETA: 3s"
+ * Cell tracks:
+ * - "upload-assets" -> Auto (intrinsic text width)
+ * - "━━━━━━━━━━━━━━━━───────" -> Fraction(1) (takes leftover width)
+ * - "ETA: 3s" -> Fixed(7) (always reserves 7 columns)
+ */
 export type ColumnTrack =
   | {
       readonly _tag: "Auto";
@@ -74,7 +83,17 @@ export const Track = {
   }),
 } as const;
 
-/** Tree relationship metadata for rendering connectors on each row. */
+/**
+ * Tree relationship metadata for rendering connectors on each row.
+ *
+ * @example
+ * Given:
+ * - depth = 2
+ * - ancestorHasNextSibling = [true, false]
+ * - hasNextSibling = true
+ * Prefix rendered for this row: "│     ├─ "
+ * Full lead row: "│     ├─ worker: batch 2"
+ */
 export interface TaskTreeInfo {
   readonly depth: number;
   readonly hasNextSibling: boolean;
@@ -82,23 +101,55 @@ export interface TaskTreeInfo {
   readonly ancestorHasNextSibling: ReadonlyArray<boolean>;
 }
 
-/** Task snapshot plus render-time context captured before the build stage. */
+/**
+ * Task snapshot plus render-time context captured before the build stage.
+ *
+ * @example
+ * One ordered entry before build:
+ * - snapshot label: "publish artifacts"
+ * - depth: 1
+ * This later becomes a task block whose lead row starts with "└─ publish artifacts".
+ */
 export interface OrderedTaskModel {
   readonly snapshot: TaskSnapshot;
   readonly depth: number;
   readonly theme: ThemeService;
 }
 
-/** Unstyled text token emitted by build and consumed by color stage. */
+/**
+ * Unstyled text token emitted by build and consumed by color stage.
+ *
+ * @example
+ * Final fragment: "42/100 ETA: 5s"
+ * can be represented as:
+ * - { text: "42/100", role: "units" }
+ * - { text: " ", role: "plain" }
+ * - { text: "ETA: 5s", role: "eta" }
+ */
 export interface Segment {
   readonly text: string;
   readonly role: ThemeRole;
 }
 
-/** How a cell behaves when width is smaller than its intrinsic content. */
+/**
+ * How a cell behaves when width is smaller than its intrinsic content.
+ *
+ * @example
+ * For a text cell capped to 16 columns:
+ * - "truncate" -> "Deploying very lo"
+ * - "no-wrap-ellipsis" -> "Deploying very…"
+ */
 export type CellWrapMode = "truncate" | "no-wrap-ellipsis";
 
-/** Logical, uncolored cell description produced by the build stage. */
+/**
+ * Logical, uncolored cell description produced by the build stage.
+ *
+ * @example
+ * In this row:
+ * "├─ migrate-db  ━━━━━━━━━━━━━━━━──────  42/100  ETA: 3s"
+ * each bracketed part is one CellModel:
+ * [├─ migrate-db] [━━━━━━━━━━━━━━━━──────] [42/100] [ETA: 3s]
+ */
 export interface CellModel {
   readonly id: string;
   readonly track?: ColumnTrack;
@@ -111,14 +162,28 @@ export interface CellModel {
   readonly renderAtWidth?: (width: number) => ReadonlyArray<Segment>;
 }
 
-/** A logical line composed of cells prior to width fitting and coloring. */
+/**
+ * A logical line composed of cells prior to width fitting and coloring.
+ *
+ * @example
+ * One LogicalRow (before fitting) can target:
+ * "├─ migrate-db  ━━━━━━━━━━━━━━━━──────  42/100  ETA: 3s"
+ * with cells = [tree+text, bar, units, eta].
+ */
 export interface LogicalRow {
   readonly cells: ReadonlyArray<CellModel>;
   readonly gap?: number;
   readonly lineVariant?: "lead" | "continuation";
 }
 
-/** All rows produced for one task entry (single-line or multi-line). */
+/**
+ * All rows produced for one task entry (single-line or multi-line).
+ *
+ * @example
+ * One TaskBlockModel with two rows:
+ * row[0] = "├─ migrate-db"
+ * row[1] = "│  ━━━━━━━━━━━━━━━━──────  42/100  ETA: 3s"
+ */
 export interface TaskBlockModel {
   readonly taskId: number;
   readonly depth: number;
@@ -126,19 +191,42 @@ export interface TaskBlockModel {
   readonly rows: ReadonlyArray<LogicalRow>;
 }
 
-/** Full uncolored frame model for all currently rendered tasks. */
+/**
+ * Full uncolored frame model for all currently rendered tasks.
+ *
+ * @example
+ * One frame (single render tick), before fitting/coloring:
+ * "⠙ root task"
+ * "├─ child A"
+ * "└─ child B"
+ */
 export interface FrameModel {
   readonly taskBlocks: ReadonlyArray<TaskBlockModel>;
 }
 
-/** Cell after shrink/fit with concrete width and fitted segments. */
+/**
+ * Cell after shrink/fit with concrete width and fitted segments.
+ *
+ * @example
+ * Example text cell after fit:
+ * - original cell text: "Deploying very long description"
+ * - resolved width: 24
+ * - fitted output text: "Deploying very long des…"
+ */
 export interface FittedCell {
   readonly id: string;
   readonly width: number;
   readonly segments: ReadonlyArray<Segment>;
 }
 
-/** Row after shrink/fit with concrete per-cell widths. */
+/**
+ * Row after shrink/fit with concrete per-cell widths.
+ *
+ * @example
+ * Fitted row just before coloring:
+ * "├─ ingest stage 2  ━━━━━━━━────  12/20  ETA: 1s"
+ * Every cell in this row now has an exact width.
+ */
 export interface FittedRow {
   readonly depth: number;
   readonly theme: ThemeService;
@@ -146,17 +234,41 @@ export interface FittedRow {
   readonly cells: ReadonlyArray<FittedCell>;
 }
 
-/** Fitted rows for a single task block. */
+/**
+ * Fitted rows for a single task block.
+ *
+ * @example
+ * One fitted task block:
+ * row[0] = "└─ deploy"
+ * row[1] = "   ━━━━━━━━━━━━━━━  10/10  2s"
+ */
 export interface FittedTaskBlock {
   readonly taskId: number;
   readonly rows: ReadonlyArray<FittedRow>;
 }
 
-/** Full frame after fit but before ANSI styling. */
+/**
+ * Full frame after fit but before ANSI styling.
+ *
+ * @example
+ * Exact line layout that will be colorized next, for example:
+ * "├─ migrate-db  ━━━━━━━━────  42/100  ETA: 3s"
+ */
 export interface FittedFrameModel {
   readonly taskBlocks: ReadonlyArray<FittedTaskBlock>;
 }
 
+/**
+ * Public extension point: convert task snapshots to a logical frame model.
+ *
+ * @example
+ * Build maps task snapshots to semantic cells.
+ * Example output row cells:
+ * - tree/text: "├─ migrate-db"
+ * - bar: "━━━━━━━━━━━━━━━━──────"
+ * - units: "42/100"
+ * - eta: "ETA: 3s"
+ */
 /** Inputs required by the default build stage implementation. */
 export interface BuildStageBuildOptions {
   readonly orderedTasks: ReadonlyArray<OrderedTaskModel>;
@@ -165,39 +277,73 @@ export interface BuildStageBuildOptions {
   readonly tick: number;
 }
 
-/** Public extension point: convert task snapshots to a logical frame model. */
 export interface BuildStageService {
   readonly buildFrame: (options: BuildStageBuildOptions) => FrameModel;
 }
 
-/** Width constraints applied by the shrink stage. */
+/**
+ * Width constraints applied by the shrink stage.
+ *
+ * @example
+ * - terminalColumns=160, maxTaskWidth=100 -> fit target = 100
+ * - terminalColumns=80, maxTaskWidth=100 -> fit target = 80
+ */
 export interface ShrinkWidthConstraints {
   readonly terminalColumns: number | undefined;
   readonly maxTaskWidth: number | undefined;
 }
 
+/**
+ * Public extension point: resolve concrete widths and truncate content.
+ *
+ * @example
+ * Shrink keeps high-priority columns visible (bar, units, eta),
+ * then trims text columns when width is tight.
+ * Example: "very-long-task-name" -> "very-long-task…"
+ */
 /** Inputs for shrink/fit stage execution. */
 export interface ShrinkStageFitOptions {
   readonly frame: FrameModel;
   readonly width: ShrinkWidthConstraints;
 }
 
-/** Public extension point: resolve concrete widths and truncate content. */
 export interface ShrinkStageService {
   readonly fitFrame: (options: ShrinkStageFitOptions) => FittedFrameModel;
 }
 
-/** Inputs for the color/materialization stage. */
+/**
+ * Inputs for the color/materialization stage.
+ *
+ * @example
+ * Contains fitted, unstyled rows such as:
+ * "├─ migrate-db  ━━━━━━━━────  42/100  ETA: 3s"
+ * where each substring still has a semantic role.
+ */
 export interface ColorStageColorOptions {
   readonly frame: FittedFrameModel;
 }
 
-/** Public extension point: style a fitted frame into terminal lines. */
+/**
+ * Public extension point: style a fitted frame into terminal lines.
+ *
+ * @example
+ * Role-to-style mapping on one row:
+ * - "━━━━" with role "barFill" -> styled fill segment
+ * - "ETA: 2s" with role "eta" -> styled eta segment
+ * Returns the final printable string array.
+ */
 export interface ColorStageService {
   readonly colorFrame: (options: ColorStageColorOptions) => ReadonlyArray<string>;
 }
 
-/** Inputs for the top-level frame renderer loop. */
+/**
+ * Inputs for the top-level frame renderer loop.
+ *
+ * @example
+ * One loop iteration:
+ * read task/log refs -> build FrameModel -> fit FittedFrameModel
+ * -> color to string[] -> write to terminal output.
+ */
 export interface FrameRendererRunOptions {
   readonly storeRef: Ref.Ref<TaskStore>;
   readonly logsRef: Ref.Ref<ReadonlyArray<string>>;
@@ -209,7 +355,13 @@ export interface FrameRendererRunOptions {
   readonly maxRetainedLogLines: number;
 }
 
-/** Service that owns the render loop and writes frames to the terminal. */
+/**
+ * Service that owns the render loop and writes frames to the terminal.
+ *
+ * @example
+ * TTY mode: redraws the live frame in place.
+ * Non-TTY mode: emits line updates without in-place cursor control.
+ */
 export interface FrameRendererService {
   readonly run: (options: FrameRendererRunOptions) => Effect.Effect<void>;
 }
@@ -1188,6 +1340,12 @@ const makeDefaultFrameRenderer = (
     }),
 });
 
+/**
+ * Build-stage service tag.
+ *
+ * @example
+ * const layer = Layer.succeed(BuildStage, BuildStage.of(customBuildStage))
+ */
 export class BuildStage extends Context.Tag("stromseng.dev/effective-progress/BuildStage")<
   BuildStage,
   BuildStageService
@@ -1195,6 +1353,12 @@ export class BuildStage extends Context.Tag("stromseng.dev/effective-progress/Bu
   static readonly Default = Layer.succeed(BuildStage, BuildStage.of(defaultBuildStageService));
 }
 
+/**
+ * Shrink-stage service tag.
+ *
+ * @example
+ * const layer = Layer.succeed(ShrinkStage, ShrinkStage.of(customShrinkStage))
+ */
 export class ShrinkStage extends Context.Tag("stromseng.dev/effective-progress/ShrinkStage")<
   ShrinkStage,
   ShrinkStageService
@@ -1202,6 +1366,12 @@ export class ShrinkStage extends Context.Tag("stromseng.dev/effective-progress/S
   static readonly Default = Layer.succeed(ShrinkStage, ShrinkStage.of(defaultShrinkStageService));
 }
 
+/**
+ * Color-stage service tag.
+ *
+ * @example
+ * const layer = Layer.succeed(ColorStage, ColorStage.of(customColorStage))
+ */
 export class ColorStage extends Context.Tag("stromseng.dev/effective-progress/ColorStage")<
   ColorStage,
   ColorStageService
@@ -1209,6 +1379,12 @@ export class ColorStage extends Context.Tag("stromseng.dev/effective-progress/Co
   static readonly Default = Layer.succeed(ColorStage, ColorStage.of(defaultColorStageService));
 }
 
+/**
+ * Frame renderer service tag (render loop orchestration).
+ *
+ * @example
+ * const layer = Layer.provide(FrameRenderer.Default, BuildStage.Default)
+ */
 export class FrameRenderer extends Context.Tag("stromseng.dev/effective-progress/FrameRenderer")<
   FrameRenderer,
   FrameRendererService
