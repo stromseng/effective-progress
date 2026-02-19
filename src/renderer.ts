@@ -269,16 +269,13 @@ export interface FittedFrameModel {
  * - units: "42/100"
  * - eta: "ETA: 3s"
  */
-/** Inputs required by the default build stage implementation. */
-export interface BuildStageBuildOptions {
-  readonly orderedTasks: ReadonlyArray<OrderedTaskModel>;
-  readonly rendererConfig: RendererConfigShape;
-  readonly now: number;
-  readonly tick: number;
-}
-
 export interface BuildStageService {
-  readonly buildFrame: (options: BuildStageBuildOptions) => FrameModel;
+  readonly buildFrame: (
+    orderedTasks: ReadonlyArray<OrderedTaskModel>,
+    rendererConfig: RendererConfigShape,
+    now: number,
+    tick: number,
+  ) => FrameModel;
 }
 
 /**
@@ -301,14 +298,8 @@ export interface ShrinkWidthConstraints {
  * then trims text columns when width is tight.
  * Example: "very-long-task-name" -> "very-long-task…"
  */
-/** Inputs for shrink/fit stage execution. */
-export interface ShrinkStageFitOptions {
-  readonly frame: FrameModel;
-  readonly width: ShrinkWidthConstraints;
-}
-
 export interface ShrinkStageService {
-  readonly fitFrame: (options: ShrinkStageFitOptions) => FittedFrameModel;
+  readonly fitFrame: (frame: FrameModel, width: ShrinkWidthConstraints) => FittedFrameModel;
 }
 
 /**
@@ -914,7 +905,7 @@ const statusCell = (snapshot: TaskSnapshot): CellModel => {
 };
 
 const defaultBuildStageService: BuildStageService = {
-  buildFrame: ({ orderedTasks, rendererConfig, now, tick }) => {
+  buildFrame: (orderedTasks, rendererConfig, now, tick) => {
     // Build stage emits semantic rows only. No ANSI and no width trimming here.
     const orderedWithTree = computeTreeInfo(
       orderedTasks.map((entry) => ({ snapshot: entry.snapshot, depth: entry.depth })),
@@ -1029,7 +1020,7 @@ const defaultBuildStageService: BuildStageService = {
 };
 
 const defaultShrinkStageService: ShrinkStageService = {
-  fitFrame: ({ frame, width }) => {
+  fitFrame: (frame, width) => {
     // Convert logical rows into concrete widths and fitted segments.
     const totalWidth = resolveTotalWidth(width);
 
@@ -1214,19 +1205,16 @@ const makeDefaultFrameRenderer = (
           const terminalColumns = isTTY ? yield* terminal.stderrColumns : undefined;
           const maxTaskWidth = rendererConfig.maxTaskWidth;
 
-          const frameModel = buildStage.buildFrame({
+          const frameModel = buildStage.buildFrame(
             orderedTasks,
             rendererConfig,
             now,
-            tick: isTTY ? frameTick : 0,
-          });
+            isTTY ? frameTick : 0,
+          );
 
-          const fittedFrame = shrinkStage.fitFrame({
-            frame: frameModel,
-            width: {
-              terminalColumns,
-              maxTaskWidth,
-            },
+          const fittedFrame = shrinkStage.fitFrame(frameModel, {
+            terminalColumns,
+            maxTaskWidth,
           });
 
           const taskLines = colorStage.colorFrame({ frame: fittedFrame });
