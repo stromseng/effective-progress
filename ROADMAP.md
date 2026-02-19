@@ -1,18 +1,12 @@
 # Roadmap
 
-## Status snapshot (2026-02-17)
-
-- [x] Typed render pipeline (`BuildStage -> ShrinkStage -> ColorStage`).
-- [x] `Theme` API replaces `Colorizer` (including per-task override capture).
-- [x] Stage-level customization via public services (`BuildStage`, `ShrinkStage`, `ColorStage`, `FrameRenderer`).
-- [x] Defaults updated:
-  - determinate layout: `single-line`
-  - progress bar width: `40`
-  - no default `maxTaskWidth` cap
-- [x] Tree/multiline connector alignment fixes in TTY mode.
-- [x] Transient propagation from parent to descendants.
-
 ## Next up
+
+- Look at console.dir usage and format usage internally
+- Fixup default eta styling
+- figure out how to use terminal color scheme colors (is it just first 16 ansi colors)
+- make it easy to configure order of, and which cells are included
+- make sure we reserve left padding space for task numbers, as it currently shifts when going from 9-10 etc.
 
 ## Customization
 
