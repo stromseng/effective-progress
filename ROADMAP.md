@@ -6,7 +6,7 @@
 - Fixup default eta styling
 - figure out how to use terminal color scheme colors (is it just first 16 ansi colors)
 - make it easy to configure order of, and which cells are included
-- make sure we reserve left padding space for task numbers, as it currently shifts when going from 9-10 etc.
+- refactor to column based sizing
 
 ## Customization
 

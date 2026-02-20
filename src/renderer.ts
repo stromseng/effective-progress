@@ -18,34 +18,47 @@ const textWidth = (text: string): number => Array.from(text).length;
 const segmentWidth = (segments: ReadonlyArray<Segment>): number =>
   segments.reduce((width, segment) => width + textWidth(segment.text), 0);
 
+const RESERVED_SECONDS_WIDTH = 3; // width of "59s"
+
+const formatDurationSeconds = (seconds: number): string => {
+  const duration = Duration.seconds(Math.max(0, Math.floor(seconds)));
+  const formatted = Duration.format(duration);
+  return formatted === "0" ? "0s" : formatted;
+};
+
+const reserveTimeWidth = (formattedDuration: string): string =>
+  formattedDuration.padStart(RESERVED_SECONDS_WIDTH, " ");
+
+const formatDeterminateUnits = (completed: number, total: number): string => {
+  const totalText = `${total}`;
+  const completedText = `${completed}`.padStart(totalText.length, " ");
+  return `${completedText}/${totalText}`;
+};
+
 const formatElapsed = (snapshot: TaskSnapshot, now: number): string => {
   const elapsedMillis = Math.max(0, (snapshot.completedAt ?? now) - snapshot.startedAt);
-  const duration =
-    snapshot.status === "running"
-      ? Duration.seconds(Math.floor(elapsedMillis / 1000))
-      : Duration.millis(elapsedMillis);
-  return `${Duration.format(duration)}`;
+  const formatted = formatDurationSeconds(elapsedMillis / 1000);
+  return formatted;
 };
 
 const formatEta = (snapshot: TaskSnapshot, now: number): string => {
   if (snapshot.status !== "running") {
-    return "ETA: --";
+    return "ETA:   ";
   }
 
   if (snapshot.units._tag !== "DeterminateTaskUnits") {
-    return "ETA: --";
+    return "ETA:   ";
   }
 
   const { completed, total } = snapshot.units;
   const remaining = total - completed;
   if (completed <= 0 || remaining <= 0) {
-    return "ETA: --";
+    return "ETA:   ";
   }
 
   const elapsedMillis = Math.max(1, now - snapshot.startedAt);
   const etaMillis = Math.max(0, Math.floor((elapsedMillis / completed) * remaining));
-  const duration = Duration.seconds(Math.floor(etaMillis / 1000));
-  return `ETA: ${Duration.format(duration)}`;
+  return `ETA: ${formatDurationSeconds(etaMillis / 1000)}`;
 };
 
 /**
@@ -826,7 +839,12 @@ const unitsCell = (snapshot: TaskSnapshot): CellModel => ({
   collapsePriority: 40,
   segments:
     snapshot.units._tag === "DeterminateTaskUnits"
-      ? [createSegment(`${snapshot.units.completed}/${snapshot.units.total}`, "units")]
+      ? [
+          createSegment(
+            formatDeterminateUnits(snapshot.units.completed, snapshot.units.total),
+            "units",
+          ),
+        ]
       : [],
 });
 
@@ -842,7 +860,7 @@ const etaCell = (snapshot: TaskSnapshot, now: number): CellModel => ({
 const elapsedCell = (snapshot: TaskSnapshot, now: number): CellModel => ({
   id: "elapsed",
   track: Track.auto(),
-  minWidth: 4,
+  minWidth: 1,
   wrapMode: "truncate",
   collapsePriority: 30,
   segments: [createSegment(formatElapsed(snapshot, now), "elapsed")],
@@ -853,10 +871,10 @@ const statusCell = (snapshot: TaskSnapshot): CellModel => {
     return {
       id: "status",
       track: Track.auto(),
-      minWidth: 6,
+      minWidth: 1,
       wrapMode: "truncate",
       collapsePriority: 60,
-      segments: [createSegment("done", "statusDone")],
+      segments: [createSegment("✓", "statusDone")],
     };
   }
 
@@ -900,6 +918,11 @@ const defaultBuildStageService: BuildStageService = {
       const rows: Array<LogicalRow> = [];
 
       if (runningOrDoneDeterminate) {
+        const timingCells: Array<CellModel> = [elapsedCell(snapshot, now)];
+        if (snapshot.status === "running") {
+          timingCells.push(etaCell(snapshot, now));
+        }
+
         if (showTwoLineDeterminate) {
           rows.push({
             lineVariant: "lead",
@@ -912,7 +935,7 @@ const defaultBuildStageService: BuildStageService = {
               treeCell(tree, "continuation"),
               barCell(snapshot),
               unitsCell(snapshot),
-              snapshot.status === "running" ? etaCell(snapshot, now) : elapsedCell(snapshot, now),
+              ...timingCells,
             ],
           });
         } else {
@@ -923,7 +946,7 @@ const defaultBuildStageService: BuildStageService = {
               textCell(snapshot.description),
               barCell(snapshot),
               unitsCell(snapshot),
-              snapshot.status === "running" ? etaCell(snapshot, now) : elapsedCell(snapshot, now),
+              ...timingCells,
             ],
           });
         }
@@ -961,8 +984,8 @@ const defaultBuildStageService: BuildStageService = {
           lineVariant: "lead",
           cells: [
             treeCell(tree, "lead"),
-            spinnerCell(snapshot, tick),
             textCell(snapshot.description),
+            spinnerCell(snapshot, tick),
             elapsedCell(snapshot, now),
           ],
         });

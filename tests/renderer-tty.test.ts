@@ -97,7 +97,7 @@ const renderFinalScreen = (stream: string): Array<string> => {
 };
 
 describe("TTY renderer integration", () => {
-  test("preserves plain interstitial logs and renders final done frame", async () => {
+  test("preserves plain interstitial logs and renders final completed frame", async () => {
     const program = Progress.task(
       Effect.gen(function* () {
         yield* Progress.task(
@@ -143,7 +143,7 @@ describe("TTY renderer integration", () => {
     expect(stream.includes("between-log")).toBeTrue();
     expect(finalScreen.some((line) => line.includes("First task"))).toBeTrue();
     expect(finalScreen.some((line) => line.includes("Second task"))).toBeTrue();
-    expect(finalScreen.some((line) => line.includes("done"))).toBeTrue();
+    expect(finalScreen.some((line) => line.includes("✓"))).toBeTrue();
   });
 
   test("enforces max log history in retained TTY mode", async () => {
@@ -345,6 +345,98 @@ describe("TTY renderer integration", () => {
 
     expect(childLeadLine.length).toBeGreaterThan(0);
     expect(childLeadLine.includes("├") || childLeadLine.includes("└")).toBeTrue();
+  });
+
+  test("renders elapsed before eta for running determinate tasks in seconds format", async () => {
+    const program = Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        Progress.task(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const taskId = yield* progress.addTask({
+              description: "timing-order",
+              total: 100,
+              transient: false,
+            });
+
+            while (true) {
+              yield* Effect.sleep("5 millis");
+              yield* progress.advanceTask(taskId, 1);
+            }
+          }),
+          { description: "root", transient: false },
+        ).pipe(
+          Effect.provideService(Progress.RendererConfig, {
+            maxLogLines: 0,
+            renderIntervalMillis: 5,
+            nonTtyUpdateStep: 1,
+            disableUserInput: false,
+          }),
+        ),
+      );
+
+      yield* Effect.sleep("40 millis");
+      yield* Fiber.interrupt(fiber);
+    });
+
+    const { stream } = await captureTerminalOutput(program);
+    const finalScreen = renderFinalScreen(stream);
+    const taskLine = finalScreen.find((line) => line.includes("timing-order")) ?? "";
+    const unitsMatch = taskLine.match(/\d+\/\d+/);
+    const etaIndex = taskLine.indexOf("ETA:");
+    const firstDurationIndex = taskLine.search(/\b\d+s\b/);
+    const etaDurationMatch = taskLine.match(/ETA:\s+\d+s/);
+
+    expect(taskLine.length).toBeGreaterThan(0);
+    expect(unitsMatch !== null).toBeTrue();
+    expect(etaIndex).toBeGreaterThanOrEqual(0);
+    expect(firstDurationIndex).toBeGreaterThanOrEqual(0);
+    expect(firstDurationIndex).toBeGreaterThan((unitsMatch?.index ?? -1) + (unitsMatch?.[0].length ?? 0));
+    expect(firstDurationIndex).toBeLessThan(etaIndex);
+    expect(etaDurationMatch !== null).toBeTrue();
+    expect(taskLine.includes("ms")).toBeFalse();
+  });
+
+  test("left-pads completed units to total width for determinate tasks", async () => {
+    const program = Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        Progress.task(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const taskId = yield* progress.addTask({
+              description: "units-padding",
+              total: 15,
+              transient: false,
+            });
+
+            yield* progress.advanceTask(taskId, 7);
+
+            while (true) {
+              yield* Effect.sleep("5 millis");
+            }
+          }),
+          { description: "root", transient: false },
+        ).pipe(
+          Effect.provideService(Progress.RendererConfig, {
+            maxLogLines: 0,
+            renderIntervalMillis: 5,
+            nonTtyUpdateStep: 1,
+            disableUserInput: false,
+          }),
+        ),
+      );
+
+      yield* Effect.sleep("40 millis");
+      yield* Fiber.interrupt(fiber);
+    });
+
+    const { stream } = await captureTerminalOutput(program);
+    const finalScreen = renderFinalScreen(stream);
+    const taskLine = finalScreen.find((line) => line.includes("units-padding")) ?? "";
+    const paddedUnitsMatch = taskLine.match(/\s{2,}7\/15\b/);
+
+    expect(taskLine.length).toBeGreaterThan(0);
+    expect(paddedUnitsMatch !== null).toBeTrue();
   });
 
   test("completed determinate tasks keep a done-colored bar instead of done label", async () => {
