@@ -190,4 +190,152 @@ describe("Progress.run", () => {
       logs.some((args) => typeof args[0] === "string" && args[0].startsWith(capturedPrefix)),
     ).toBeFalse();
   });
+
+  test("task render option applies top-level column overrides", async () => {
+    let output = "";
+
+    const terminal: Progress.ProgressTerminalService = {
+      isTTY: Effect.succeed(false),
+      stderrRows: Effect.sync(() => undefined),
+      stderrColumns: Effect.sync(() => undefined),
+      writeStderr: (text) =>
+        Effect.sync(() => {
+          output += text;
+        }),
+      withRawInputCapture: (innerEffect) => innerEffect,
+    };
+
+    await Effect.runPromise(
+      Progress.task(Effect.sleep("10 millis"), {
+        description: "render-override",
+        transient: false,
+        render: {
+          columns: [Progress.DescriptionColumn.Default(), "|marker|"],
+          renderIntervalMillis: 5,
+          nonTtyUpdateStep: 1,
+        },
+      }).pipe(
+        Effect.provideService(Progress.ProgressTerminal, terminal),
+        Effect.provideService(Progress.RendererConfig, {
+          renderIntervalMillis: 5,
+          nonTtyUpdateStep: 1,
+          disableUserInput: true,
+        }),
+      ),
+    );
+
+    expect(output.includes("render-override")).toBeTrue();
+    expect(output.includes("|marker|")).toBeTrue();
+  });
+
+  test("withRenderConfig configures top-level run", async () => {
+    let output = "";
+
+    const terminal: Progress.ProgressTerminalService = {
+      isTTY: Effect.succeed(false),
+      stderrRows: Effect.sync(() => undefined),
+      stderrColumns: Effect.sync(() => undefined),
+      writeStderr: (text) =>
+        Effect.sync(() => {
+          output += text;
+        }),
+      withRawInputCapture: (innerEffect) => innerEffect,
+    };
+
+    await Effect.runPromise(
+      Progress.withRenderConfig(
+        Progress.task(Effect.sleep("10 millis"), {
+          description: "with-render-config",
+          transient: false,
+        }),
+        {
+          columns: [Progress.DescriptionColumn.Default()],
+          renderIntervalMillis: 5,
+          nonTtyUpdateStep: 1,
+        },
+      ).pipe(Effect.provideService(Progress.ProgressTerminal, terminal)),
+    );
+
+    expect(output.includes("with-render-config")).toBeTrue();
+    expect(output.includes("━")).toBeFalse();
+    expect(output.includes("─")).toBeFalse();
+  });
+
+  test("non-tty output strips ANSI returned by columns", async () => {
+    let output = "";
+
+    const terminal: Progress.ProgressTerminalService = {
+      isTTY: Effect.succeed(false),
+      stderrRows: Effect.sync(() => undefined),
+      stderrColumns: Effect.sync(() => undefined),
+      writeStderr: (text) =>
+        Effect.sync(() => {
+          output += text;
+        }),
+      withRawInputCapture: (innerEffect) => innerEffect,
+    };
+
+    await Effect.runPromise(
+      Progress.task(Effect.sleep("10 millis"), {
+        description: "ansi-strip",
+        transient: false,
+        render: {
+          columns: [
+            Progress.DescriptionColumn.Default(),
+            {
+              id: "ansi",
+              render: () => "\x1b[31mRED\x1b[0m",
+            } satisfies Progress.ProgressColumn,
+          ],
+          renderIntervalMillis: 5,
+          nonTtyUpdateStep: 1,
+        },
+      }).pipe(Effect.provideService(Progress.ProgressTerminal, terminal)),
+    );
+
+    expect(output.includes("RED")).toBeTrue();
+    expect(output.includes("\x1b[31m")).toBeFalse();
+  });
+
+  test("render width fullwidth expands to terminal width in tty mode", async () => {
+    let output = "";
+
+    const terminal: Progress.ProgressTerminalService = {
+      isTTY: Effect.succeed(true),
+      stderrRows: Effect.succeed(80),
+      stderrColumns: Effect.succeed(120),
+      writeStderr: (text) =>
+        Effect.sync(() => {
+          output += text;
+        }),
+      withRawInputCapture: (innerEffect) => innerEffect,
+    };
+
+    await Effect.runPromise(
+      Progress.all([Effect.sleep("10 millis")], {
+        description: "width-fullwidth",
+        transient: false,
+        render: {
+          width: "fullwidth",
+          columns: [
+            Progress.DescriptionColumn.make({ track: Progress.Track.fr(1) }),
+            Progress.BarColumn.Default(),
+          ],
+          renderIntervalMillis: 5,
+          nonTtyUpdateStep: 1,
+        },
+      }).pipe(
+        Effect.provideService(Progress.ProgressTerminal, terminal),
+        Effect.provideService(Progress.RendererConfig, {
+          renderIntervalMillis: 5,
+          nonTtyUpdateStep: 1,
+          disableUserInput: true,
+          width: 40,
+        }),
+      ),
+    );
+
+    expect(output.includes("width-fullwidth")).toBeTrue();
+    expect(output.includes("━━━━━━━━")).toBeTrue();
+  });
 });

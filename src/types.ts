@@ -1,17 +1,36 @@
 import { Brand, Context, Effect, Option, Schema } from "effect";
 import type { PartialDeep } from "type-fest";
-import type { ThemeService } from "./theme";
+import type { ProgressColumn } from "./renderer";
 
 export const RendererConfigSchema = Schema.Struct({
   disableUserInput: Schema.Boolean,
   renderIntervalMillis: Schema.Number,
   maxLogLines: Schema.optional(Schema.Number),
   nonTtyUpdateStep: Schema.Number,
-  determinateTaskLayout: Schema.Literal("single-line", "two-lines"),
-  maxTaskWidth: Schema.optional(Schema.Number),
+  width: Schema.Union(Schema.Number, Schema.Literal("fullwidth")),
+  columnGap: Schema.Number,
+  columns: Schema.Array(Schema.Unknown),
 });
-export type RendererConfigShape = typeof RendererConfigSchema.Type;
-export const decodeRendererConfigSync = Schema.decodeUnknownSync(RendererConfigSchema);
+export type RendererConfigShape = {
+  readonly disableUserInput: boolean;
+  readonly renderIntervalMillis: number;
+  readonly maxLogLines?: number;
+  readonly nonTtyUpdateStep: number;
+  readonly width: number | "fullwidth";
+  readonly columnGap: number;
+  readonly columns: ReadonlyArray<ProgressColumn | string>;
+};
+const decodeRendererConfigSchemaSync = Schema.decodeUnknownSync(RendererConfigSchema);
+export const decodeRendererConfigSync = (input: unknown): RendererConfigShape => {
+  if (typeof input === "object" && input !== null && "determinateTaskLayout" in input) {
+    throw new Error("determinateTaskLayout has been removed. Use columns instead.");
+  }
+  if (typeof input === "object" && input !== null && "maxTaskWidth" in input) {
+    throw new Error("maxTaskWidth has been removed. Use width on RendererConfig instead.");
+  }
+
+  return decodeRendererConfigSchemaSync(input) as RendererConfigShape;
+};
 
 export const ProgressBarConfigSchema = Schema.Struct({
   spinnerFrames: Schema.NonEmptyArray(Schema.String),
@@ -29,7 +48,9 @@ export const defaultRendererConfig: RendererConfigShape = {
   renderIntervalMillis: 100, // 10 FPS
   maxLogLines: 0,
   nonTtyUpdateStep: 5,
-  determinateTaskLayout: "single-line",
+  width: 120,
+  columnGap: 1,
+  columns: [],
 };
 
 export const defaultProgressBarConfig: ProgressBarConfigShape = {
@@ -115,7 +136,6 @@ export interface RenderRow {
 export interface TaskStore {
   readonly tasks: Map<TaskId, TaskSnapshot>;
   readonly renderOrder: ReadonlyArray<RenderRow>;
-  readonly themes: Map<TaskId, ThemeService>;
 }
 
 export interface ProgressService {

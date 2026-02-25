@@ -85,9 +85,6 @@ Effect.runPromise(program);
 - `examples/advancedExample.ts` - full API usage with custom config and manual task control
 - `examples/showcase.ts` - nested concurrent tasks, spinner workloads, and mixed Effect/Console logging
 - `examples/performance.ts` - stress-style run with high log volume and deeply nested progress updates
-- `examples/themeDepthPalette.ts` - depth-aware nested theming via `Theme.depthPalette`
-- `examples/twoLineWidthCap.ts` - two-line determinate layout with `maxTaskWidth` clamping
-- `examples/customColorStage.ts` - override `ColorStage` to emit plain (no ANSI) frame output
 
 ## Configuration
 
@@ -103,8 +100,8 @@ Configure global renderer behavior once, and a global base progress bar style:
 
 Defaults:
 
-- determinate layout: `single-line`
-- max task width cap: unset (uses terminal width)
+- columns: `DescriptionColumn`, `BarColumn`, `AmountColumn`, `ElapsedColumn`, `EtaColumn`
+- total progress width: `80`
 - bar width: `40`
 
 ```ts
@@ -113,6 +110,7 @@ import * as Progress from "effective-progress";
 
 const configured = program.pipe(
   Effect.provideService(Progress.RendererConfig, {
+    width: 80,
     maxLogLines: 12,
     nonTtyUpdateStep: 2,
   }),
@@ -122,6 +120,49 @@ const configured = program.pipe(
 );
 
 Effect.runPromise(configured);
+```
+
+You can customize column order/content Rich-style by providing a `columns` array:
+
+```ts
+const configured = program.pipe(
+  Effect.provideService(Progress.RendererConfig, {
+    columns: [
+      Progress.DescriptionColumn.Default(),
+      Progress.BarColumn.make({ track: Progress.Track.fr(1) }),
+      Progress.AmountColumn.Default(),
+      "•",
+      Progress.ElapsedColumn.Default(),
+      "•",
+      Progress.EtaColumn.Default(),
+    ],
+  }),
+);
+```
+
+For full terminal width rendering, set:
+
+```ts
+Effect.provideService(Progress.RendererConfig, {
+  width: "fullwidth",
+});
+```
+
+Description-specific caps should be configured on `DescriptionColumn` (for example `DescriptionColumn.make({ maxWidth: 40 })`) rather than globally.
+
+Per top-level call, you can override render config via helper APIs:
+
+```ts
+const run = Progress.task(effect, {
+  description: "work",
+  render: {
+    columns: [Progress.DescriptionColumn.Default(), "|", Progress.AmountColumn.Default()],
+  },
+});
+
+const wrapped = Progress.withRenderConfig(run, {
+  columns: [Progress.DescriptionColumn.Default()],
+});
 ```
 
 Task-level `progressbar` config is optional and inherits from its parent task (or from global `ProgressBarConfig` for root tasks):
@@ -152,46 +193,24 @@ const program = Progress.task(
 );
 ```
 
-## Themes and render stages
+## Column customization
 
-Coloring is configured through the `Theme` service.
+Built-in columns are exported as classes with `Default()` and `make()` helpers.  
+You can also pass your own objects/classes implementing `ProgressColumn`:
 
 ```ts
-import chalk from "chalk";
-import { Effect } from "effect";
-import * as Progress from "effective-progress";
+const CustomColumn: Progress.ProgressColumn = {
+  id: "custom",
+  render: () => "extra",
+};
 
-const program = Progress.task(myEffect, { description: "Work" }).pipe(
-  Effect.provideService(
-    Progress.Theme,
-    Progress.Theme.of({
-      styles: {
-        plain: (text) => text,
-        barFill: chalk.hex("#00b894"),
-        barEmpty: chalk.white.dim,
-        barBracket: chalk.rgb(180, 190, 210),
-        spinner: chalk.ansi256(214),
-        statusDone: chalk.greenBright,
-        statusFailed: chalk.redBright.bold,
-        text: chalk.white,
-        units: chalk.whiteBright.bold,
-        eta: chalk.gray,
-        elapsed: chalk.gray,
-        treeConnector: chalk.gray,
-      },
-      depthPalette: (depth, role) => (role === "text" && depth > 0 ? chalk.cyanBright : undefined),
-    }),
-  ),
-);
+const program = Progress.task(myEffect, {
+  description: "Work",
+  render: {
+    columns: [Progress.DescriptionColumn.Default(), Progress.BarColumn.Default(), CustomColumn],
+  },
+});
 ```
-
-Render internals are split into overrideable stages:
-
-- `BuildStage`: logical rows/cells/segments
-- `ShrinkStage`: width fitting/collapse
-- `ColorStage`: role -> styled terminal strings
-
-You can replace any stage with `Effect.provideService(...)` while keeping defaults for the rest.
 
 ## Terminal service and mocking
 

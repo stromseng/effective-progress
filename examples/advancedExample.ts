@@ -1,4 +1,3 @@
-import chalk from "chalk";
 import { Console, Effect } from "effect";
 import * as Progress from "../src";
 
@@ -48,26 +47,6 @@ const advancedProgram = Effect.gen(function* () {
                 spinnerFrames: [".", "o", "O", "0"],
               },
             },
-          ).pipe(
-            Effect.provideService(
-              Progress.Theme,
-              Progress.Theme.of({
-                styles: {
-                  plain: (text) => text,
-                  barFill: chalk.red,
-                  barEmpty: chalk.white.dim,
-                  barBracket: chalk.white.dim,
-                  spinner: chalk.magentaBright,
-                  statusDone: chalk.greenBright,
-                  statusFailed: chalk.redBright,
-                  text: chalk.white,
-                  units: chalk.white.bold,
-                  eta: chalk.gray,
-                  elapsed: chalk.gray,
-                  treeConnector: chalk.gray,
-                },
-              }),
-            ),
           );
 
           return `worker-${index + 1}`;
@@ -110,29 +89,19 @@ const configuredProgram = Progress.task(advancedProgram, {
   Effect.provideService(Progress.RendererConfig, {
     nonTtyUpdateStep: 2,
     maxLogLines: 12,
+    columns: [
+      Progress.DescriptionColumn.Default(),
+      Progress.BarColumn.make({ track: Progress.Track.fr(1) }),
+      Progress.AmountColumn.Default(),
+      "•",
+      Progress.ElapsedColumn.Default(),
+      "•",
+      Progress.EtaColumn.Default(),
+    ],
   }),
   Effect.provideService(Progress.ProgressBarConfig, {
     barWidth: 36,
   }),
-  Effect.provideService(
-    Progress.Theme,
-    Progress.Theme.of({
-      styles: {
-        plain: (text) => text,
-        barFill: chalk.hex("#00b894"),
-        barEmpty: chalk.white.dim,
-        barBracket: chalk.rgb(180, 190, 210),
-        spinner: chalk.ansi256(214),
-        statusDone: chalk.greenBright,
-        statusFailed: chalk.redBright.bold,
-        text: chalk.whiteBright.bold,
-        units: chalk.whiteBright.bold,
-        eta: chalk.gray,
-        elapsed: chalk.gray,
-        treeConnector: chalk.gray,
-      },
-    }),
-  ),
 );
 
 Effect.runPromise(configuredProgram);

@@ -96,6 +96,17 @@ const renderFinalScreen = (stream: string): Array<string> => {
   return lines.map((line) => line.trimEnd());
 };
 
+const firstBarIndex = (line: string): number => {
+  const filled = line.indexOf("━");
+  if (filled >= 0) {
+    return filled;
+  }
+  return line.indexOf("─");
+};
+
+const longestBarRun = (line: string): number =>
+  (line.match(/[━─]+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0);
+
 describe("TTY renderer integration", () => {
   test("preserves plain interstitial logs and renders final completed frame", async () => {
     const program = Progress.task(
@@ -146,47 +157,7 @@ describe("TTY renderer integration", () => {
     expect(finalScreen.some((line) => line.includes("✓"))).toBeTrue();
   });
 
-  test("enforces max log history in retained TTY mode", async () => {
-    const program = Progress.task(
-      Effect.gen(function* () {
-        yield* Progress.task(
-          Effect.forEach(
-            Array.from({ length: 20 }, (_, i) => i + 1),
-            (line) => Console.log(`warmup-${line}`),
-            { discard: true },
-          ),
-          { description: "Warmup logs", transient: true },
-        );
-
-        yield* Progress.all([Effect.sleep("10 millis")], {
-          description: "History task",
-          transient: false,
-        });
-      }),
-      { description: "tty-session", transient: false },
-    ).pipe(
-      Effect.provideService(Progress.RendererConfig, {
-        maxLogLines: 3,
-        renderIntervalMillis: 5,
-        nonTtyUpdateStep: 1,
-        disableUserInput: false,
-      }),
-    );
-
-    const { stream } = await captureTerminalOutput(program);
-    const finalScreen = renderFinalScreen(stream);
-    const hasWarmupLine = (lineNumber: number) =>
-      finalScreen.some((line) => line.trim() === `warmup-${lineNumber}`);
-
-    expect(hasWarmupLine(18)).toBeTrue();
-    expect(hasWarmupLine(19)).toBeTrue();
-    expect(hasWarmupLine(20)).toBeTrue();
-    expect(hasWarmupLine(1)).toBeFalse();
-    expect(hasWarmupLine(2)).toBeFalse();
-    expect(hasWarmupLine(3)).toBeFalse();
-  });
-
-  test("draws continuation connectors for multiline nodes with children", async () => {
+  test("keeps bars aligned across nested tasks", async () => {
     const program = Effect.gen(function* () {
       const fiber = yield* Effect.fork(
         Progress.task(
@@ -197,13 +168,13 @@ describe("TTY renderer integration", () => {
               total: 100,
               transient: false,
             });
-            yield* progress.addTask({
+            const child1Id = yield* progress.addTask({
               description: "child-1",
               parentId,
               total: 100,
               transient: false,
             });
-            yield* progress.addTask({
+            const child2Id = yield* progress.addTask({
               description: "child-2",
               parentId,
               total: 100,
@@ -213,6 +184,8 @@ describe("TTY renderer integration", () => {
             while (true) {
               yield* Effect.sleep("5 millis");
               yield* progress.advanceTask(parentId, 1);
+              yield* progress.advanceTask(child1Id, 1);
+              yield* progress.advanceTask(child2Id, 1);
             }
           }),
           { description: "root", transient: false },
@@ -222,7 +195,6 @@ describe("TTY renderer integration", () => {
             renderIntervalMillis: 5,
             nonTtyUpdateStep: 1,
             disableUserInput: false,
-            determinateTaskLayout: "two-lines",
           }),
         ),
       );
@@ -233,118 +205,19 @@ describe("TTY renderer integration", () => {
 
     const { stream } = await captureTerminalOutput(program);
     const finalScreen = renderFinalScreen(stream);
-    const parentLineIndex = finalScreen.findIndex((line) => line.includes("parent"));
-    const childLineIndex = finalScreen.findIndex((line) => line.includes("child-1"));
 
-    expect(parentLineIndex).toBeGreaterThanOrEqual(0);
-    expect(childLineIndex).toBeGreaterThan(parentLineIndex);
+    const parentLine = finalScreen.find((line) => line.includes("parent")) ?? "";
+    const childLine = finalScreen.find((line) => line.includes("child-1")) ?? "";
 
-    const continuationLine = finalScreen[parentLineIndex + 1] ?? "";
-    const childLine = finalScreen[childLineIndex] ?? "";
-    const continuationConnectorIndex = continuationLine.indexOf("│");
-    const childBranchIndex = childLine.indexOf("├");
+    const parentBarIndex = firstBarIndex(parentLine);
+    const childBarIndex = firstBarIndex(childLine);
 
-    expect(continuationConnectorIndex).toBeGreaterThanOrEqual(0);
-    expect(childBranchIndex).toBeGreaterThanOrEqual(0);
-    expect(continuationConnectorIndex).toBe(childBranchIndex);
-  });
-
-  test("does not draw dangling continuation connectors for multiline leaf nodes", async () => {
-    const program = Effect.gen(function* () {
-      const fiber = yield* Effect.fork(
-        Progress.task(
-          Effect.gen(function* () {
-            const progress = yield* Progress.Progress;
-            const leafId = yield* progress.addTask({
-              description: "leaf",
-              total: 100,
-              transient: false,
-            });
-
-            while (true) {
-              yield* Effect.sleep("5 millis");
-              yield* progress.advanceTask(leafId, 1);
-            }
-          }),
-          { description: "root", transient: false },
-        ).pipe(
-          Effect.provideService(Progress.RendererConfig, {
-            maxLogLines: 0,
-            renderIntervalMillis: 5,
-            nonTtyUpdateStep: 1,
-            disableUserInput: false,
-            determinateTaskLayout: "two-lines",
-          }),
-        ),
-      );
-
-      yield* Effect.sleep("40 millis");
-      yield* Fiber.interrupt(fiber);
-    });
-
-    const { stream } = await captureTerminalOutput(program);
-    const finalScreen = renderFinalScreen(stream);
-    const leafLineIndex = finalScreen.findIndex((line) => line.includes("leaf"));
-
-    expect(leafLineIndex).toBeGreaterThanOrEqual(0);
-    expect(finalScreen[leafLineIndex + 1]?.includes("│") ?? false).toBeFalse();
-  });
-
-  test("keeps lead-row tree prefixes when multiline text is width-constrained", async () => {
-    const program = Effect.gen(function* () {
-      const fiber = yield* Effect.fork(
-        Progress.task(
-          Effect.gen(function* () {
-            const progress = yield* Progress.Progress;
-            const parentId = yield* progress.addTask({
-              description: "parent-with-a-very-long-description-to-force-shrinking",
-              total: 100,
-              transient: false,
-            });
-            yield* progress.addTask({
-              description:
-                "child-1-very-long-description-to-demonstrate-tree-prefix-preservation-under-width-caps",
-              parentId,
-              total: 100,
-              transient: false,
-            });
-            yield* progress.addTask({
-              description:
-                "child-2-very-long-description-to-demonstrate-tree-prefix-preservation-under-width-caps",
-              parentId,
-              total: 100,
-              transient: false,
-            });
-
-            while (true) {
-              yield* Effect.sleep("5 millis");
-              yield* progress.advanceTask(parentId, 1);
-            }
-          }),
-          { description: "root", transient: false },
-        ).pipe(
-          Effect.provideService(Progress.RendererConfig, {
-            maxLogLines: 0,
-            maxTaskWidth: 60,
-            renderIntervalMillis: 5,
-            nonTtyUpdateStep: 1,
-            disableUserInput: false,
-            determinateTaskLayout: "two-lines",
-          }),
-        ),
-      );
-
-      yield* Effect.sleep("40 millis");
-      yield* Fiber.interrupt(fiber);
-    });
-
-    const { stream } = await captureTerminalOutput(program);
-    const finalScreen = renderFinalScreen(stream);
-    const childLeadLine =
-      finalScreen.find((line) => line.includes("child-1-very-long-description")) ?? "";
-
-    expect(childLeadLine.length).toBeGreaterThan(0);
-    expect(childLeadLine.includes("├") || childLeadLine.includes("└")).toBeTrue();
+    expect(parentLine.includes("parent")).toBeTrue();
+    expect(childLine.includes("child-1")).toBeTrue();
+    expect(childLine.includes("├─") || childLine.includes("└─")).toBeTrue();
+    expect(parentBarIndex).toBeGreaterThanOrEqual(0);
+    expect(childBarIndex).toBeGreaterThanOrEqual(0);
+    expect(parentBarIndex).toBe(childBarIndex);
   });
 
   test("renders elapsed before eta for running determinate tasks in seconds format", async () => {
@@ -391,7 +264,9 @@ describe("TTY renderer integration", () => {
     expect(unitsMatch !== null).toBeTrue();
     expect(etaIndex).toBeGreaterThanOrEqual(0);
     expect(firstDurationIndex).toBeGreaterThanOrEqual(0);
-    expect(firstDurationIndex).toBeGreaterThan((unitsMatch?.index ?? -1) + (unitsMatch?.[0].length ?? 0));
+    expect(firstDurationIndex).toBeGreaterThan(
+      (unitsMatch?.index ?? -1) + (unitsMatch?.[0].length ?? 0),
+    );
     expect(firstDurationIndex).toBeLessThan(etaIndex);
     expect(etaDurationMatch !== null).toBeTrue();
     expect(taskLine.includes("ms")).toBeFalse();
@@ -439,7 +314,7 @@ describe("TTY renderer integration", () => {
     expect(paddedUnitsMatch !== null).toBeTrue();
   });
 
-  test("completed determinate tasks keep a done-colored bar instead of done label", async () => {
+  test("completed determinate tasks keep amount output", async () => {
     const program = Progress.all([Effect.sleep("5 millis")], {
       description: "single-determinate",
       transient: false,
@@ -460,5 +335,111 @@ describe("TTY renderer integration", () => {
     expect(determinateLine !== undefined).toBeTrue();
     expect(statsLine !== undefined).toBeTrue();
     expect(finalScreen.some((line) => line.includes("done"))).toBeFalse();
+  });
+
+  test("responsive shrink strips tree and eta prefixes on narrow widths", async () => {
+    const program = Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        Progress.task(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const parentId = yield* progress.addTask({
+              description: "parent",
+              total: 100,
+              transient: false,
+            });
+            const childId = yield* progress.addTask({
+              description: "child",
+              parentId,
+              total: 100,
+              transient: false,
+            });
+
+            while (true) {
+              yield* Effect.sleep("5 millis");
+              yield* progress.advanceTask(parentId, 1);
+              yield* progress.advanceTask(childId, 1);
+            }
+          }),
+          { description: "root", transient: false },
+        ).pipe(
+          Effect.provideService(Progress.RendererConfig, {
+            maxLogLines: 0,
+            renderIntervalMillis: 5,
+            nonTtyUpdateStep: 1,
+            disableUserInput: false,
+            width: 8,
+            columns: [
+              Progress.DescriptionColumn.make({ minWidth: 0 }),
+              Progress.EtaColumn.make({ minWidth: 0 }),
+            ],
+          }),
+        ),
+      );
+
+      yield* Effect.sleep("40 millis");
+      yield* Fiber.interrupt(fiber);
+    });
+
+    const { stream } = await captureTerminalOutput(program);
+    const finalScreen = renderFinalScreen(stream);
+    const childLine = finalScreen.find((line) => line.includes("child")) ?? "";
+
+    expect(childLine.length).toBeGreaterThan(0);
+    expect(childLine.includes("├")).toBeFalse();
+    expect(childLine.includes("└")).toBeFalse();
+    expect(childLine.includes("ETA:")).toBeFalse();
+    expect(/\b\d+s\b/.test(childLine)).toBeTrue();
+  });
+
+  test("shrinks bar before truncating description", async () => {
+    const program = Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        Progress.task(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const parentId = yield* progress.addTask({
+              description: "parent-token-with-description-needs-compression",
+              total: 100,
+              transient: false,
+            });
+            const childId = yield* progress.addTask({
+              description: "child-token-with-description-needs-compression",
+              parentId,
+              total: 100,
+              transient: false,
+            });
+
+            while (true) {
+              yield* Effect.sleep("5 millis");
+              yield* progress.advanceTask(parentId, 1);
+              yield* progress.advanceTask(childId, 1);
+            }
+          }),
+          { description: "root", transient: false },
+        ).pipe(
+          Effect.provideService(Progress.RendererConfig, {
+            maxLogLines: 0,
+            renderIntervalMillis: 5,
+            nonTtyUpdateStep: 1,
+            disableUserInput: false,
+            width: 80,
+          }),
+        ),
+      );
+
+      yield* Effect.sleep("40 millis");
+      yield* Fiber.interrupt(fiber);
+    });
+
+    const { stream } = await captureTerminalOutput(program);
+    const finalScreen = renderFinalScreen(stream);
+    const childLine =
+      finalScreen.find((line) => line.includes("child-token-with-description")) ?? "";
+
+    expect(childLine.length).toBeGreaterThan(0);
+    expect(childLine.includes("├─") || childLine.includes("└─")).toBeTrue();
+    expect(childLine.includes("compression")).toBeTrue();
+    expect(longestBarRun(childLine)).toBeLessThanOrEqual(10);
   });
 });

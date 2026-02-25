@@ -1,33 +1,55 @@
-import { Clock, Context, Duration, Effect, Layer, Ref } from "effect";
-import { Theme, type ThemeRole, type ThemeService } from "./theme";
+import chalk from "chalk";
+import { Clock, Context, Effect, Layer, Ref } from "effect";
+import { fitRenderedText, visibleWidth } from "./renderer/ansi";
+import { computeTreeInfo, renderTreePrefix } from "./renderer/tree";
+import { Track } from "./renderer/types";
+import type {
+  CellWrapMode,
+  ColumnTrack,
+  ProgressColumn,
+  ProgressColumnContext,
+  ProgressColumnVariant,
+} from "./renderer/types";
 import type { ProgressTerminalService } from "./terminal";
-import type { RendererConfigShape, TaskSnapshot, TaskStore } from "./types";
+import type { ProgressBarConfigShape, RendererConfigShape, TaskSnapshot, TaskStore } from "./types";
+export { Track };
+export type {
+  CellWrapMode,
+  ColumnTrack,
+  ProgressColumn,
+  ProgressColumnContext,
+  ProgressColumnVariant,
+  TaskTreeInfo,
+} from "./renderer/types";
 
 const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
 const CLEAR_LINE = "\x1b[2K";
 const MOVE_UP_ONE = "\x1b[1A";
+const RESERVED_SECONDS_WIDTH = 3; // width of "59s"
+const PREVIEW_RENDER_WIDTH = 10_000;
+const TREE_PREFIX_COLLAPSE_BAR_WIDTH = 10;
 
 const clamp = (value: number, minimum: number, maximum: number): number =>
   Math.min(Math.max(value, minimum), maximum);
 
-// Use code-point length instead of UTF-16 code-unit length so surrogate pairs
-// (for example emoji) count as a single visible character.
 const textWidth = (text: string): number => Array.from(text).length;
 
-const segmentWidth = (segments: ReadonlyArray<Segment>): number =>
-  segments.reduce((width, segment) => width + textWidth(segment.text), 0);
-
-const RESERVED_SECONDS_WIDTH = 3; // width of "59s"
-
 const formatDurationSeconds = (seconds: number): string => {
-  const duration = Duration.seconds(Math.max(0, Math.floor(seconds)));
-  const formatted = Duration.format(duration);
-  return formatted === "0" ? "0s" : formatted;
-};
+  const value = Math.max(0, Math.floor(seconds));
+  if (value < 60) {
+    return `${value}s`;
+  }
+  if (value < 3600) {
+    const mins = Math.floor(value / 60);
+    const secs = value % 60;
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+  }
 
-const reserveTimeWidth = (formattedDuration: string): string =>
-  formattedDuration.padStart(RESERVED_SECONDS_WIDTH, " ");
+  const hours = Math.floor(value / 3600);
+  const mins = Math.floor((value % 3600) / 60);
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+};
 
 const formatDeterminateUnits = (completed: number, total: number): string => {
   const totalText = `${total}`;
@@ -37,23 +59,18 @@ const formatDeterminateUnits = (completed: number, total: number): string => {
 
 const formatElapsed = (snapshot: TaskSnapshot, now: number): string => {
   const elapsedMillis = Math.max(0, (snapshot.completedAt ?? now) - snapshot.startedAt);
-  const formatted = formatDurationSeconds(elapsedMillis / 1000);
-  return formatted;
+  return formatDurationSeconds(elapsedMillis / 1000);
 };
 
 const formatEta = (snapshot: TaskSnapshot, now: number): string => {
-  if (snapshot.status !== "running") {
-    return "ETA:   ";
-  }
-
-  if (snapshot.units._tag !== "DeterminateTaskUnits") {
-    return "ETA:   ";
+  if (snapshot.status !== "running" || snapshot.units._tag !== "DeterminateTaskUnits") {
+    return "";
   }
 
   const { completed, total } = snapshot.units;
   const remaining = total - completed;
   if (completed <= 0 || remaining <= 0) {
-    return "ETA:   ";
+    return "";
   }
 
   const elapsedMillis = Math.max(1, now - snapshot.startedAt);
@@ -61,305 +78,437 @@ const formatEta = (snapshot: TaskSnapshot, now: number): string => {
   return `ETA: ${formatDurationSeconds(etaMillis / 1000)}`;
 };
 
-/**
- * Defines how a cell claims width during the shrink/fit stage.
- *
- * @example
- * Frame line: "upload-assets  ━━━━━━━━━━━━━━━━───────  ETA: 3s"
- * Cell tracks:
- * - "upload-assets" -> Auto (intrinsic text width)
- * - "━━━━━━━━━━━━━━━━───────" -> Fraction(1) (takes leftover width)
- * - "ETA: 3s" -> Fixed(7) (always reserves 7 columns)
- */
-export type ColumnTrack =
-  | {
-      readonly _tag: "Auto";
-    }
-  | {
-      readonly _tag: "Fixed";
-      readonly width: number;
-    }
-  | {
-      readonly _tag: "Fraction";
-      readonly weight: number;
-    };
+const reserveTimeWidth = (formattedDuration: string): string =>
+  formattedDuration.padStart(RESERVED_SECONDS_WIDTH, " ");
 
-export const Track = {
-  auto: (): ColumnTrack => ({ _tag: "Auto" }),
-  fixed: (width: number): ColumnTrack => ({
-    _tag: "Fixed",
-    width: Math.max(0, Math.floor(width)),
-  }),
-  fr: (weight = 1): ColumnTrack => ({
-    _tag: "Fraction",
-    weight: Math.max(0.001, weight),
-  }),
-} as const;
+const styleIfTTY = (isTTY: boolean, style: (text: string) => string, text: string): string =>
+  isTTY ? style(text) : text;
 
-/**
- * Tree relationship metadata for rendering connectors on each row.
- *
- * @example
- * Given:
- * - depth = 2
- * - ancestorHasNextSibling = [true, false]
- * - hasNextSibling = true
- * Prefix rendered for this row: "│     ├─ "
- * Full lead row: "│     ├─ worker: batch 2"
- */
-export interface TaskTreeInfo {
-  readonly depth: number;
-  readonly hasNextSibling: boolean;
-  readonly hasChildren: boolean;
-  readonly ancestorHasNextSibling: ReadonlyArray<boolean>;
-}
-
-/**
- * Task snapshot plus render-time context captured before the build stage.
- *
- * @example
- * One ordered entry before build:
- * - snapshot label: "publish artifacts"
- * - depth: 1
- * This later becomes a task block whose lead row starts with "└─ publish artifacts".
- */
-export interface OrderedTaskModel {
-  readonly snapshot: TaskSnapshot;
-  readonly depth: number;
-  readonly theme: ThemeService;
-}
-
-/**
- * Unstyled text token emitted by build and consumed by color stage.
- *
- * @example
- * Final fragment: "42/100 ETA: 5s"
- * can be represented as:
- * - { text: "42/100", role: "units" }
- * - { text: " ", role: "plain" }
- * - { text: "ETA: 5s", role: "eta" }
- */
-export interface Segment {
-  readonly text: string;
-  readonly role: ThemeRole;
-}
-
-/**
- * How a cell behaves when width is smaller than its intrinsic content.
- *
- * @example
- * For a text cell capped to 16 columns:
- * - "truncate" -> "Deploying very lo"
- * - "no-wrap-ellipsis" -> "Deploying very…"
- */
-export type CellWrapMode = "truncate" | "no-wrap-ellipsis";
-
-/**
- * Logical, uncolored cell description produced by the build stage.
- *
- * @example
- * In this row:
- * "├─ migrate-db  ━━━━━━━━━━━━━━━━──────  42/100  ETA: 3s"
- * each bracketed part is one CellModel:
- * [├─ migrate-db] [━━━━━━━━━━━━━━━━──────] [42/100] [ETA: 3s]
- */
-export interface CellModel {
-  readonly id: string;
+interface ColumnBaseOptions {
+  readonly id?: string;
   readonly track?: ColumnTrack;
   readonly minWidth?: number;
   readonly maxWidth?: number;
-  readonly wrapMode?: CellWrapMode;
   readonly collapsePriority?: number;
-  readonly intrinsicWidth?: number;
-  readonly segments: ReadonlyArray<Segment>;
-  readonly renderAtWidth?: (width: number) => ReadonlyArray<Segment>;
+  readonly wrapMode?: CellWrapMode;
 }
 
-/**
- * A logical line composed of cells prior to width fitting and coloring.
- *
- * @example
- * One LogicalRow (before fitting) can target:
- * "├─ migrate-db  ━━━━━━━━━━━━━━━━──────  42/100  ETA: 3s"
- * with cells = [tree+text, bar, units, eta].
- */
-export interface LogicalRow {
-  readonly cells: ReadonlyArray<CellModel>;
-  readonly gap?: number;
-  readonly lineVariant?: "lead" | "continuation";
-}
+const normalizeNumber = (value: number | undefined, fallback: number): number =>
+  value === undefined ? fallback : Math.max(0, Math.floor(value));
 
-/**
- * All rows produced for one task entry (single-line or multi-line).
- *
- * @example
- * One TaskBlockModel with two rows:
- * row[0] = "├─ migrate-db"
- * row[1] = "│  ━━━━━━━━━━━━━━━━──────  42/100  ETA: 3s"
- */
-export interface TaskBlockModel {
-  readonly taskId: number;
-  readonly depth: number;
-  readonly theme: ThemeService;
-  readonly rows: ReadonlyArray<LogicalRow>;
-}
+export interface DescriptionColumnOptions extends ColumnBaseOptions {}
 
-/**
- * Full uncolored frame model for all currently rendered tasks.
- *
- * @example
- * One frame (single render tick), before fitting/coloring:
- * "⠙ root task"
- * "├─ child A"
- * "└─ child B"
- */
-export interface FrameModel {
-  readonly taskBlocks: ReadonlyArray<TaskBlockModel>;
-}
-
-/**
- * Cell after shrink/fit with concrete width and fitted segments.
- *
- * @example
- * Example text cell after fit:
- * - original cell text: "Deploying very long description"
- * - resolved width: 24
- * - fitted output text: "Deploying very long des…"
- */
-export interface FittedCell {
+export class DescriptionColumn implements ProgressColumn {
   readonly id: string;
-  readonly width: number;
-  readonly segments: ReadonlyArray<Segment>;
-}
+  readonly track: ColumnTrack;
+  readonly minWidth: number;
+  readonly maxWidth?: number;
+  readonly collapsePriority: number;
+  readonly wrapMode: CellWrapMode;
 
-/**
- * Row after shrink/fit with concrete per-cell widths.
- *
- * @example
- * Fitted row just before coloring:
- * "├─ ingest stage 2  ━━━━━━━━────  12/20  ETA: 1s"
- * Every cell in this row now has an exact width.
- */
-export interface FittedRow {
-  readonly depth: number;
-  readonly theme: ThemeService;
-  readonly gap: number;
-  readonly cells: ReadonlyArray<FittedCell>;
-}
-
-/**
- * Fitted rows for a single task block.
- *
- * @example
- * One fitted task block:
- * row[0] = "└─ deploy"
- * row[1] = "   ━━━━━━━━━━━━━━━  10/10  2s"
- */
-export interface FittedTaskBlock {
-  readonly taskId: number;
-  readonly rows: ReadonlyArray<FittedRow>;
-}
-
-/**
- * Full frame after fit but before ANSI styling.
- *
- * @example
- * Exact line layout that will be colorized next, for example:
- * "├─ migrate-db  ━━━━━━━━────  42/100  ETA: 3s"
- */
-export interface FittedFrameModel {
-  readonly taskBlocks: ReadonlyArray<FittedTaskBlock>;
-}
-
-/**
- * Public extension point: convert task snapshots to a logical frame model.
- *
- * @example
- * Build maps task snapshots to semantic cells.
- * Example output row cells:
- * - tree/text: "├─ migrate-db"
- * - bar: "━━━━━━━━━━━━━━━━──────"
- * - units: "42/100"
- * - eta: "ETA: 3s"
- */
-export interface BuildStageService {
-  readonly buildFrame: (
-    orderedTasks: ReadonlyArray<OrderedTaskModel>,
-    rendererConfig: RendererConfigShape,
-    now: number,
-    tick: number,
-  ) => FrameModel;
-}
-
-/**
- * Public extension point: resolve concrete widths and truncate content.
- *
- * @example
- * Shrink keeps high-priority columns visible (bar, units, eta),
- * then trims text columns when width is tight.
- * Example: "very-long-task-name" -> "very-long-task…"
- */
-export interface ShrinkStageService {
-  readonly fitFrame: (
-    frame: FrameModel,
-    terminalColumns: number | undefined,
-    maxTaskWidth: number | undefined,
-  ) => FittedFrameModel;
-}
-
-/**
- * Public extension point: style a fitted frame into terminal lines.
- *
- * @example
- * Role-to-style mapping on one row:
- * - "━━━━" with role "barFill" -> styled fill segment
- * - "ETA: 2s" with role "eta" -> styled eta segment
- * Returns the final printable string array.
- */
-export interface ColorStageService {
-  readonly colorFrame: (frame: FittedFrameModel) => ReadonlyArray<string>;
-}
-
-/**
- * Service that owns the render loop and writes frames to the terminal.
- *
- * @example
- * TTY mode: redraws the live frame in place.
- * Non-TTY mode: emits line updates without in-place cursor control.
- */
-export interface FrameRendererService {
-  readonly run: (
-    storeRef: Ref.Ref<TaskStore>,
-    logsRef: Ref.Ref<ReadonlyArray<string>>,
-    pendingLogsRef: Ref.Ref<ReadonlyArray<string>>,
-    dirtyRef: Ref.Ref<boolean>,
-    terminal: ProgressTerminalService,
-    isTTY: boolean,
-    rendererConfig: RendererConfigShape,
-    maxRetainedLogLines: number,
-  ) => Effect.Effect<void>;
-}
-
-const createSegment = (text: string, role: ThemeRole): Segment => ({ text, role });
-
-const getCellIntrinsicWidth = (cell: CellModel): number => {
-  if (cell.intrinsicWidth !== undefined) {
-    return Math.max(0, Math.floor(cell.intrinsicWidth));
+  constructor(options: DescriptionColumnOptions = {}) {
+    this.id = options.id ?? "description";
+    this.track = options.track ?? Track.fr(1);
+    this.minWidth = normalizeNumber(options.minWidth, 8);
+    this.maxWidth = options.maxWidth;
+    this.collapsePriority = normalizeNumber(options.collapsePriority, 100);
+    this.wrapMode = options.wrapMode ?? "ellipsis";
   }
 
-  return segmentWidth(cell.segments);
-};
+  static Default(): DescriptionColumn {
+    return new DescriptionColumn();
+  }
 
-const getCellBounds = (cell: CellModel): { min: number; max?: number } => {
-  const min = Math.max(0, Math.floor(cell.minWidth ?? 0));
-  const max = cell.maxWidth === undefined ? undefined : Math.max(min, Math.floor(cell.maxWidth));
+  static make(options: DescriptionColumnOptions = {}): DescriptionColumn {
+    return new DescriptionColumn(options);
+  }
+
+  render(context: ProgressColumnContext): string {
+    const prefix = renderTreePrefix(context.tree);
+    return `${prefix}${context.task.description}`;
+  }
+
+  variants(context: ProgressColumnContext): ReadonlyArray<ProgressColumnVariant> {
+    const full: ProgressColumnVariant = {
+      render: () => `${renderTreePrefix(context.tree)}${context.task.description}`,
+    };
+
+    if (context.tree.depth <= 0) {
+      return [full];
+    }
+
+    return [
+      full,
+      {
+        render: () => context.task.description,
+      },
+    ];
+  }
+}
+
+export interface BarColumnOptions extends ColumnBaseOptions {
+  readonly barWidth?: number;
+  readonly fillChar?: string;
+  readonly emptyChar?: string;
+  readonly leftBracket?: string;
+  readonly rightBracket?: string;
+}
+
+const resolveBarConfig = (
+  snapshot: TaskSnapshot,
+  options: BarColumnOptions,
+): ProgressBarConfigShape => ({
+  spinnerFrames: snapshot.config.spinnerFrames,
+  barWidth: options.barWidth ?? snapshot.config.barWidth,
+  fillChar: options.fillChar ?? snapshot.config.fillChar,
+  emptyChar: options.emptyChar ?? snapshot.config.emptyChar,
+  leftBracket: options.leftBracket ?? snapshot.config.leftBracket,
+  rightBracket: options.rightBracket ?? snapshot.config.rightBracket,
+});
+
+export class BarColumn implements ProgressColumn {
+  readonly id: string;
+  readonly track: ColumnTrack;
+  readonly minWidth: number;
+  readonly maxWidth?: number;
+  readonly collapsePriority: number;
+  readonly wrapMode: CellWrapMode;
+  readonly options: BarColumnOptions;
+
+  constructor(options: BarColumnOptions = {}) {
+    this.id = options.id ?? "bar";
+    this.track = options.track ?? Track.auto();
+    this.minWidth = normalizeNumber(options.minWidth, 1);
+    this.maxWidth = options.maxWidth;
+    this.collapsePriority = normalizeNumber(options.collapsePriority, 10);
+    this.wrapMode = options.wrapMode ?? "truncate";
+    this.options = options;
+  }
+
+  static Default(): BarColumn {
+    return new BarColumn();
+  }
+
+  static make(options: BarColumnOptions = {}): BarColumn {
+    return new BarColumn(options);
+  }
+
+  measure(context: ProgressColumnContext): number {
+    if (context.task.units._tag !== "DeterminateTaskUnits") {
+      return 0;
+    }
+
+    const config = resolveBarConfig(context.task, this.options);
+    const bracketWidth = textWidth(config.leftBracket) + textWidth(config.rightBracket);
+    return Math.max(this.minWidth, bracketWidth + Math.max(1, config.barWidth));
+  }
+
+  render(context: ProgressColumnContext, width: number): string {
+    if (context.task.units._tag !== "DeterminateTaskUnits") {
+      return "";
+    }
+
+    const config = resolveBarConfig(context.task, this.options);
+    const bracketWidth = textWidth(config.leftBracket) + textWidth(config.rightBracket);
+    const totalWidth = Math.max(1, Math.floor(width));
+    const innerWidth = Math.max(1, totalWidth - bracketWidth);
+    const safeTotal = Math.max(1, context.task.units.total);
+    const ratio =
+      context.task.status === "done" ? 1 : clamp(context.task.units.completed / safeTotal, 0, 1);
+    const filled = Math.round(ratio * innerWidth);
+
+    const fill = config.fillChar.repeat(filled);
+    const empty = config.emptyChar.repeat(Math.max(0, innerWidth - filled));
+
+    const fillStyle =
+      context.task.status === "failed"
+        ? chalk.red
+        : context.task.status === "done"
+          ? chalk.green
+          : chalk.blue;
+    const emptyStyle = context.task.status === "failed" ? chalk.red : chalk.white.dim;
+
+    return [
+      styleIfTTY(context.isTTY, chalk.white.dim, config.leftBracket),
+      styleIfTTY(context.isTTY, fillStyle, fill),
+      styleIfTTY(context.isTTY, emptyStyle, empty),
+      styleIfTTY(context.isTTY, chalk.white.dim, config.rightBracket),
+    ].join("");
+  }
+
+  variants(context: ProgressColumnContext): ReadonlyArray<ProgressColumnVariant> {
+    if (context.task.units._tag !== "DeterminateTaskUnits") {
+      return [];
+    }
+
+    const config = resolveBarConfig(context.task, this.options);
+    const bracketWidth = textWidth(config.leftBracket) + textWidth(config.rightBracket);
+    const fullWidth = Math.max(this.minWidth, bracketWidth + Math.max(1, config.barWidth));
+    const compactInnerWidths = [20, TREE_PREFIX_COLLAPSE_BAR_WIDTH]
+      .map((innerWidth) => Math.max(1, Math.floor(innerWidth)))
+      .filter((innerWidth) => innerWidth < Math.max(1, config.barWidth));
+    const compactWidths = compactInnerWidths.map((innerWidth) =>
+      Math.max(this.minWidth, bracketWidth + innerWidth),
+    );
+    const uniqueWidths = [...new Set([fullWidth, ...compactWidths])];
+
+    return uniqueWidths.map((variantWidth) => ({
+      measure: () => variantWidth,
+      render: (variantContext, width) => this.render(variantContext, width),
+    }));
+  }
+}
+
+export interface AmountColumnOptions extends ColumnBaseOptions {
+  readonly doneSymbol?: string;
+  readonly failedSymbol?: string;
+}
+
+export class AmountColumn implements ProgressColumn {
+  readonly id: string;
+  readonly track: ColumnTrack;
+  readonly minWidth: number;
+  readonly maxWidth?: number;
+  readonly collapsePriority: number;
+  readonly wrapMode: CellWrapMode;
+  readonly doneSymbol: string;
+  readonly failedSymbol: string;
+
+  constructor(options: AmountColumnOptions = {}) {
+    this.id = options.id ?? "amount";
+    this.track = options.track ?? Track.auto();
+    this.minWidth = normalizeNumber(options.minWidth, 1);
+    this.maxWidth = options.maxWidth;
+    this.collapsePriority = normalizeNumber(options.collapsePriority, 30);
+    this.wrapMode = options.wrapMode ?? "truncate";
+    this.doneSymbol = options.doneSymbol ?? "✓";
+    this.failedSymbol = options.failedSymbol ?? "✗";
+  }
+
+  static Default(): AmountColumn {
+    return new AmountColumn();
+  }
+
+  static make(options: AmountColumnOptions = {}): AmountColumn {
+    return new AmountColumn(options);
+  }
+
+  render(context: ProgressColumnContext): string {
+    const { task } = context;
+
+    if (task.units._tag === "DeterminateTaskUnits") {
+      return styleIfTTY(
+        context.isTTY,
+        task.status === "failed" ? chalk.red : chalk.whiteBright,
+        formatDeterminateUnits(task.units.completed, task.units.total),
+      );
+    }
+
+    if (task.status === "running") {
+      const frames = task.config.spinnerFrames;
+      const frameIndex = (task.units.spinnerFrame + context.tick) % frames.length;
+      const frame = frames[frameIndex] ?? frames[0] ?? "";
+      return styleIfTTY(context.isTTY, chalk.yellow, frame);
+    }
+
+    if (task.status === "done") {
+      return styleIfTTY(context.isTTY, chalk.green, this.doneSymbol);
+    }
+
+    return styleIfTTY(context.isTTY, chalk.red, this.failedSymbol);
+  }
+}
+
+export interface ElapsedColumnOptions extends ColumnBaseOptions {
+  readonly padSeconds?: boolean;
+}
+
+export class ElapsedColumn implements ProgressColumn {
+  readonly id: string;
+  readonly track: ColumnTrack;
+  readonly minWidth: number;
+  readonly maxWidth?: number;
+  readonly collapsePriority: number;
+  readonly wrapMode: CellWrapMode;
+  readonly padSeconds: boolean;
+
+  constructor(options: ElapsedColumnOptions = {}) {
+    this.id = options.id ?? "elapsed";
+    this.track = options.track ?? Track.auto();
+    this.minWidth = normalizeNumber(options.minWidth, 1);
+    this.maxWidth = options.maxWidth;
+    this.collapsePriority = normalizeNumber(options.collapsePriority, 40);
+    this.wrapMode = options.wrapMode ?? "truncate";
+    this.padSeconds = options.padSeconds ?? true;
+  }
+
+  static Default(): ElapsedColumn {
+    return new ElapsedColumn();
+  }
+
+  static make(options: ElapsedColumnOptions = {}): ElapsedColumn {
+    return new ElapsedColumn(options);
+  }
+
+  render(context: ProgressColumnContext): string {
+    const raw = formatElapsed(context.task, context.now);
+    const elapsed = this.padSeconds ? reserveTimeWidth(raw) : raw;
+    return styleIfTTY(context.isTTY, chalk.gray, elapsed);
+  }
+}
+
+export interface EtaColumnOptions extends ColumnBaseOptions {
+  readonly label?: string;
+  readonly pendingText?: string;
+}
+
+export class EtaColumn implements ProgressColumn {
+  readonly id: string;
+  readonly track: ColumnTrack;
+  readonly minWidth: number;
+  readonly maxWidth?: number;
+  readonly collapsePriority: number;
+  readonly wrapMode: CellWrapMode;
+  readonly label: string;
+  readonly pendingText: string;
+
+  constructor(options: EtaColumnOptions = {}) {
+    this.id = options.id ?? "eta";
+    this.track = options.track ?? Track.auto();
+    this.minWidth = normalizeNumber(options.minWidth, 0);
+    this.maxWidth = options.maxWidth;
+    this.collapsePriority = normalizeNumber(options.collapsePriority, 20);
+    this.wrapMode = options.wrapMode ?? "truncate";
+    this.label = options.label ?? "ETA";
+    this.pendingText = options.pendingText ?? `${this.label}:    `;
+  }
+
+  static Default(): EtaColumn {
+    return new EtaColumn();
+  }
+
+  static make(options: EtaColumnOptions = {}): EtaColumn {
+    return new EtaColumn(options);
+  }
+
+  private resolveEtaText(context: ProgressColumnContext, includeLabel: boolean): string {
+    const value = formatEta(context.task, context.now);
+    if (value.length === 0) {
+      if (context.task.status === "running" && context.task.units._tag === "DeterminateTaskUnits") {
+        if (includeLabel) {
+          return this.pendingText;
+        }
+        const pendingPrefix = `${this.label}: `;
+        return this.pendingText.startsWith(pendingPrefix)
+          ? this.pendingText.slice(pendingPrefix.length)
+          : this.pendingText.replace(/^ETA:\s*/, "");
+      }
+      return "";
+    }
+
+    if (includeLabel) {
+      if (this.label === "ETA") {
+        return value;
+      }
+      return value.replace(/^ETA/, this.label);
+    }
+
+    const labeled = this.label === "ETA" ? value : value.replace(/^ETA/, this.label);
+    const prefix = `${this.label}: `;
+    return labeled.startsWith(prefix)
+      ? labeled.slice(prefix.length)
+      : labeled.replace(/^ETA:\s*/, "");
+  }
+
+  render(context: ProgressColumnContext): string {
+    return styleIfTTY(context.isTTY, chalk.gray, this.resolveEtaText(context, true));
+  }
+
+  variants(context: ProgressColumnContext): ReadonlyArray<ProgressColumnVariant> {
+    const full = this.resolveEtaText(context, true);
+    if (full.length === 0) {
+      return [
+        {
+          render: () => "",
+        },
+      ];
+    }
+
+    const compact = this.resolveEtaText(context, false);
+    if (compact === full) {
+      return [
+        {
+          render: () => styleIfTTY(context.isTTY, chalk.gray, full),
+        },
+      ];
+    }
+
+    return [
+      {
+        render: () => styleIfTTY(context.isTTY, chalk.gray, full),
+      },
+      {
+        render: () => styleIfTTY(context.isTTY, chalk.gray, compact),
+      },
+    ];
+  }
+}
+
+export interface LiteralColumnOptions extends ColumnBaseOptions {
+  readonly text: string;
+}
+
+export class LiteralColumn implements ProgressColumn {
+  readonly id: string;
+  readonly track: ColumnTrack;
+  readonly minWidth: number;
+  readonly maxWidth?: number;
+  readonly collapsePriority: number;
+  readonly wrapMode: CellWrapMode;
+  readonly text: string;
+
+  constructor(options: LiteralColumnOptions) {
+    this.id = options.id ?? `literal:${options.text}`;
+    this.track = options.track ?? Track.auto();
+    this.minWidth = normalizeNumber(options.minWidth, 0);
+    this.maxWidth = options.maxWidth;
+    this.collapsePriority = normalizeNumber(options.collapsePriority, 0);
+    this.wrapMode = options.wrapMode ?? "truncate";
+    this.text = options.text;
+  }
+
+  static Default(text = "•"): LiteralColumn {
+    return new LiteralColumn({ text });
+  }
+
+  static make(text: string, options: Omit<LiteralColumnOptions, "text"> = {}): LiteralColumn {
+    return new LiteralColumn({ ...options, text });
+  }
+
+  render(): string {
+    return this.text;
+  }
+}
+
+export const Columns = {
+  defaults: (): ReadonlyArray<ProgressColumn> => [
+    DescriptionColumn.Default(),
+    BarColumn.Default(),
+    AmountColumn.Default(),
+    ElapsedColumn.Default(),
+    EtaColumn.Default(),
+  ],
+} as const;
+
+const resolveTrack = (column: ProgressColumn): ColumnTrack => column.track ?? Track.auto();
+
+const resolveColumnBounds = (column: ProgressColumn): { min: number; max?: number } => {
+  const min = Math.max(0, Math.floor(column.minWidth ?? 0));
+  const max =
+    column.maxWidth === undefined ? undefined : Math.max(min, Math.floor(column.maxWidth));
   return { min, max };
 };
 
-const resolveTrack = (cell: CellModel): ColumnTrack => cell.track ?? Track.auto();
-
-// Deterministic integer ratio distribution. We ceil each step and subtract
-// from the remaining pool so the final sum always matches the target exactly.
 const ratioDistribute = (
   total: number,
   ratios: ReadonlyArray<number>,
@@ -389,36 +538,35 @@ const ratioDistribute = (
 
 const resolveTotalWidth = (
   terminalColumns: number | undefined,
-  maxTaskWidth: number | undefined,
+  width: number | "fullwidth",
 ): number | undefined => {
-  const resolvedMaxTaskWidth =
-    maxTaskWidth === undefined ? undefined : Math.max(1, Math.floor(maxTaskWidth));
+  if (width === "fullwidth") {
+    if (terminalColumns === undefined) {
+      return undefined;
+    }
+
+    return Math.max(1, Math.floor(terminalColumns));
+  }
+
+  const resolvedConfiguredWidth = Math.max(1, Math.floor(width));
 
   if (terminalColumns === undefined) {
-    return resolvedMaxTaskWidth;
+    return resolvedConfiguredWidth;
   }
 
-  const resolvedTerminalColumns = Math.max(1, Math.floor(terminalColumns));
-  if (resolvedMaxTaskWidth === undefined) {
-    return resolvedTerminalColumns;
-  }
-
-  return Math.min(resolvedTerminalColumns, resolvedMaxTaskWidth);
+  return Math.min(Math.max(1, Math.floor(terminalColumns)), resolvedConfiguredWidth);
 };
 
 const shrinkByPriority = (
   widths: Array<number>,
   minWidths: ReadonlyArray<number>,
-  cells: ReadonlyArray<CellModel>,
+  columns: ReadonlyArray<ProgressColumn>,
   overflow: number,
 ): number => {
-  // First collapse pass: shrink columns by explicit collapse priority.
-  // Columns with no-wrap-ellipsis are still shrinkable; the wrap mode only
-  // decides whether we hard-truncate or append an ellipsis when fitted.
-  const shrinkable = cells
-    .map((cell, index) => ({
+  const shrinkable = columns
+    .map((column, index) => ({
       index,
-      priority: cell.collapsePriority ?? Number.MAX_SAFE_INTEGER,
+      priority: column.collapsePriority ?? Number.MAX_SAFE_INTEGER,
     }))
     .sort((a, b) => a.priority - b.priority);
 
@@ -449,8 +597,6 @@ const shrinkProportionally = (
   minWidths: ReadonlyArray<number>,
   overflow: number,
 ): number => {
-  // Last-resort collapse pass: if priority-based shrinking is not enough,
-  // reduce all remaining shrinkable columns proportionally.
   let remainingOverflow = overflow;
 
   while (remainingOverflow > 0) {
@@ -500,37 +646,39 @@ const shrinkProportionally = (
   return remainingOverflow;
 };
 
-const resolveRowWidths = (
-  row: LogicalRow,
+const resolveColumnWidths = (
+  columns: ReadonlyArray<ProgressColumn>,
+  intrinsicWidths: ReadonlyArray<number>,
   totalWidth: number | undefined,
-): ReadonlyArray<number> => {
-  // 1) Resolve base widths from tracks + intrinsic size.
-  // 2) Distribute extra room to fraction columns.
-  // 3) If overflowing: priority-based collapse, then proportional fallback.
-  const gap = Math.max(0, Math.floor(row.gap ?? 1));
-  const cells = row.cells;
-
-  if (cells.length === 0) {
-    return [];
+  gap: number,
+): {
+  readonly widths: ReadonlyArray<number>;
+  readonly overflowBeforeShrink: number;
+} => {
+  if (columns.length === 0) {
+    return {
+      widths: [],
+      overflowBeforeShrink: 0,
+    };
   }
 
-  const minWidths = cells.map((cell) => getCellBounds(cell).min);
-  const maxWidths = cells.map((cell) => getCellBounds(cell).max);
-  const widths: Array<number> = Array.from({ length: cells.length }, () => 0);
+  const minWidths = columns.map((column) => resolveColumnBounds(column).min);
+  const maxWidths = columns.map((column) => resolveColumnBounds(column).max);
+  const widths: Array<number> = Array.from({ length: columns.length }, () => 0);
 
-  for (let i = 0; i < cells.length; i++) {
-    const cell = cells[i]!;
-    const track = resolveTrack(cell);
+  for (let i = 0; i < columns.length; i++) {
+    const column = columns[i]!;
+    const track = resolveTrack(column);
     const minWidth = minWidths[i] ?? 0;
     const maxWidth = maxWidths[i];
-    const intrinsic = getCellIntrinsicWidth(cell);
+    const intrinsic = Math.max(0, Math.floor(intrinsicWidths[i] ?? 0));
 
     const baseWidth = (() => {
       switch (track._tag) {
         case "Fixed":
           return Math.max(minWidth, track.width);
         case "Fraction":
-          return minWidth;
+          return totalWidth === undefined ? Math.max(minWidth, intrinsic) : minWidth;
         case "Auto":
           return Math.max(minWidth, intrinsic);
       }
@@ -541,20 +689,24 @@ const resolveRowWidths = (
   }
 
   if (totalWidth === undefined) {
-    return widths;
+    return {
+      widths,
+      overflowBeforeShrink: 0,
+    };
   }
 
-  const usableWidth = Math.max(1, totalWidth - gap * Math.max(0, cells.length - 1));
+  const usableWidth = Math.max(1, totalWidth - gap * Math.max(0, columns.length - 1));
 
   const fractionColumns: Array<{ index: number; weight: number }> = [];
-  for (let index = 0; index < cells.length; index++) {
-    const track = resolveTrack(cells[index]!);
+  for (let index = 0; index < columns.length; index++) {
+    const track = resolveTrack(columns[index]!);
     if (track._tag === "Fraction") {
       fractionColumns.push({ index, weight: track.weight });
     }
   }
 
   let remaining = usableWidth - widths.reduce((sum, width) => sum + width, 0);
+  const overflowBeforeShrink = Math.max(0, -remaining);
 
   if (remaining > 0 && fractionColumns.length > 0) {
     const distributed = ratioDistribute(
@@ -573,514 +725,296 @@ const resolveRowWidths = (
 
   if (remaining < 0) {
     let overflow = -remaining;
-    overflow = shrinkByPriority(widths, minWidths, cells, overflow);
+    overflow = shrinkByPriority(widths, minWidths, columns, overflow);
     if (overflow > 0) {
       overflow = shrinkProportionally(widths, minWidths, overflow);
     }
   }
 
-  return widths.map((width, index) => {
-    const min = minWidths[index] ?? 0;
-    const max = maxWidths[index];
+  return {
+    widths: widths.map((width, index) => {
+      const min = minWidths[index] ?? 0;
+      const max = maxWidths[index];
 
-    if (max === undefined) {
-      return Math.max(min, width);
+      if (max === undefined) {
+        return Math.max(min, width);
+      }
+
+      return clamp(Math.max(min, width), min, max);
+    }),
+    overflowBeforeShrink,
+  };
+};
+
+const normalizeColumns = (
+  columns: ReadonlyArray<ProgressColumn | string>,
+): ReadonlyArray<ProgressColumn> => {
+  const resolved = columns.length > 0 ? columns : Columns.defaults();
+
+  return resolved.map((entry, index) => {
+    const normalized = typeof entry === "string" ? LiteralColumn.make(entry) : entry;
+
+    if (
+      typeof normalized !== "object" ||
+      normalized === null ||
+      typeof normalized.render !== "function"
+    ) {
+      throw new Error(`Invalid progress column at index ${index}`);
     }
 
-    return clamp(Math.max(min, width), min, max);
+    if (typeof normalized.id !== "string" || normalized.id.length === 0) {
+      throw new Error(`Progress column at index ${index} is missing a valid id`);
+    }
+
+    return normalized;
   });
 };
 
-interface CharacterToken {
-  readonly char: string;
-  readonly role: ThemeRole;
+interface OrderedTaskModel {
+  readonly snapshot: TaskSnapshot;
+  readonly depth: number;
 }
 
-const toCharacterTokens = (segments: ReadonlyArray<Segment>): Array<CharacterToken> => {
-  const tokens: Array<CharacterToken> = [];
+interface RenderedFrame {
+  readonly lines: ReadonlyArray<string>;
+  readonly lineByTaskId: ReadonlyMap<number, string>;
+}
 
-  for (const segment of segments) {
-    for (const char of Array.from(segment.text)) {
-      tokens.push({ char, role: segment.role });
-    }
+const fallbackVariantForColumn = (column: ProgressColumn): ProgressColumnVariant => ({
+  measure: column.measure === undefined ? undefined : (context) => column.measure?.(context) ?? 0,
+  render: (context, width) => column.render(context, width),
+});
+
+const resolveVariantForLevel = (
+  column: ProgressColumn,
+  context: ProgressColumnContext,
+  level: number,
+): ProgressColumnVariant => {
+  const variants = column.variants?.(context);
+  if (variants === undefined || variants.length === 0) {
+    return fallbackVariantForColumn(column);
   }
 
-  return tokens;
+  return variants[Math.min(level, variants.length - 1)]!;
 };
 
-const fromCharacterTokens = (tokens: ReadonlyArray<CharacterToken>): ReadonlyArray<Segment> => {
-  if (tokens.length === 0) {
-    return [];
-  }
+const isDescriptionColumn = (column: ProgressColumn): boolean =>
+  column instanceof DescriptionColumn || column.id === "description";
 
-  const segments: Array<Segment> = [];
-  let currentRole = tokens[0]!.role;
-  let buffer = "";
+const isEtaColumn = (column: ProgressColumn): boolean =>
+  column instanceof EtaColumn || column.id === "eta";
 
-  for (const token of tokens) {
-    if (token.role !== currentRole) {
-      segments.push(createSegment(buffer, currentRole));
-      buffer = token.char;
-      currentRole = token.role;
-      continue;
-    }
+const isBarColumn = (column: ProgressColumn): boolean =>
+  column instanceof BarColumn || column.id === "bar";
 
-    buffer += token.char;
-  }
-
-  if (buffer.length > 0) {
-    segments.push(createSegment(buffer, currentRole));
-  }
-
-  return segments;
-};
-
-const fitSegments = (
-  segments: ReadonlyArray<Segment>,
-  width: number,
-  wrapMode: CellWrapMode,
-): ReadonlyArray<Segment> => {
-  // Segment fitting is role-preserving: truncate by character tokens,
-  // optionally append ellipsis, then pad with plain-space tokens.
-  const target = Math.max(0, Math.floor(width));
-  if (target <= 0) {
-    return [];
-  }
-
-  const chars = toCharacterTokens(segments);
-
-  const truncatedChars = (() => {
-    if (chars.length <= target) {
-      return chars;
-    }
-
-    if (wrapMode === "no-wrap-ellipsis") {
-      if (target === 1) {
-        return [{ char: "…", role: chars[0]?.role ?? "plain" }];
-      }
-
-      const keep = chars.slice(0, Math.max(0, target - 1));
-      const ellipsisRole = keep[keep.length - 1]?.role ?? chars[0]?.role ?? "plain";
-      return [...keep, { char: "…", role: ellipsisRole }];
-    }
-
-    return chars.slice(0, target);
-  })();
-
-  const truncatedSegments = fromCharacterTokens(truncatedChars);
-  const visibleWidth = segmentWidth(truncatedSegments);
-
-  if (visibleWidth >= target) {
-    return truncatedSegments;
-  }
-
-  return [...truncatedSegments, createSegment(" ".repeat(target - visibleWidth), "plain")];
-};
-
-const treeAncestorPrefix = (tree: TaskTreeInfo): string =>
-  tree.ancestorHasNextSibling.map((hasNext) => (hasNext ? "│  " : "   ")).join("");
-
-const renderTreePrefix = (tree: TaskTreeInfo, variant: "lead" | "continuation"): string => {
-  if (tree.depth <= 0) {
-    return "";
-  }
-
-  const ancestor = treeAncestorPrefix(tree);
-
-  if (variant === "lead") {
-    return `${ancestor}${tree.hasNextSibling ? "├─ " : "└─ "}`;
-  }
-
-  const trunk = `${ancestor}${tree.hasNextSibling ? "│  " : "   "}`;
-  if (tree.hasChildren) {
-    return `${trunk}│  `;
-  }
-
-  return trunk;
-};
-
-const computeTreeInfo = (ordered: ReadonlyArray<{ snapshot: TaskSnapshot; depth: number }>) => {
-  // Precompute sibling/ancestor relationships so connector rendering is
-  // deterministic and independent from column layout decisions.
-  const hasNextSiblingByIndex: Array<boolean> = Array.from({ length: ordered.length }, () => false);
-
-  for (let i = 0; i < ordered.length; i++) {
-    const depth = ordered[i]!.depth;
-    for (let j = i + 1; j < ordered.length; j++) {
-      const candidateDepth = ordered[j]!.depth;
-      if (candidateDepth < depth) {
-        break;
-      }
-      if (candidateDepth === depth) {
-        hasNextSiblingByIndex[i] = true;
-        break;
-      }
-    }
-  }
-
-  const ancestorStateByDepth: Array<boolean> = [];
-
-  return ordered.map((entry, index) => {
-    const depth = entry.depth;
-    ancestorStateByDepth.length = depth;
-
-    const hasChildren =
-      index + 1 < ordered.length &&
-      ordered[index + 1] !== undefined &&
-      ordered[index + 1]!.depth > depth;
-
-    const tree: TaskTreeInfo = {
-      depth,
-      hasNextSibling: hasNextSiblingByIndex[index] ?? false,
-      hasChildren,
-      ancestorHasNextSibling: [...ancestorStateByDepth],
-    };
-
-    ancestorStateByDepth[depth] = hasNextSiblingByIndex[index] ?? false;
-
+const renderTaskFrame = (
+  orderedTasks: ReadonlyArray<OrderedTaskModel>,
+  columns: ReadonlyArray<ProgressColumn>,
+  rendererConfig: RendererConfigShape,
+  now: number,
+  tick: number,
+  terminalColumns: number | undefined,
+  isTTY: boolean,
+): RenderedFrame => {
+  if (orderedTasks.length === 0) {
     return {
-      ...entry,
-      tree,
+      lines: [],
+      lineByTaskId: new Map(),
     };
+  }
+
+  const orderedWithTree = computeTreeInfo(
+    orderedTasks.map((entry) => ({ snapshot: entry.snapshot, depth: entry.depth })),
+  );
+
+  const contexts = orderedWithTree.map<ProgressColumnContext>((entry, index) => ({
+    task: orderedTasks[index]!.snapshot,
+    depth: orderedTasks[index]!.depth,
+    tree: entry.tree,
+    now,
+    tick,
+    isTTY,
+  }));
+
+  const gap = Math.max(0, Math.floor(rendererConfig.columnGap ?? 1));
+  const totalWidth = resolveTotalWidth(terminalColumns, rendererConfig.width);
+  const maxVariantLevelByColumn = columns.map((column) => {
+    let maxLevel = 0;
+    for (const context of contexts) {
+      const variants = column.variants?.(context);
+      if (variants !== undefined && variants.length > 0) {
+        maxLevel = Math.max(maxLevel, variants.length - 1);
+      }
+    }
+    return maxLevel;
   });
-};
+  const variantLevelByColumn = columns.map(() => 0);
 
-const treeCell = (tree: TaskTreeInfo, variant: "lead" | "continuation"): CellModel => ({
-  id: "tree",
-  track: Track.auto(),
-  wrapMode: "truncate",
-  collapsePriority: 100,
-  minWidth: 0,
-  segments: [createSegment(renderTreePrefix(tree, variant), "treeConnector")],
-});
+  const resolveLayoutForVariants = (levels: ReadonlyArray<number>) => {
+    const intrinsicByColumn: Array<number> = Array.from({ length: columns.length }, () => 0);
+    const hasContentByColumn: Array<boolean> = Array.from({ length: columns.length }, () => false);
 
-const textCell = (text: string): CellModel => ({
-  id: "text",
-  track: Track.auto(),
-  wrapMode: "no-wrap-ellipsis",
-  collapsePriority: 50,
-  minWidth: 4,
-  segments: [createSegment(text, "text")],
-});
+    for (let col = 0; col < columns.length; col++) {
+      const column = columns[col]!;
+      const level = levels[col] ?? 0;
 
-const spinnerCell = (snapshot: TaskSnapshot, tick: number): CellModel => {
-  const frames = snapshot.config.spinnerFrames;
-  const frameIndex =
-    snapshot.units._tag === "IndeterminateTaskUnits"
-      ? (snapshot.units.spinnerFrame + tick) % frames.length
-      : 0;
-  const frame = frames[frameIndex] ?? frames[0] ?? "";
-
-  return {
-    id: "spinner",
-    track: Track.auto(),
-    wrapMode: "truncate",
-    collapsePriority: 70,
-    minWidth: 1,
-    segments: [createSegment(frame, "spinner")],
-  };
-};
-
-const barCell = (snapshot: TaskSnapshot): CellModel => {
-  if (snapshot.units._tag !== "DeterminateTaskUnits") {
-    return {
-      id: "bar",
-      segments: [],
-    };
-  }
-
-  const { config } = snapshot;
-  const units = snapshot.units;
-  const bracketWidth = textWidth(config.leftBracket) + textWidth(config.rightBracket);
-  const preferredInnerWidth = Math.max(1, config.barWidth);
-  const intrinsicWidth = bracketWidth + preferredInnerWidth;
-
-  return {
-    id: "bar",
-    track: Track.auto(),
-    minWidth: Math.max(1, bracketWidth + 1),
-    wrapMode: "truncate",
-    collapsePriority: 10,
-    intrinsicWidth,
-    segments: [],
-    renderAtWidth: (width) => {
-      const targetWidth = Math.max(1, Math.floor(width));
-      const safeTotal = units.total <= 0 ? 1 : units.total;
-      const ratio = Math.min(1, Math.max(0, units.completed / safeTotal));
-
-      const resolvedInnerWidth = Math.max(1, targetWidth - bracketWidth);
-      const clampedRatio = snapshot.status === "done" ? 1 : ratio;
-      const filled = Math.round(clampedRatio * resolvedInnerWidth);
-
-      const fillRole: ThemeRole =
-        snapshot.status === "failed"
-          ? "statusFailed"
-          : snapshot.status === "done"
-            ? "statusDone"
-            : "barFill";
-
-      const emptyRole: ThemeRole = snapshot.status === "failed" ? "statusFailed" : "barEmpty";
-
-      return [
-        createSegment(config.leftBracket, "barBracket"),
-        createSegment(config.fillChar.repeat(filled), fillRole),
-        createSegment(config.emptyChar.repeat(Math.max(0, resolvedInnerWidth - filled)), emptyRole),
-        createSegment(config.rightBracket, "barBracket"),
-      ];
-    },
-  };
-};
-
-const unitsCell = (snapshot: TaskSnapshot): CellModel => ({
-  id: "units",
-  track: Track.auto(),
-  minWidth: 3,
-  wrapMode: "truncate",
-  collapsePriority: 40,
-  segments:
-    snapshot.units._tag === "DeterminateTaskUnits"
-      ? [
-          createSegment(
-            formatDeterminateUnits(snapshot.units.completed, snapshot.units.total),
-            "units",
-          ),
-        ]
-      : [],
-});
-
-const etaCell = (snapshot: TaskSnapshot, now: number): CellModel => ({
-  id: "eta",
-  track: Track.auto(),
-  minWidth: 4,
-  wrapMode: "truncate",
-  collapsePriority: 20,
-  segments: [createSegment(formatEta(snapshot, now), "eta")],
-});
-
-const elapsedCell = (snapshot: TaskSnapshot, now: number): CellModel => ({
-  id: "elapsed",
-  track: Track.auto(),
-  minWidth: 1,
-  wrapMode: "truncate",
-  collapsePriority: 30,
-  segments: [createSegment(formatElapsed(snapshot, now), "elapsed")],
-});
-
-const statusCell = (snapshot: TaskSnapshot): CellModel => {
-  if (snapshot.status === "done") {
-    return {
-      id: "status",
-      track: Track.auto(),
-      minWidth: 1,
-      wrapMode: "truncate",
-      collapsePriority: 60,
-      segments: [createSegment("✓", "statusDone")],
-    };
-  }
-
-  if (snapshot.status === "failed") {
-    return {
-      id: "status",
-      track: Track.auto(),
-      minWidth: 8,
-      wrapMode: "truncate",
-      collapsePriority: 60,
-      segments: [createSegment("failed", "statusFailed")],
-    };
-  }
-
-  return {
-    id: "status",
-    segments: [],
-  };
-};
-
-const defaultBuildStageService: BuildStageService = {
-  buildFrame: (orderedTasks, rendererConfig, now, tick) => {
-    // Build stage emits semantic rows only. No ANSI and no width trimming here.
-    const orderedWithTree = computeTreeInfo(
-      orderedTasks.map((entry) => ({ snapshot: entry.snapshot, depth: entry.depth })),
-    );
-
-    const taskBlocks: Array<TaskBlockModel> = orderedWithTree.map((entry, index) => {
-      const orderedEntry = orderedTasks[index]!;
-      const snapshot = orderedEntry.snapshot;
-      const tree = entry.tree;
-      const isDeterminate = snapshot.units._tag === "DeterminateTaskUnits";
-      const showTwoLineDeterminate =
-        isDeterminate && rendererConfig.determinateTaskLayout === "two-lines";
-
-      const runningOrDoneDeterminate =
-        isDeterminate && (snapshot.status === "running" || snapshot.status === "done");
-
-      const determinateFailure = isDeterminate && snapshot.status === "failed";
-
-      const rows: Array<LogicalRow> = [];
-
-      if (runningOrDoneDeterminate) {
-        const timingCells: Array<CellModel> = [elapsedCell(snapshot, now)];
-        if (snapshot.status === "running") {
-          timingCells.push(etaCell(snapshot, now));
+      for (const context of contexts) {
+        const variant = resolveVariantForLevel(column, context, level);
+        const preview = `${variant.render(context, PREVIEW_RENDER_WIDTH)}`;
+        const previewWidth = visibleWidth(preview);
+        if (previewWidth > 0) {
+          hasContentByColumn[col] = true;
         }
 
-        if (showTwoLineDeterminate) {
-          rows.push({
-            lineVariant: "lead",
-            cells: [treeCell(tree, "lead"), textCell(snapshot.description)],
-          });
-
-          rows.push({
-            lineVariant: "continuation",
-            cells: [
-              treeCell(tree, "continuation"),
-              barCell(snapshot),
-              unitsCell(snapshot),
-              ...timingCells,
-            ],
-          });
+        if (typeof variant.measure === "function") {
+          const measured = Number(variant.measure(context));
+          if (Number.isFinite(measured)) {
+            intrinsicByColumn[col] = Math.max(
+              intrinsicByColumn[col] ?? 0,
+              Math.max(0, Math.floor(measured)),
+            );
+          }
         } else {
-          rows.push({
-            lineVariant: "lead",
-            cells: [
-              treeCell(tree, "lead"),
-              textCell(snapshot.description),
-              barCell(snapshot),
-              unitsCell(snapshot),
-              ...timingCells,
-            ],
-          });
+          intrinsicByColumn[col] = Math.max(intrinsicByColumn[col] ?? 0, previewWidth);
         }
-      } else if (determinateFailure) {
-        if (showTwoLineDeterminate) {
-          rows.push({
-            lineVariant: "lead",
-            cells: [treeCell(tree, "lead"), textCell(snapshot.description)],
-          });
-          rows.push({
-            lineVariant: "continuation",
-            cells: [
-              treeCell(tree, "continuation"),
-              barCell(snapshot),
-              unitsCell(snapshot),
-              statusCell(snapshot),
-              elapsedCell(snapshot, now),
-            ],
-          });
-        } else {
-          rows.push({
-            lineVariant: "lead",
-            cells: [
-              treeCell(tree, "lead"),
-              textCell(snapshot.description),
-              barCell(snapshot),
-              unitsCell(snapshot),
-              statusCell(snapshot),
-              elapsedCell(snapshot, now),
-            ],
-          });
-        }
-      } else if (snapshot.status === "running") {
-        rows.push({
-          lineVariant: "lead",
-          cells: [
-            treeCell(tree, "lead"),
-            textCell(snapshot.description),
-            spinnerCell(snapshot, tick),
-            elapsedCell(snapshot, now),
-          ],
-        });
-      } else {
-        rows.push({
-          lineVariant: "lead",
-          cells: [
-            treeCell(tree, "lead"),
-            textCell(snapshot.description),
-            statusCell(snapshot),
-            elapsedCell(snapshot, now),
-          ],
-        });
+      }
+    }
+
+    const activeColumnIndexes = columns
+      .map((_column, index) => index)
+      .filter((index) => hasContentByColumn[index] ?? false);
+    const activeColumns = activeColumnIndexes.map((index) => columns[index]!);
+    const intrinsicWidths = activeColumnIndexes.map((index) => intrinsicByColumn[index] ?? 0);
+    const widthResolution = resolveColumnWidths(activeColumns, intrinsicWidths, totalWidth, gap);
+
+    return {
+      intrinsicByColumn,
+      activeColumnIndexes,
+      activeColumns,
+      widths: widthResolution.widths,
+      overflowBeforeShrink: widthResolution.overflowBeforeShrink,
+    };
+  };
+
+  let layout = resolveLayoutForVariants(variantLevelByColumn);
+
+  if (totalWidth !== undefined) {
+    while (true) {
+      const hasCompressedColumns = layout.activeColumnIndexes.some((columnIndex, activeIndex) => {
+        const assignedWidth = layout.widths[activeIndex] ?? 0;
+        const intrinsicWidth = layout.intrinsicByColumn[columnIndex] ?? 0;
+        return assignedWidth < intrinsicWidth;
+      });
+
+      if (layout.overflowBeforeShrink <= 0 && !hasCompressedColumns) {
+        break;
       }
 
-      return {
-        taskId: snapshot.id as number,
-        depth: orderedEntry.depth,
-        theme: orderedEntry.theme,
-        rows,
-      };
-    });
+      const hasPendingEtaCompaction = columns.some(
+        (column, index) =>
+          isEtaColumn(column) &&
+          (variantLevelByColumn[index] ?? 0) < (maxVariantLevelByColumn[index] ?? 0),
+      );
+      const activeBarWidths = layout.activeColumnIndexes.flatMap((columnIndex, activeIndex) =>
+        isBarColumn(columns[columnIndex]!) ? [layout.widths[activeIndex] ?? 0] : [],
+      );
+      const barsAreTightEnoughForTreeCollapse = activeBarWidths.every(
+        (width) => width <= TREE_PREFIX_COLLAPSE_BAR_WIDTH,
+      );
 
-    return {
-      taskBlocks,
-    };
-  },
-};
+      const candidates = columns
+        .map((_column, index) => index)
+        .filter(
+          (index) => (variantLevelByColumn[index] ?? 0) < (maxVariantLevelByColumn[index] ?? 0),
+        )
+        .map((index) => {
+          const column = columns[index]!;
+          if (
+            isDescriptionColumn(column) &&
+            (hasPendingEtaCompaction || !barsAreTightEnoughForTreeCollapse)
+          ) {
+            return undefined;
+          }
 
-const defaultShrinkStageService: ShrinkStageService = {
-  fitFrame: (frame, terminalColumns, maxTaskWidth) => {
-    // Convert logical rows into concrete widths and fitted segments.
-    const totalWidth = resolveTotalWidth(terminalColumns, maxTaskWidth);
-
-    return {
-      taskBlocks: frame.taskBlocks.map((block) => ({
-        taskId: block.taskId,
-        rows: block.rows.map((row) => {
-          const gap = Math.max(0, Math.floor(row.gap ?? 1));
-          const widths = resolveRowWidths(row, totalWidth);
-
+          const currentIntrinsic = layout.intrinsicByColumn[index] ?? 0;
+          const trialLevels = [...variantLevelByColumn];
+          trialLevels[index] = (trialLevels[index] ?? 0) + 1;
+          const nextLayout = resolveLayoutForVariants(trialLevels);
+          const nextIntrinsic = nextLayout.intrinsicByColumn[index] ?? 0;
           return {
-            depth: block.depth,
-            theme: block.theme,
-            gap,
-            cells: row.cells.map((cell, index) => {
-              const widthForCell = widths[index] ?? 0;
-              const rendered = cell.renderAtWidth?.(widthForCell) ?? cell.segments;
-              const wrapMode = cell.wrapMode ?? "truncate";
-              const fittedSegments = fitSegments(rendered, widthForCell, wrapMode);
-
-              return {
-                id: cell.id,
-                width: widthForCell,
-                segments: fittedSegments,
-              };
-            }),
+            index,
+            reduction: Math.max(0, currentIntrinsic - nextIntrinsic),
+            priority: column.collapsePriority ?? Number.MAX_SAFE_INTEGER,
           };
-        }),
-      })),
-    };
-  },
-};
+        })
+        .filter(
+          (candidate): candidate is { index: number; reduction: number; priority: number } =>
+            candidate !== undefined,
+        )
+        .sort((a, b) => b.reduction - a.reduction || a.priority - b.priority || a.index - b.index);
 
-const styleSegment = (segment: Segment, depth: number, theme: ThemeService): string => {
-  const byDepth = theme.depthPalette?.(depth, segment.role);
-  if (byDepth !== undefined) {
-    return byDepth(segment.text);
+      const best = candidates[0];
+      if (best === undefined) {
+        break;
+      }
+
+      variantLevelByColumn[best.index] = (variantLevelByColumn[best.index] ?? 0) + 1;
+      layout = resolveLayoutForVariants(variantLevelByColumn);
+    }
   }
 
-  const style = theme.styles[segment.role] ?? theme.styles.plain;
-  return style(segment.text);
+  if (layout.activeColumnIndexes.length === 0) {
+    const emptyLines = orderedTasks.map(() => "");
+    return {
+      lines: emptyLines,
+      lineByTaskId: new Map(orderedTasks.map((entry) => [entry.snapshot.id as number, ""])),
+    };
+  }
+
+  const gapText = " ".repeat(gap);
+  const lines = contexts.map((context) =>
+    layout.activeColumns
+      .map((column, index) => {
+        const originalColumnIndex = layout.activeColumnIndexes[index]!;
+        const width = layout.widths[index] ?? 0;
+        const variant = resolveVariantForLevel(
+          column,
+          context,
+          variantLevelByColumn[originalColumnIndex] ?? 0,
+        );
+        const raw = `${variant.render(context, width)}`;
+        const wrapMode = columns[originalColumnIndex]!.wrapMode ?? "truncate";
+        return fitRenderedText(raw, width, wrapMode, isTTY);
+      })
+      .join(gapText)
+      .trimEnd(),
+  );
+
+  const lineByTaskId = new Map<number, string>();
+  for (let i = 0; i < orderedTasks.length; i++) {
+    lineByTaskId.set(orderedTasks[i]!.snapshot.id as number, lines[i] ?? "");
+  }
+
+  return {
+    lines,
+    lineByTaskId,
+  };
 };
 
-const defaultColorStageService: ColorStageService = {
-  colorFrame: (frame) =>
-    frame.taskBlocks.flatMap((block) =>
-      block.rows.map((row) => {
-        const gap = " ".repeat(row.gap);
-        return row.cells
-          .map((cell) =>
-            cell.segments.map((segment) => styleSegment(segment, row.depth, row.theme)).join(""),
-          )
-          .join(gap)
-          .trimEnd();
-      }),
-    ),
-};
+export interface FrameRendererService {
+  readonly run: (
+    storeRef: Ref.Ref<TaskStore>,
+    logsRef: Ref.Ref<ReadonlyArray<string>>,
+    pendingLogsRef: Ref.Ref<ReadonlyArray<string>>,
+    dirtyRef: Ref.Ref<boolean>,
+    terminal: ProgressTerminalService,
+    isTTY: boolean,
+    rendererConfig: RendererConfigShape,
+    maxRetainedLogLines: number,
+  ) => Effect.Effect<void>;
+}
 
-const makeDefaultFrameRenderer = (
-  buildStage: BuildStageService,
-  shrinkStage: ShrinkStageService,
-  colorStage: ColorStageService,
-  fallbackTheme: ThemeService,
-): FrameRendererService => ({
+const makeDefaultFrameRenderer = (): FrameRendererService => ({
   run: (
     storeRef,
     logsRef,
@@ -1092,9 +1026,8 @@ const makeDefaultFrameRenderer = (
     maxRetainedLogLines,
   ) =>
     Effect.gen(function* () {
-      // The frame renderer owns terminal state (cursor/session), drives tick
-      // updates, and coordinates build -> shrink -> color for each frame.
       const retainLogHistory = maxRetainedLogLines > 0;
+      const compiledColumns = normalizeColumns(rendererConfig.columns);
       let previousLineCount = 0;
       let nonTTYTaskSignatureById = new Map<number, string>();
       let tick = 0;
@@ -1138,7 +1071,7 @@ const makeDefaultFrameRenderer = (
           return;
         }
 
-        yield* terminal.writeStderr("\n" + SHOW_CURSOR);
+        yield* terminal.writeStderr(`\n${SHOW_CURSOR}`);
         previousLineCount = 0;
         sessionActive = false;
       });
@@ -1146,7 +1079,7 @@ const makeDefaultFrameRenderer = (
       const renderNonTTYTaskUpdates = (
         ordered: ReadonlyArray<{
           snapshot: TaskSnapshot;
-          lines: ReadonlyArray<string>;
+          line: string;
         }>,
       ) => {
         const nextTaskSignatureById = new Map<number, string>();
@@ -1163,13 +1096,16 @@ const makeDefaultFrameRenderer = (
 
           nextTaskSignatureById.set(taskId, signature);
           if (nonTTYTaskSignatureById.get(taskId) !== signature) {
-            changedTaskLines.push(...ordered[i]!.lines);
+            const line = ordered[i]!.line;
+            if (line.length > 0) {
+              changedTaskLines.push(line);
+            }
           }
         }
 
         return Effect.gen(function* () {
           if (changedTaskLines.length > 0) {
-            yield* terminal.writeStderr(changedTaskLines.join("\n") + "\n");
+            yield* terminal.writeStderr(`${changedTaskLines.join("\n")}\n`);
           }
 
           nonTTYTaskSignatureById = nextTaskSignatureById;
@@ -1178,7 +1114,6 @@ const makeDefaultFrameRenderer = (
 
       const renderFrame = (mode: "tick" | "final") =>
         Effect.gen(function* () {
-          // Materialize one frame snapshot from current state.
           const drainedLogs = yield* Ref.getAndSet(pendingLogsRef, []);
           const store = yield* Ref.get(storeRef);
           const orderedTasks = store.renderOrder.flatMap((row) => {
@@ -1191,7 +1126,6 @@ const makeDefaultFrameRenderer = (
               {
                 snapshot,
                 depth: row.depth,
-                theme: store.themes.get(snapshot.id) ?? fallbackTheme,
               },
             ];
           });
@@ -1199,32 +1133,22 @@ const makeDefaultFrameRenderer = (
           const now = yield* Clock.currentTimeMillis;
           const frameTick = mode === "final" ? tick + 1 : tick;
           const terminalColumns = isTTY ? yield* terminal.stderrColumns : undefined;
-          const maxTaskWidth = rendererConfig.maxTaskWidth;
 
-          const frameModel = buildStage.buildFrame(
+          const renderedFrame = renderTaskFrame(
             orderedTasks,
+            compiledColumns,
             rendererConfig,
             now,
             isTTY ? frameTick : 0,
+            terminalColumns,
+            isTTY,
           );
-
-          const fittedFrame = shrinkStage.fitFrame(frameModel, terminalColumns, maxTaskWidth);
-
-          const taskLines = colorStage.colorFrame(fittedFrame);
-
-          const taskLineMap = new Map<number, ReadonlyArray<string>>();
-          let lineCursor = 0;
-          for (const block of fittedFrame.taskBlocks) {
-            const lineCount = block.rows.length;
-            taskLineMap.set(block.taskId, taskLines.slice(lineCursor, lineCursor + lineCount));
-            lineCursor += lineCount;
-          }
 
           if (isTTY) {
             let frame = "";
 
             if (previousLineCount > 0) {
-              frame += "\r" + CLEAR_LINE;
+              frame += `\r${CLEAR_LINE}`;
               for (let i = 1; i < previousLineCount; i++) {
                 frame += MOVE_UP_ONE + CLEAR_LINE;
               }
@@ -1232,19 +1156,19 @@ const makeDefaultFrameRenderer = (
 
             if (retainLogHistory) {
               const historyLogs = yield* Ref.get(logsRef);
-              const lines = yield* clipTTYFrameLines([...historyLogs, ...taskLines]);
+              const lines = yield* clipTTYFrameLines([...historyLogs, ...renderedFrame.lines]);
               if (lines.length > 0) {
                 frame += lines.join("\n");
               }
               previousLineCount = lines.length;
             } else {
               if (drainedLogs.length > 0) {
-                frame += drainedLogs.join("\n") + "\n";
+                frame += `${drainedLogs.join("\n")}\n`;
               }
-              if (taskLines.length > 0) {
-                frame += taskLines.join("\n");
+              if (renderedFrame.lines.length > 0) {
+                frame += renderedFrame.lines.join("\n");
               }
-              previousLineCount = taskLines.length;
+              previousLineCount = renderedFrame.lines.length;
             }
 
             if (frame) {
@@ -1254,19 +1178,17 @@ const makeDefaultFrameRenderer = (
           }
 
           if (drainedLogs.length > 0) {
-            yield* terminal.writeStderr(drainedLogs.join("\n") + "\n");
+            yield* terminal.writeStderr(`${drainedLogs.join("\n")}\n`);
           }
 
           const orderedForNonTTY = orderedTasks.map((task) => ({
             snapshot: task.snapshot,
-            lines: taskLineMap.get(task.snapshot.id as number) ?? [],
+            line: renderedFrame.lineByTaskId.get(task.snapshot.id as number) ?? "",
           }));
           yield* renderNonTTYTaskUpdates(orderedForNonTTY);
         });
 
       const renderLoop = Effect.gen(function* () {
-        // Tick loop: render eagerly in TTY mode for spinner animation, and
-        // render opportunistically in non-TTY mode based on signatures/dirty bit.
         rendererActive = true;
         if (isTTY) {
           yield* startTTYSession;
@@ -1321,63 +1243,12 @@ const makeDefaultFrameRenderer = (
     }),
 });
 
-/**
- * Build-stage service tag.
- *
- * @example
- * const layer = Layer.succeed(BuildStage, BuildStage.of(customBuildStage))
- */
-export class BuildStage extends Context.Tag("stromseng.dev/effective-progress/BuildStage")<
-  BuildStage,
-  BuildStageService
->() {
-  static readonly Default = Layer.succeed(BuildStage, BuildStage.of(defaultBuildStageService));
-}
-
-/**
- * Shrink-stage service tag.
- *
- * @example
- * const layer = Layer.succeed(ShrinkStage, ShrinkStage.of(customShrinkStage))
- */
-export class ShrinkStage extends Context.Tag("stromseng.dev/effective-progress/ShrinkStage")<
-  ShrinkStage,
-  ShrinkStageService
->() {
-  static readonly Default = Layer.succeed(ShrinkStage, ShrinkStage.of(defaultShrinkStageService));
-}
-
-/**
- * Color-stage service tag.
- *
- * @example
- * const layer = Layer.succeed(ColorStage, ColorStage.of(customColorStage))
- */
-export class ColorStage extends Context.Tag("stromseng.dev/effective-progress/ColorStage")<
-  ColorStage,
-  ColorStageService
->() {
-  static readonly Default = Layer.succeed(ColorStage, ColorStage.of(defaultColorStageService));
-}
-
-/**
- * Frame renderer service tag (render loop orchestration).
- *
- * @example
- * const layer = Layer.provide(FrameRenderer.Default, BuildStage.Default)
- */
 export class FrameRenderer extends Context.Tag("stromseng.dev/effective-progress/FrameRenderer")<
   FrameRenderer,
   FrameRendererService
 >() {
-  static readonly Default = Layer.effect(
+  static readonly Default = Layer.succeed(
     FrameRenderer,
-    Effect.gen(function* () {
-      const buildStage = yield* BuildStage;
-      const shrinkStage = yield* ShrinkStage;
-      const colorStage = yield* ColorStage;
-      const theme = yield* Theme;
-      return FrameRenderer.of(makeDefaultFrameRenderer(buildStage, shrinkStage, colorStage, theme));
-    }),
+    FrameRenderer.of(makeDefaultFrameRenderer()),
   );
 }

@@ -15,6 +15,8 @@ const program = Progress.all(
 
 Effect.runPromise(
   program.pipe(
-    Effect.provideService(Progress.RendererConfig, { determinateTaskLayout: "single-line" }),
+    Effect.provideService(Progress.RendererConfig, {
+      columns: Progress.Columns.defaults(),
+    }),
   ),
 );

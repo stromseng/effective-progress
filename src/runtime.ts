@@ -4,13 +4,13 @@ import { mergeWith } from "es-toolkit/object";
 import { formatWithOptions } from "node:util";
 import type { PartialDeep } from "type-fest";
 import { makeProgressConsole } from "./console";
-import { BuildStage, ColorStage, FrameRenderer, ShrinkStage } from "./renderer";
+import { Columns, FrameRenderer } from "./renderer";
 import { ProgressTerminal } from "./terminal";
-import { Theme, type ThemeService } from "./theme";
 import type {
   AddTaskOptions,
   ProgressService,
   RenderRow,
+  RendererConfigShape,
   TaskStore,
   UpdateTaskOptions,
 } from "./types";
@@ -130,21 +130,31 @@ const removeFromRenderOrder = (
   return next;
 };
 
+const withDefaultColumns = (rendererConfig: RendererConfigShape): RendererConfigShape => ({
+  ...rendererConfig,
+  columns: rendererConfig.columns.length > 0 ? rendererConfig.columns : Columns.defaults(),
+});
+
 const makeProgressService = Effect.gen(function* () {
   const rendererConfigOption = yield* Effect.serviceOption(RendererConfig);
   const progressBarConfigOption = yield* Effect.serviceOption(ProgressBarConfig);
-  const rendererConfig = decodeRendererConfigSync(
-    mergeConfig(
-      defaultRendererConfig,
-      Option.isSome(rendererConfigOption) ? rendererConfigOption.value : undefined,
+
+  const rendererConfig = withDefaultColumns(
+    decodeRendererConfigSync(
+      mergeConfig(
+        defaultRendererConfig,
+        Option.isSome(rendererConfigOption) ? rendererConfigOption.value : undefined,
+      ),
     ),
   );
+
   const progressBarConfig = decodeProgressBarConfigSync(
     mergeConfig(
       defaultProgressBarConfig,
       Option.isSome(progressBarConfigOption) ? progressBarConfigOption.value : undefined,
     ),
   );
+
   const terminal = yield* ProgressTerminal;
   const frameRenderer = yield* FrameRenderer;
   const isTTY = yield* terminal.isTTY;
@@ -154,7 +164,6 @@ const makeProgressService = Effect.gen(function* () {
   const storeRef = yield* Ref.make<TaskStore>({
     tasks: new Map<TaskId, TaskSnapshot>(),
     renderOrder: [],
-    themes: new Map<TaskId, ThemeService>(),
   });
   const logsRef = yield* Ref.make<ReadonlyArray<string>>([]);
   const pendingLogsRef = yield* Ref.make<ReadonlyArray<string>>([]);
@@ -184,7 +193,6 @@ const makeProgressService = Effect.gen(function* () {
         options.parentId === undefined
           ? yield* FiberRef.get(currentParentRef)
           : Option.some(options.parentId);
-      const themeOption = yield* Effect.serviceOption(Theme);
       const taskId = TaskId(yield* Ref.updateAndGet(nextTaskIdRef, (id) => id + 1));
       const units =
         options.total === undefined || options.total <= 0
@@ -219,11 +227,7 @@ const makeProgressService = Effect.gen(function* () {
         const { index, depth } = findInsertionIndex(s.renderOrder, parentIdValue);
         const nextOrder = [...s.renderOrder];
         nextOrder.splice(index, 0, { id: taskId, depth });
-        const nextThemes = new Map(s.themes);
-        if (Option.isSome(themeOption)) {
-          nextThemes.set(taskId, themeOption.value);
-        }
-        return { tasks: nextTasks, renderOrder: nextOrder, themes: nextThemes };
+        return { tasks: nextTasks, renderOrder: nextOrder };
       });
       yield* markDirty;
 
@@ -260,7 +264,7 @@ const makeProgressService = Effect.gen(function* () {
         }
       }
 
-      return { tasks: nextTasks, renderOrder: store.renderOrder, themes: store.themes };
+      return { tasks: nextTasks, renderOrder: store.renderOrder };
     }).pipe(Effect.zipRight(markDirty));
 
   const advanceTask = (taskId: TaskId, amount = 1) =>
@@ -294,7 +298,7 @@ const makeProgressService = Effect.gen(function* () {
         }),
       );
 
-      return { tasks: nextTasks, renderOrder: store.renderOrder, themes: store.themes };
+      return { tasks: nextTasks, renderOrder: store.renderOrder };
     }).pipe(Effect.zipRight(markDirty));
 
   const completeTask = (taskId: TaskId) =>
@@ -307,12 +311,9 @@ const makeProgressService = Effect.gen(function* () {
         const nextTasks = new Map(store.tasks);
         if (snapshot.transient) {
           nextTasks.delete(taskId);
-          const nextThemes = new Map(store.themes);
-          nextThemes.delete(taskId);
           return {
             tasks: nextTasks,
             renderOrder: removeFromRenderOrder(store.renderOrder, taskId),
-            themes: nextThemes,
           };
         }
 
@@ -336,7 +337,7 @@ const makeProgressService = Effect.gen(function* () {
             completedAt: now,
           }),
         );
-        return { tasks: nextTasks, renderOrder: store.renderOrder, themes: store.themes };
+        return { tasks: nextTasks, renderOrder: store.renderOrder };
       });
       yield* markDirty;
     });
@@ -351,12 +352,9 @@ const makeProgressService = Effect.gen(function* () {
         const nextTasks = new Map(store.tasks);
         if (snapshot.transient) {
           nextTasks.delete(taskId);
-          const nextThemes = new Map(store.themes);
-          nextThemes.delete(taskId);
           return {
             tasks: nextTasks,
             renderOrder: removeFromRenderOrder(store.renderOrder, taskId),
-            themes: nextThemes,
           };
         }
 
@@ -374,7 +372,7 @@ const makeProgressService = Effect.gen(function* () {
             completedAt: now,
           }),
         );
-        return { tasks: nextTasks, renderOrder: store.renderOrder, themes: store.themes };
+        return { tasks: nextTasks, renderOrder: store.renderOrder };
       });
       yield* markDirty;
     });
@@ -385,7 +383,6 @@ const makeProgressService = Effect.gen(function* () {
         return;
       }
 
-      // TODO: Might wanna replace this or make it configurable. Look for other options.
       const message = formatWithOptions(
         {
           colors: isTTY,
@@ -486,28 +483,12 @@ export class Progress extends Context.Tag("stromseng.dev/effective-progress/Prog
 >() {
   static readonly Default = Layer.unwrapEffect(
     Effect.gen(function* () {
-      const themeOption = yield* Effect.serviceOption(Theme);
       const terminalOption = yield* Effect.serviceOption(ProgressTerminal);
-      const buildStageOption = yield* Effect.serviceOption(BuildStage);
-      const shrinkStageOption = yield* Effect.serviceOption(ShrinkStage);
-      const colorStageOption = yield* Effect.serviceOption(ColorStage);
       const frameRendererOption = yield* Effect.serviceOption(FrameRenderer);
       let layer: Layer.Layer<Progress, never, any> = Layer.scoped(Progress, makeProgressService);
 
       if (Option.isNone(frameRendererOption)) {
         layer = layer.pipe(Layer.provide(FrameRenderer.Default));
-      }
-      if (Option.isNone(colorStageOption)) {
-        layer = layer.pipe(Layer.provide(ColorStage.Default));
-      }
-      if (Option.isNone(shrinkStageOption)) {
-        layer = layer.pipe(Layer.provide(ShrinkStage.Default));
-      }
-      if (Option.isNone(buildStageOption)) {
-        layer = layer.pipe(Layer.provide(BuildStage.Default));
-      }
-      if (Option.isNone(themeOption)) {
-        layer = layer.pipe(Layer.provide(Theme.Default));
       }
       if (Option.isNone(terminalOption)) {
         layer = layer.pipe(Layer.provide(ProgressTerminal.Default));

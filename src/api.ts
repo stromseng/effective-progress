@@ -1,19 +1,48 @@
 import { Effect, Exit, Option } from "effect";
 import { dual } from "effect/Function";
 import type { Concurrency } from "effect/Types";
+import type { PartialDeep } from "type-fest";
 import { Progress } from "./runtime";
-import { Task } from "./types";
-import type { AddTaskOptions, TrackOptions } from "./types";
+import { RendererConfig, Task } from "./types";
+import type { AddTaskOptions, RendererConfigShape, TrackOptions } from "./types";
 import { inferTotal } from "./utils";
 
-const provideProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+interface RenderOverrideOptions {
+  readonly render?: PartialDeep<RendererConfigShape>;
+}
+
+const provideProgress = <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+  renderConfig: PartialDeep<RendererConfigShape> | undefined,
+) =>
   Effect.gen(function* () {
     const existing = yield* Effect.serviceOption(Progress);
     if (Option.isSome(existing)) {
       return yield* Effect.provideService(effect, Progress, existing.value);
     }
-    return yield* Effect.scoped(effect.pipe(Effect.provide(Progress.Default)));
+    if (renderConfig === undefined) {
+      return yield* Effect.scoped(effect.pipe(Effect.provide(Progress.Default)));
+    }
+
+    return yield* Effect.scoped(
+      effect.pipe(
+        Effect.provide(Progress.Default),
+        Effect.provideService(RendererConfig, renderConfig),
+      ),
+    );
   });
+
+export const withRenderConfig: {
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+    config: PartialDeep<RendererConfigShape>,
+  ): Effect.Effect<A, E, Exclude<R, RendererConfig>>;
+  (
+    config: PartialDeep<RendererConfigShape>,
+  ): <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, RendererConfig>>;
+} = dual(2, <A, E, R>(effect: Effect.Effect<A, E, R>, config: PartialDeep<RendererConfigShape>) =>
+  Effect.provideService(effect, RendererConfig, config),
+);
 
 export interface EffectExecutionOptions {
   readonly concurrency?: Concurrency;
@@ -26,7 +55,9 @@ export interface EffectAllExecutionOptions extends EffectExecutionOptions {
   readonly mode?: "default" | "validate" | "either";
 }
 
-export type AllOptions = Omit<TrackOptions, "total"> & EffectAllExecutionOptions;
+export type AllOptions = Omit<TrackOptions, "total"> &
+  EffectAllExecutionOptions &
+  RenderOverrideOptions;
 export type AllReturn<
   Arg extends
     | ReadonlyArray<Effect.Effect<any, any, any>>
@@ -46,26 +77,29 @@ export interface ForEachExecutionOptions extends EffectExecutionOptions {
   readonly discard?: false | undefined;
 }
 
-export type ForEachOptions = TrackOptions & ForEachExecutionOptions;
+export type ForEachOptions = TrackOptions & ForEachExecutionOptions & RenderOverrideOptions;
+
+export type TaskOptions = AddTaskOptions & RenderOverrideOptions;
 
 export const task: {
   <A, E, R>(
     effect: Effect.Effect<A, E, R>,
-    options: AddTaskOptions,
+    options: TaskOptions,
   ): Effect.Effect<A, E, Exclude<R, Progress | Task>>;
   <A, E, R>(
-    options: AddTaskOptions,
+    options: TaskOptions,
   ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Progress | Task>>;
-} = dual(
-  2,
-  <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
-    provideProgress(
-      Effect.gen(function* () {
-        const progress = yield* Progress;
-        return yield* progress.withTask(effect, options);
-      }),
-    ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>,
-);
+} = dual(2, <A, E, R>(effect: Effect.Effect<A, E, R>, options: TaskOptions) => {
+  const { render, ...taskOptions } = options;
+
+  return provideProgress(
+    Effect.gen(function* () {
+      const progress = yield* Progress;
+      return yield* progress.withTask(effect, taskOptions);
+    }),
+    render,
+  ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+});
 
 type AllArg =
   | ReadonlyArray<Effect.Effect<any, any, any>>
@@ -85,14 +119,14 @@ const countEffects = (effects: AllArg): number =>
 export const all: {
   <const Arg extends AllArg, O extends EffectAllExecutionOptions>(
     effects: Arg,
-    options: Omit<TrackOptions, "total"> & O,
+    options: Omit<TrackOptions, "total"> & O & RenderOverrideOptions,
   ): AllReturn<Arg, O>;
-  <O extends EffectAllExecutionOptions>(
+  <O extends EffectAllExecutionOptions & RenderOverrideOptions>(
     options: Omit<TrackOptions, "total"> & O,
   ): <const Arg extends AllArg>(effects: Arg) => AllReturn<Arg, O>;
 } = dual(
   2,
-  <const Arg extends AllArg, O extends EffectAllExecutionOptions>(
+  <const Arg extends AllArg, O extends EffectAllExecutionOptions & RenderOverrideOptions>(
     effects: Arg,
     options: Omit<TrackOptions, "total"> & O,
   ) =>
@@ -136,6 +170,7 @@ export const all: {
           },
         );
       }),
+      options.render,
     ) as AllReturn<Arg, O>,
 );
 
@@ -195,5 +230,6 @@ export const forEach: {
           },
         );
       }),
+      options.render,
     ) as Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress | Task>>,
 );
