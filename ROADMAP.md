@@ -62,7 +62,7 @@
   - The ANSI tokenizer (`tokenizeAnsi`, line 18) currently treats each codepoint as a `"char"` token with width 1. It needs to emit the cell width per token so that `fitAnsiText` can correctly count visible columns.
   - Reference: Rich uses `cell_len()` (`rich/cells.py`) which delegates to `wcwidth` for per-character width, properly handling CJK double-width and zero-width combiners.
 
-- A width mode where we simply increase the widht if there is space when people have a long task name, then dont decrease it again if that task disappears. Keep columns aligned etc as normal. See `uv sync` for reference
+- A width mode where we simply increase the width if there is space when people have a long task name, then dont decrease it again if that task disappears. Keep columns aligned etc as normal. See `uv sync` for reference
 
 ## API
 
