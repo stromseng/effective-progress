@@ -64,9 +64,12 @@
 
 - A width mode where we simply increase the width if there is space when people have a long task name, then dont decrease it again if that task disappears. Keep columns aligned etc as normal. See `uv sync` for reference
 - make effect a peerDependency. Also might have to make the other ones peer deps as well
+- Add a stream API for which you can set an optional total, should only show count of completed effects if no total.
+- make sure things like inquirer.js works
 
 ## API
 
 - [ ] Rich-style iterator helpers (`Progress.track(...)`).
+- [ ] Stream API? allow only showing count instead of total? and optional total param
 - [ ] Non-Effect API surface for plain async usage.
 - [ ] Better output capture for forked fibers/daemons to prevent frame collisions.
