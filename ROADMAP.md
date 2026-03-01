@@ -2,12 +2,10 @@
 
 ## Next up
 
-- Look at console.dir usage and format usage internally
 - Fixup default eta styling
 - figure out how to use terminal color scheme colors (is it just first 16 ansi colors)
 - make it easy to configure order of, and which cells are included
 - refactor to column based sizing
-- replace chalk dep with `styleText` `import { styleText } from 'node:util'`
 
 ## Customization
 

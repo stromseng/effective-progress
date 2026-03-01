@@ -5,19 +5,19 @@
     "": {
       "name": "effective-progress",
       "dependencies": {
-        "chalk": "^5.6.2",
-        "effect": "^3.19.17",
         "es-toolkit": "^1.44.0",
         "type-fest": "^5.4.4",
       },
       "devDependencies": {
         "@effect/language-service": "^0.73.1",
         "@types/bun": "latest",
+        "effect": "^3.19.17",
         "oxfmt": "^0.32.0",
         "oxlint": "^1.47.0",
+        "typescript": "^5",
       },
       "peerDependencies": {
-        "typescript": "^5",
+        "effect": "^3.19.17",
       },
     },
   },
@@ -107,8 +107,6 @@
     "@types/node": ["@types/node@25.2.3", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-m0jEgYlYz+mDJZ2+F4v8D1AyQb+QzsNqRuI7xg1VQX/KlKS0qT9r1Mo16yo5F/MtifXFgaofIFsdFMox2SxIbQ=="],
 
     "bun-types": ["bun-types@1.3.9", "", { "dependencies": { "@types/node": "*" } }, "sha512-+UBWWOakIP4Tswh0Bt0QD0alpTY8cb5hvgiYeWCMet9YukHbzuruIEeXC2D7nMJPB12kbh8C7XJykSexEqGKJg=="],
-
-    "chalk": ["chalk@5.6.2", "", {}, "sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA=="],
 
     "effect": ["effect@3.19.17", "", { "dependencies": { "@standard-schema/spec": "^1.0.0", "fast-check": "^3.23.1" } }, "sha512-MChgn9z0y3KJ2DJ+VsZt1bdVDJ0bDIZt9zm4s3iPpRLzgcEGDOIP8pwADjAWifaP0S672nlRE5rZPBbyDcjn1g=="],
 

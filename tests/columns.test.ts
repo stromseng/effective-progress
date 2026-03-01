@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import * as Progress from "../src";
+import { stripAnsi } from "../src/renderer/ansi";
 
 const createTask = (
   overrides: Partial<Progress.TaskSnapshot> & {
@@ -27,13 +28,14 @@ const createContext = (
     hasNextSibling: false,
     ancestorHasNextSibling: [],
   },
+  options: { isTTY?: boolean } = {},
 ): Progress.ProgressColumnContext => ({
   task,
   depth: tree.depth,
   tree,
   now: 2_000,
   tick: 0,
-  isTTY: false,
+  isTTY: options.isTTY ?? false,
 });
 
 describe("built-in column defaults", () => {
@@ -70,6 +72,50 @@ describe("built-in column defaults", () => {
     expect(column.render(createContext(runningIndeterminate))).toBe(".");
     expect(column.render(createContext(doneIndeterminate))).toBe("✓");
     expect(column.render(createContext(failedIndeterminate))).toBe("✗");
+  });
+
+  test("built-in columns apply ANSI styling only in tty mode", () => {
+    const task = createTask({
+      units: new Progress.IndeterminateTaskUnits({ spinnerFrame: 0 }),
+      status: "failed",
+      completedAt: 2_000,
+    });
+
+    const column = Progress.AmountColumn.Default();
+    const previousForceColor = process.env.FORCE_COLOR;
+    const previousNoColor = process.env.NO_COLOR;
+    const previousNodeDisableColors = process.env.NODE_DISABLE_COLORS;
+
+    process.env.FORCE_COLOR = "1";
+    delete process.env.NO_COLOR;
+    delete process.env.NODE_DISABLE_COLORS;
+
+    try {
+      const ttyOutput = column.render(createContext(task, undefined, { isTTY: true }));
+      const nonTtyOutput = column.render(createContext(task, undefined, { isTTY: false }));
+
+      expect(ttyOutput).not.toBe("✗");
+      expect(stripAnsi(ttyOutput)).toBe("✗");
+      expect(nonTtyOutput).toBe("✗");
+    } finally {
+      if (previousForceColor === undefined) {
+        delete process.env.FORCE_COLOR;
+      } else {
+        process.env.FORCE_COLOR = previousForceColor;
+      }
+
+      if (previousNoColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = previousNoColor;
+      }
+
+      if (previousNodeDisableColors === undefined) {
+        delete process.env.NODE_DISABLE_COLORS;
+      } else {
+        process.env.NODE_DISABLE_COLORS = previousNodeDisableColors;
+      }
+    }
   });
 
   test("BarColumn.make customizes output characters", () => {

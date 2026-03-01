@@ -1,4 +1,4 @@
-import chalk from "chalk";
+import { styleText } from "node:util";
 import { Clock, Context, Effect, Layer, Ref } from "effect";
 import { fitRenderedText, visibleWidth } from "./renderer/ansi";
 import { computeTreeInfo, renderTreePrefix } from "./renderer/tree";
@@ -81,8 +81,13 @@ const formatEta = (snapshot: TaskSnapshot, now: number): string => {
 const reserveTimeWidth = (formattedDuration: string): string =>
   formattedDuration.padStart(RESERVED_SECONDS_WIDTH, " ");
 
-const styleIfTTY = (isTTY: boolean, style: (text: string) => string, text: string): string =>
-  isTTY ? style(text) : text;
+type StyleFormat = Parameters<typeof styleText>[0];
+
+const applyStyle = (format: StyleFormat, text: string): string =>
+  styleText(format, text, { validateStream: false });
+
+const styleIfTTY = (isTTY: boolean, format: StyleFormat, text: string): string =>
+  isTTY ? applyStyle(format, text) : text;
 
 interface ColumnBaseOptions {
   readonly id?: string;
@@ -220,19 +225,19 @@ export class BarColumn implements ProgressColumn {
     const fill = config.fillChar.repeat(filled);
     const empty = config.emptyChar.repeat(Math.max(0, innerWidth - filled));
 
-    const fillStyle =
+    const fillStyle: StyleFormat =
       context.task.status === "failed"
-        ? chalk.red
+        ? "red"
         : context.task.status === "done"
-          ? chalk.green
-          : chalk.blue;
-    const emptyStyle = context.task.status === "failed" ? chalk.red : chalk.white.dim;
+          ? "green"
+          : "blue";
+    const emptyStyle: StyleFormat = context.task.status === "failed" ? "red" : ["white", "dim"];
 
     return [
-      styleIfTTY(context.isTTY, chalk.white.dim, config.leftBracket),
+      styleIfTTY(context.isTTY, ["white", "dim"], config.leftBracket),
       styleIfTTY(context.isTTY, fillStyle, fill),
       styleIfTTY(context.isTTY, emptyStyle, empty),
-      styleIfTTY(context.isTTY, chalk.white.dim, config.rightBracket),
+      styleIfTTY(context.isTTY, ["white", "dim"], config.rightBracket),
     ].join("");
   }
 
@@ -299,7 +304,7 @@ export class AmountColumn implements ProgressColumn {
     if (task.units._tag === "DeterminateTaskUnits") {
       return styleIfTTY(
         context.isTTY,
-        task.status === "failed" ? chalk.red : chalk.whiteBright,
+        task.status === "failed" ? "red" : "whiteBright",
         formatDeterminateUnits(task.units.completed, task.units.total),
       );
     }
@@ -308,14 +313,14 @@ export class AmountColumn implements ProgressColumn {
       const frames = task.config.spinnerFrames;
       const frameIndex = (task.units.spinnerFrame + context.tick) % frames.length;
       const frame = frames[frameIndex] ?? frames[0] ?? "";
-      return styleIfTTY(context.isTTY, chalk.yellow, frame);
+      return styleIfTTY(context.isTTY, "yellow", frame);
     }
 
     if (task.status === "done") {
-      return styleIfTTY(context.isTTY, chalk.green, this.doneSymbol);
+      return styleIfTTY(context.isTTY, "green", this.doneSymbol);
     }
 
-    return styleIfTTY(context.isTTY, chalk.red, this.failedSymbol);
+    return styleIfTTY(context.isTTY, "red", this.failedSymbol);
   }
 }
 
@@ -353,7 +358,7 @@ export class ElapsedColumn implements ProgressColumn {
   render(context: ProgressColumnContext): string {
     const raw = formatElapsed(context.task, context.now);
     const elapsed = this.padSeconds ? reserveTimeWidth(raw) : raw;
-    return styleIfTTY(context.isTTY, chalk.gray, elapsed);
+    return styleIfTTY(context.isTTY, "gray", elapsed);
   }
 }
 
@@ -421,7 +426,7 @@ export class EtaColumn implements ProgressColumn {
   }
 
   render(context: ProgressColumnContext): string {
-    return styleIfTTY(context.isTTY, chalk.gray, this.resolveEtaText(context, true));
+    return styleIfTTY(context.isTTY, "gray", this.resolveEtaText(context, true));
   }
 
   variants(context: ProgressColumnContext): ReadonlyArray<ProgressColumnVariant> {
@@ -438,17 +443,17 @@ export class EtaColumn implements ProgressColumn {
     if (compact === full) {
       return [
         {
-          render: () => styleIfTTY(context.isTTY, chalk.gray, full),
+          render: () => styleIfTTY(context.isTTY, "gray", full),
         },
       ];
     }
 
     return [
       {
-        render: () => styleIfTTY(context.isTTY, chalk.gray, full),
+        render: () => styleIfTTY(context.isTTY, "gray", full),
       },
       {
-        render: () => styleIfTTY(context.isTTY, chalk.gray, compact),
+        render: () => styleIfTTY(context.isTTY, "gray", compact),
       },
     ];
   }
