@@ -1,8 +1,8 @@
-import { Clock, Console, Context, Effect, Exit, FiberRef, Layer, Option, Ref } from "effect";
+import { Clock, Context, Effect, Exit, FiberRef, Layer, Option, Ref } from "effect";
 import { dual } from "effect/Function";
 import { mergeWith } from "es-toolkit/object";
 import type { PartialDeep } from "type-fest";
-import { type BufferedConsoleCall, makeProgressConsole } from "./console";
+import { type BufferedConsoleCall, makeConsoleBridge } from "./console";
 import { Columns, FrameRenderer } from "./renderer";
 import { ProgressTerminal } from "./terminal";
 import type {
@@ -134,45 +134,6 @@ const withDefaultColumns = (rendererConfig: RendererConfigShape): RendererConfig
   columns: rendererConfig.columns.length > 0 ? rendererConfig.columns : Columns.defaults(),
 });
 
-const replayBufferedConsoleCall = (
-  outerConsole: Console.Console,
-  call: BufferedConsoleCall,
-): Effect.Effect<void, never, never> => {
-  type DirOptions = Parameters<Console.Console["dir"]>[1];
-  type GroupOptions = Parameters<Console.Console["group"]>[0];
-
-  switch (call.method) {
-    case "assert": {
-      const [condition, ...rest] = call.args;
-      return outerConsole.assert(condition as boolean, ...rest);
-    }
-    case "debug":
-      return outerConsole.debug(...call.args);
-    case "dir":
-      return outerConsole.dir(call.args[0], call.args[1] as DirOptions);
-    case "dirxml":
-      return outerConsole.dirxml(...call.args);
-    case "error":
-      return outerConsole.error(...call.args);
-    case "group":
-      return outerConsole.group(call.args[0] as GroupOptions);
-    case "groupCollapsed":
-      return outerConsole.group(call.args[0] as GroupOptions);
-    case "groupEnd":
-      return outerConsole.groupEnd;
-    case "info":
-      return outerConsole.info(...call.args);
-    case "log":
-      return outerConsole.log(...call.args);
-    case "table":
-      return outerConsole.table(call.args[0], call.args[1] as ReadonlyArray<string> | undefined);
-    case "trace":
-      return outerConsole.trace(...call.args);
-    case "warn":
-      return outerConsole.warn(...call.args);
-  }
-};
-
 const makeProgressService = Effect.gen(function* () {
   const rendererConfigOption = yield* Effect.serviceOption(RendererConfig);
   const progressBarConfigOption = yield* Effect.serviceOption(ProgressBarConfig);
@@ -209,14 +170,11 @@ const makeProgressService = Effect.gen(function* () {
   const scope = yield* Effect.scope;
 
   const markDirty = Ref.set(dirtyRef, true);
-  const appendLog = (call: BufferedConsoleCall) =>
-    call.args.length === 0
-      ? Effect.void
-      : Ref.update(pendingLogsRef, (logs) => [...logs, call]).pipe(Effect.zipRight(markDirty));
-  const replayLogs = (logs: ReadonlyArray<BufferedConsoleCall>) =>
-    Effect.forEach(logs, (call) => replayBufferedConsoleCall(outerConsole, call), {
-      discard: true,
-    });
+  const { replayLogs, progressConsole, log } = makeConsoleBridge(
+    outerConsole,
+    pendingLogsRef,
+    markDirty,
+  );
 
   yield* Effect.forkIn(
     frameRenderer.run(
@@ -423,9 +381,6 @@ const makeProgressService = Effect.gen(function* () {
       yield* markDirty;
     });
 
-  const log = (...args: ReadonlyArray<unknown>) =>
-    args.length === 0 ? Effect.void : appendLog({ method: "log", args, unsafe: false });
-
   const getTask = (taskId: TaskId) =>
     Ref.get(storeRef).pipe(Effect.map((store) => Option.fromNullable(store.tasks.get(taskId))));
 
@@ -446,10 +401,7 @@ const makeProgressService = Effect.gen(function* () {
         });
 
         return yield* Effect.locally(
-          Effect.withConsole(
-            Effect.provideService(effect, Task, taskId),
-            makeProgressConsole(appendLog),
-          ),
+          Effect.withConsole(Effect.provideService(effect, Task, taskId), progressConsole),
           currentParentRef,
           Option.some(taskId),
         );

@@ -1,4 +1,4 @@
-import { Console, Effect } from "effect";
+import { Console, Effect, Ref } from "effect";
 
 export type BufferedConsoleMethod =
   | "assert"
@@ -20,6 +20,54 @@ export interface BufferedConsoleCall {
   readonly args: ReadonlyArray<unknown>;
   readonly unsafe: boolean;
 }
+
+export interface ConsoleBridge {
+  readonly progressConsole: Console.Console;
+  readonly appendLog: (call: BufferedConsoleCall) => Effect.Effect<void, never, never>;
+  readonly replayLogs: (
+    logs: ReadonlyArray<BufferedConsoleCall>,
+  ) => Effect.Effect<void, never, never>;
+  readonly log: (...args: ReadonlyArray<unknown>) => Effect.Effect<void, never, never>;
+}
+
+const replayBufferedConsoleCall = (
+  outerConsole: Console.Console,
+  call: BufferedConsoleCall,
+): Effect.Effect<void, never, never> => {
+  type DirOptions = Parameters<Console.Console["dir"]>[1];
+  type GroupOptions = Parameters<Console.Console["group"]>[0];
+
+  switch (call.method) {
+    case "assert": {
+      const [condition, ...rest] = call.args;
+      return outerConsole.assert(condition as boolean, ...rest);
+    }
+    case "debug":
+      return outerConsole.debug(...call.args);
+    case "dir":
+      return outerConsole.dir(call.args[0], call.args[1] as DirOptions);
+    case "dirxml":
+      return outerConsole.dirxml(...call.args);
+    case "error":
+      return outerConsole.error(...call.args);
+    case "group":
+      return outerConsole.group(call.args[0] as GroupOptions);
+    case "groupCollapsed":
+      return outerConsole.group(call.args[0] as GroupOptions);
+    case "groupEnd":
+      return outerConsole.groupEnd;
+    case "info":
+      return outerConsole.info(...call.args);
+    case "log":
+      return outerConsole.log(...call.args);
+    case "table":
+      return outerConsole.table(call.args[0], call.args[1] as ReadonlyArray<string> | undefined);
+    case "trace":
+      return outerConsole.trace(...call.args);
+    case "warn":
+      return outerConsole.warn(...call.args);
+  }
+};
 
 export const makeProgressConsole = (
   appendLog: (call: BufferedConsoleCall) => Effect.Effect<void, never, never>,
@@ -100,4 +148,30 @@ export const makeProgressConsole = (
       },
     },
   });
+};
+
+export const makeConsoleBridge = (
+  outerConsole: Console.Console,
+  pendingLogsRef: Ref.Ref<ReadonlyArray<BufferedConsoleCall>>,
+  markDirty: Effect.Effect<void, never, never>,
+): ConsoleBridge => {
+  const appendLog = (call: BufferedConsoleCall) =>
+    call.args.length === 0
+      ? Effect.void
+      : Ref.update(pendingLogsRef, (logs) => [...logs, call]).pipe(Effect.zipRight(markDirty));
+
+  const replayLogs = (logs: ReadonlyArray<BufferedConsoleCall>) =>
+    Effect.forEach(logs, (call) => replayBufferedConsoleCall(outerConsole, call), {
+      discard: true,
+    });
+
+  const log = (...args: ReadonlyArray<unknown>) =>
+    args.length === 0 ? Effect.void : appendLog({ method: "log", args, unsafe: false });
+
+  return {
+    progressConsole: makeProgressConsole(appendLog),
+    appendLog,
+    replayLogs,
+    log,
+  };
 };
