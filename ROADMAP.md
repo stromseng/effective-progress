@@ -63,7 +63,6 @@
   - Reference: Rich uses `cell_len()` (`rich/cells.py`) which delegates to `wcwidth` for per-character width, properly handling CJK double-width and zero-width combiners.
 
 - A width mode where we simply increase the width if there is space when people have a long task name, then dont decrease it again if that task disappears. Keep columns aligned etc as normal. See `uv sync` for reference
-- make effect a peerDependency. Also might have to make the other ones peer deps as well
 - Add a stream API for which you can set an optional total, should only show count of completed effects if no total.
 - make sure things like inquirer.js works
 
