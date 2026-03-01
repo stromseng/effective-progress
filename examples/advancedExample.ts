@@ -88,7 +88,6 @@ const configuredProgram = Progress.task(advancedProgram, {
 }).pipe(
   Effect.provideService(Progress.RendererConfig, {
     nonTtyUpdateStep: 2,
-    maxLogLines: 12,
     columns: [
       Progress.DescriptionColumn.Default(),
       Progress.BarColumn.make({ track: Progress.Track.fr(1) }),

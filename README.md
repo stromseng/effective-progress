@@ -15,7 +15,7 @@
 
 - multiple nested tree-like progress bars
 - spinner support for “we have no idea how long this takes” work
-- clean log rendering alongside progress output, so you can keep using `Console.log` / `Effect.logInfo` without wrecking the UI
+- keep using `Console.log` / `Effect.logInfo` while raw console calls are buffered and replayed through your existing `Console` / logger between frame renders
 - familiar `.all` and `.forEach` APIs — swap `Effect` for `Progress`, get progress bars basically for free
 - flicker-free rendering (in theory) by drawing everything in a single terminal frame
 
@@ -88,11 +88,11 @@ Effect.runPromise(program);
 
 ## Configuration
 
-### Log retention
+### Console replay
 
-- `maxLogLines` on `RendererConfig` controls in-memory log retention.
-- Omitted or set to `0` means no log history is kept in memory.
-- `maxLogLines > 0` keeps only the latest `N` log lines in memory.
+- `Progress.task`, `Progress.all`, and `Progress.forEach` buffer `Console.log`/`Console.dir` calls and replay them through the outer `Console`.
+- Calls are replayed between progress frame renders to avoid tearing the TTY frame.
+- Formatting is controlled by the API consumer's logger/console implementation.
 
 ### Configuring renderer and progress bars
 
@@ -111,7 +111,6 @@ import * as Progress from "effective-progress";
 const configured = program.pipe(
   Effect.provideService(Progress.RendererConfig, {
     width: 80,
-    maxLogLines: 12,
     nonTtyUpdateStep: 2,
   }),
   Effect.provideService(Progress.ProgressBarConfig, {
@@ -180,13 +179,13 @@ yield *
 
 ## Manual task control
 
-For manual usage, `task` captures logs implicitly and provides the current `Task` context:
+For manual usage, `task` still provides the current `Task` context, while logs continue through your outer `Console`:
 
 ```ts
 const program = Progress.task(
   Effect.gen(function* () {
     const currentTask = yield* Progress.Task;
-    yield* Console.log("This log is rendered through progress output", { taskId: currentTask });
+    yield* Console.log("This log is handled by the outer Console", { taskId: currentTask });
     yield* Effect.sleep("1 second");
   }),
   { description: "Manual task" },

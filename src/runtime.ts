@@ -1,9 +1,8 @@
-import { Clock, Context, Effect, Exit, FiberRef, Layer, Option, Ref } from "effect";
+import { Clock, Console, Context, Effect, Exit, FiberRef, Layer, Option, Ref } from "effect";
 import { dual } from "effect/Function";
 import { mergeWith } from "es-toolkit/object";
-import { formatWithOptions } from "node:util";
 import type { PartialDeep } from "type-fest";
-import { makeProgressConsole } from "./console";
+import { type BufferedConsoleCall, makeProgressConsole } from "./console";
 import { Columns, FrameRenderer } from "./renderer";
 import { ProgressTerminal } from "./terminal";
 import type {
@@ -135,6 +134,45 @@ const withDefaultColumns = (rendererConfig: RendererConfigShape): RendererConfig
   columns: rendererConfig.columns.length > 0 ? rendererConfig.columns : Columns.defaults(),
 });
 
+const replayBufferedConsoleCall = (
+  outerConsole: Console.Console,
+  call: BufferedConsoleCall,
+): Effect.Effect<void, never, never> => {
+  type DirOptions = Parameters<Console.Console["dir"]>[1];
+  type GroupOptions = Parameters<Console.Console["group"]>[0];
+
+  switch (call.method) {
+    case "assert": {
+      const [condition, ...rest] = call.args;
+      return outerConsole.assert(condition as boolean, ...rest);
+    }
+    case "debug":
+      return outerConsole.debug(...call.args);
+    case "dir":
+      return outerConsole.dir(call.args[0], call.args[1] as DirOptions);
+    case "dirxml":
+      return outerConsole.dirxml(...call.args);
+    case "error":
+      return outerConsole.error(...call.args);
+    case "group":
+      return outerConsole.group(call.args[0] as GroupOptions);
+    case "groupCollapsed":
+      return outerConsole.group(call.args[0] as GroupOptions);
+    case "groupEnd":
+      return outerConsole.groupEnd;
+    case "info":
+      return outerConsole.info(...call.args);
+    case "log":
+      return outerConsole.log(...call.args);
+    case "table":
+      return outerConsole.table(call.args[0], call.args[1] as ReadonlyArray<string> | undefined);
+    case "trace":
+      return outerConsole.trace(...call.args);
+    case "warn":
+      return outerConsole.warn(...call.args);
+  }
+};
+
 const makeProgressService = Effect.gen(function* () {
   const rendererConfigOption = yield* Effect.serviceOption(RendererConfig);
   const progressBarConfigOption = yield* Effect.serviceOption(ProgressBarConfig);
@@ -157,35 +195,43 @@ const makeProgressService = Effect.gen(function* () {
 
   const terminal = yield* ProgressTerminal;
   const frameRenderer = yield* FrameRenderer;
+  const outerConsole = yield* Effect.console;
   const isTTY = yield* terminal.isTTY;
-  const maxRetainedLogLines = Math.max(0, Math.floor(rendererConfig.maxLogLines ?? 0));
 
   const nextTaskIdRef = yield* Ref.make(0);
   const storeRef = yield* Ref.make<TaskStore>({
     tasks: new Map<TaskId, TaskSnapshot>(),
     renderOrder: [],
   });
-  const logsRef = yield* Ref.make<ReadonlyArray<string>>([]);
-  const pendingLogsRef = yield* Ref.make<ReadonlyArray<string>>([]);
+  const pendingLogsRef = yield* Ref.make<ReadonlyArray<BufferedConsoleCall>>([]);
   const dirtyRef = yield* Ref.make(true);
   const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
   const scope = yield* Effect.scope;
 
+  const markDirty = Ref.set(dirtyRef, true);
+  const appendLog = (call: BufferedConsoleCall) =>
+    call.args.length === 0
+      ? Effect.void
+      : Ref.update(pendingLogsRef, (logs) => [...logs, call]).pipe(Effect.zipRight(markDirty));
+  const replayLogs = (logs: ReadonlyArray<BufferedConsoleCall>) =>
+    Effect.forEach(logs, (call) => replayBufferedConsoleCall(outerConsole, call), {
+      discard: true,
+    });
+
   yield* Effect.forkIn(
     frameRenderer.run(
       storeRef,
-      logsRef,
       pendingLogsRef,
+      replayLogs,
       dirtyRef,
       terminal,
       isTTY,
       rendererConfig,
-      maxRetainedLogLines,
     ),
     scope,
   );
-
-  const markDirty = Ref.set(dirtyRef, true);
+  // Let the renderer fiber start so queued logs are reliably flushed on scope teardown.
+  yield* Effect.sleep("0 millis");
 
   const addTask = (options: AddTaskOptions) =>
     Effect.gen(function* () {
@@ -377,35 +423,8 @@ const makeProgressService = Effect.gen(function* () {
       yield* markDirty;
     });
 
-  const appendLog = (args: ReadonlyArray<unknown>) =>
-    Effect.gen(function* () {
-      if (args.length === 0) {
-        return;
-      }
-
-      const message = formatWithOptions(
-        {
-          colors: isTTY,
-          depth: 6,
-        },
-        ...args,
-      );
-
-      yield* Ref.update(pendingLogsRef, (logs) => [...logs, message]);
-      if (maxRetainedLogLines > 0) {
-        yield* Ref.update(logsRef, (logs) => {
-          const next = [...logs, message];
-          if (next.length <= maxRetainedLogLines) {
-            return next;
-          }
-          return next.slice(next.length - maxRetainedLogLines);
-        });
-      }
-
-      yield* markDirty;
-    });
-
-  const log = (...args: ReadonlyArray<unknown>) => appendLog(args);
+  const log = (...args: ReadonlyArray<unknown>) =>
+    args.length === 0 ? Effect.void : appendLog({ method: "log", args, unsafe: false });
 
   const getTask = (taskId: TaskId) =>
     Ref.get(storeRef).pipe(Effect.map((store) => Option.fromNullable(store.tasks.get(taskId))));
@@ -416,7 +435,6 @@ const makeProgressService = Effect.gen(function* () {
     2,
     <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
       Effect.gen(function* () {
-        const outerConsole = yield* Effect.console;
         const inheritedParentId = yield* FiberRef.get(currentParentRef);
         const resolvedParentId =
           options.parentId === undefined ? inheritedParentId : Option.some(options.parentId);
@@ -430,7 +448,7 @@ const makeProgressService = Effect.gen(function* () {
         return yield* Effect.locally(
           Effect.withConsole(
             Effect.provideService(effect, Task, taskId),
-            makeProgressConsole(log, outerConsole),
+            makeProgressConsole(appendLog),
           ),
           currentParentRef,
           Option.some(taskId),

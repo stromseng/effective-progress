@@ -108,7 +108,7 @@ const longestBarRun = (line: string): number =>
   (line.match(/[━─]+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0);
 
 describe("TTY renderer integration", () => {
-  test("preserves plain interstitial logs and renders final completed frame", async () => {
+  test("renders final completed frame without capturing outer Console.log output", async () => {
     const program = Progress.task(
       Effect.gen(function* () {
         yield* Progress.task(
@@ -136,7 +136,6 @@ describe("TTY renderer integration", () => {
       { description: "tty-session", transient: false },
     ).pipe(
       Effect.provideService(Progress.RendererConfig, {
-        maxLogLines: 10,
         renderIntervalMillis: 5,
         nonTtyUpdateStep: 1,
         disableUserInput: false,
@@ -148,9 +147,9 @@ describe("TTY renderer integration", () => {
 
     expect(stream.split("\x1b[?25l").length - 1).toBe(1);
     expect(stream.split("\x1b[?25h").length - 1).toBe(1);
-    expect(finalScreen.some((line) => line.includes("warmup-18"))).toBeTrue();
-    expect(finalScreen.some((line) => line.includes("warmup-19"))).toBeTrue();
-    expect(finalScreen.some((line) => line.includes("warmup-20"))).toBeTrue();
+    expect(finalScreen.some((line) => line.includes("warmup-18"))).toBeFalse();
+    expect(finalScreen.some((line) => line.includes("warmup-19"))).toBeFalse();
+    expect(finalScreen.some((line) => line.includes("warmup-20"))).toBeFalse();
     expect(stream.includes("between-log")).toBeTrue();
     expect(finalScreen.some((line) => line.includes("First task"))).toBeTrue();
     expect(finalScreen.some((line) => line.includes("Second task"))).toBeTrue();
@@ -191,7 +190,6 @@ describe("TTY renderer integration", () => {
           { description: "root", transient: false },
         ).pipe(
           Effect.provideService(Progress.RendererConfig, {
-            maxLogLines: 0,
             renderIntervalMillis: 5,
             nonTtyUpdateStep: 1,
             disableUserInput: false,
@@ -240,7 +238,6 @@ describe("TTY renderer integration", () => {
           { description: "root", transient: false },
         ).pipe(
           Effect.provideService(Progress.RendererConfig, {
-            maxLogLines: 0,
             renderIntervalMillis: 5,
             nonTtyUpdateStep: 1,
             disableUserInput: false,
@@ -293,7 +290,6 @@ describe("TTY renderer integration", () => {
           { description: "root", transient: false },
         ).pipe(
           Effect.provideService(Progress.RendererConfig, {
-            maxLogLines: 0,
             renderIntervalMillis: 5,
             nonTtyUpdateStep: 1,
             disableUserInput: false,
@@ -320,7 +316,6 @@ describe("TTY renderer integration", () => {
       transient: false,
     }).pipe(
       Effect.provideService(Progress.RendererConfig, {
-        maxLogLines: 0,
         renderIntervalMillis: 5,
         nonTtyUpdateStep: 1,
         disableUserInput: false,
@@ -364,7 +359,6 @@ describe("TTY renderer integration", () => {
           { description: "root", transient: false },
         ).pipe(
           Effect.provideService(Progress.RendererConfig, {
-            maxLogLines: 0,
             renderIntervalMillis: 5,
             nonTtyUpdateStep: 1,
             disableUserInput: false,
@@ -419,7 +413,6 @@ describe("TTY renderer integration", () => {
           { description: "root", transient: false },
         ).pipe(
           Effect.provideService(Progress.RendererConfig, {
-            maxLogLines: 0,
             renderIntervalMillis: 5,
             nonTtyUpdateStep: 1,
             disableUserInput: false,

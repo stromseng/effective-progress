@@ -1,84 +1,102 @@
 import { Console, Effect } from "effect";
-import { formatWithOptions } from "node:util";
+
+export type BufferedConsoleMethod =
+  | "assert"
+  | "debug"
+  | "dir"
+  | "dirxml"
+  | "error"
+  | "group"
+  | "groupCollapsed"
+  | "groupEnd"
+  | "info"
+  | "log"
+  | "table"
+  | "trace"
+  | "warn";
+
+export interface BufferedConsoleCall {
+  readonly method: BufferedConsoleMethod;
+  readonly args: ReadonlyArray<unknown>;
+  readonly unsafe: boolean;
+}
 
 export const makeProgressConsole = (
-  progressLog: (...args: ReadonlyArray<unknown>) => Effect.Effect<void, never, never>,
-  outerConsole: Console.Console,
+  appendLog: (call: BufferedConsoleCall) => Effect.Effect<void, never, never>,
 ): Console.Console => {
-  const log = (...args: ReadonlyArray<unknown>) => progressLog(...args);
-  const unsafeLog = (...args: ReadonlyArray<unknown>) => {
-    Effect.runFork(progressLog(...args));
+  const log = (method: BufferedConsoleMethod, ...args: ReadonlyArray<unknown>) =>
+    appendLog({ method, args, unsafe: false });
+  const unsafeLog = (method: BufferedConsoleMethod, ...args: ReadonlyArray<unknown>) => {
+    Effect.runSync(appendLog({ method, args, unsafe: true }));
   };
-
-  const delegate = (effect: Effect.Effect<void, never, never>) => effect;
 
   return Console.Console.of({
     [Console.TypeId]: Console.TypeId,
-    assert(condition, ...args) {
-      return condition ? Effect.void : log("Assertion failed:", ...args);
-    },
+    assert: (condition, ...args) => log("assert", condition, ...args),
     clear: Effect.void,
     count: (_label) => Effect.void,
     countReset: (_label) => Effect.void,
-    debug: (...args) => log(...args),
-    dir: (item, options) => log(formatWithOptions(options ?? {}, "%O", item)),
-    dirxml: (...args) => log(...args),
-    error: (...args) => log(...args),
-    group: (...args) => log(...args),
-    groupEnd: Effect.void,
-    info: (...args) => log(...args),
-    log: (...args) => log(...args),
-    table: (tabularData, properties) => log(tabularData, properties),
+    debug: (...args) => log("debug", ...args),
+    dir: (item, options) => log("dir", item, options),
+    dirxml: (...args) => log("dirxml", ...args),
+    error: (...args) => log("error", ...args),
+    group: (...args) => log("group", ...args),
+    groupEnd: log("groupEnd"),
+    info: (...args) => log("info", ...args),
+    log: (...args) => log("log", ...args),
+    table: (tabularData, properties) => log("table", tabularData, properties),
     time: (_label) => Effect.void,
     timeEnd: (_label) => Effect.void,
-    timeLog: (_label, ...args) => log(...args),
-    trace: (...args) => delegate(outerConsole.trace(...args)),
-    warn: (...args) => log(...args),
+    timeLog: (_label, ...args) => log("info", ...args),
+    trace: (...args) => log("trace", ...args),
+    warn: (...args) => log("warn", ...args),
     unsafe: {
       assert(condition, ...args) {
-        if (!condition) unsafeLog("Assertion failed:", ...args);
+        unsafeLog("assert", condition, ...args);
       },
       clear() {},
       count(_label) {},
       countReset(_label) {},
       debug(...args) {
-        unsafeLog(...args);
+        unsafeLog("debug", ...args);
       },
       dir(item, options) {
-        unsafeLog(formatWithOptions(options ?? {}, "%O", item));
+        unsafeLog("dir", item, options);
       },
       dirxml(...args) {
-        unsafeLog(...args);
+        unsafeLog("dirxml", ...args);
       },
       error(...args) {
-        unsafeLog(...args);
+        unsafeLog("error", ...args);
       },
       group(...args) {
-        unsafeLog(...args);
+        unsafeLog("group", ...args);
       },
       groupCollapsed(...args) {
-        unsafeLog(...args);
+        unsafeLog("groupCollapsed", ...args);
       },
-      groupEnd() {},
+      groupEnd() {
+        unsafeLog("groupEnd");
+      },
       info(...args) {
-        unsafeLog(...args);
+        unsafeLog("info", ...args);
       },
       log(...args) {
-        unsafeLog(...args);
+        unsafeLog("log", ...args);
       },
       table(tabularData, properties) {
-        unsafeLog(tabularData, properties);
+        unsafeLog("table", tabularData, properties);
       },
       time(_label) {},
       timeEnd(_label) {},
       timeLog(_label, ...args) {
-        unsafeLog(...args);
+        unsafeLog("info", ...args);
       },
       trace(...args) {
-        outerConsole.unsafe.trace(...args);
+        unsafeLog("trace", ...args);
       },
       warn(...args) {
-        unsafeLog(...args);
+        unsafeLog("warn", ...args);
       },
     },
   });

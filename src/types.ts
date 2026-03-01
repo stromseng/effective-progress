@@ -5,7 +5,6 @@ import type { ProgressColumn } from "./renderer";
 export const RendererConfigSchema = Schema.Struct({
   disableUserInput: Schema.Boolean,
   renderIntervalMillis: Schema.Number,
-  maxLogLines: Schema.optional(Schema.Number),
   nonTtyUpdateStep: Schema.Number,
   width: Schema.Union(Schema.Number, Schema.Literal("fullwidth")),
   columnGap: Schema.Number,
@@ -14,7 +13,6 @@ export const RendererConfigSchema = Schema.Struct({
 export type RendererConfigShape = {
   readonly disableUserInput: boolean;
   readonly renderIntervalMillis: number;
-  readonly maxLogLines?: number;
   readonly nonTtyUpdateStep: number;
   readonly width: number | "fullwidth";
   readonly columnGap: number;
@@ -46,7 +44,6 @@ export const decodeProgressBarConfigSync = Schema.decodeUnknownSync(ProgressBarC
 export const defaultRendererConfig: RendererConfigShape = {
   disableUserInput: true,
   renderIntervalMillis: 100, // 10 FPS
-  maxLogLines: 0,
   nonTtyUpdateStep: 5,
   width: 120,
   columnGap: 1,

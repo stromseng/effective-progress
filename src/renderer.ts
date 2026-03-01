@@ -1002,31 +1002,20 @@ const renderTaskFrame = (
 };
 
 export interface FrameRendererService {
-  readonly run: (
+  readonly run: <LogEntry>(
     storeRef: Ref.Ref<TaskStore>,
-    logsRef: Ref.Ref<ReadonlyArray<string>>,
-    pendingLogsRef: Ref.Ref<ReadonlyArray<string>>,
+    pendingLogsRef: Ref.Ref<ReadonlyArray<LogEntry>>,
+    replayLogs: (logs: ReadonlyArray<LogEntry>) => Effect.Effect<void, never, never>,
     dirtyRef: Ref.Ref<boolean>,
     terminal: ProgressTerminalService,
     isTTY: boolean,
     rendererConfig: RendererConfigShape,
-    maxRetainedLogLines: number,
   ) => Effect.Effect<void>;
 }
 
 const makeDefaultFrameRenderer = (): FrameRendererService => ({
-  run: (
-    storeRef,
-    logsRef,
-    pendingLogsRef,
-    dirtyRef,
-    terminal,
-    isTTY,
-    rendererConfig,
-    maxRetainedLogLines,
-  ) =>
+  run: (storeRef, pendingLogsRef, replayLogs, dirtyRef, terminal, isTTY, rendererConfig) =>
     Effect.gen(function* () {
-      const retainLogHistory = maxRetainedLogLines > 0;
       const compiledColumns = normalizeColumns(rendererConfig.columns);
       let previousLineCount = 0;
       let nonTTYTaskSignatureById = new Map<number, string>();
@@ -1152,33 +1141,27 @@ const makeDefaultFrameRenderer = (): FrameRendererService => ({
               for (let i = 1; i < previousLineCount; i++) {
                 frame += MOVE_UP_ONE + CLEAR_LINE;
               }
-            }
-
-            if (retainLogHistory) {
-              const historyLogs = yield* Ref.get(logsRef);
-              const lines = yield* clipTTYFrameLines([...historyLogs, ...renderedFrame.lines]);
-              if (lines.length > 0) {
-                frame += lines.join("\n");
-              }
-              previousLineCount = lines.length;
-            } else {
-              if (drainedLogs.length > 0) {
-                frame += `${drainedLogs.join("\n")}\n`;
-              }
-              if (renderedFrame.lines.length > 0) {
-                frame += renderedFrame.lines.join("\n");
-              }
-              previousLineCount = renderedFrame.lines.length;
+              previousLineCount = 0;
             }
 
             if (frame) {
               yield* terminal.writeStderr(frame);
             }
+
+            if (drainedLogs.length > 0) {
+              yield* replayLogs(drainedLogs);
+            }
+
+            const lines = yield* clipTTYFrameLines(renderedFrame.lines);
+            if (lines.length > 0) {
+              yield* terminal.writeStderr(lines.join("\n"));
+            }
+            previousLineCount = lines.length;
             return;
           }
 
           if (drainedLogs.length > 0) {
-            yield* terminal.writeStderr(`${drainedLogs.join("\n")}\n`);
+            yield* replayLogs(drainedLogs);
           }
 
           const orderedForNonTTY = orderedTasks.map((task) => ({
@@ -1208,7 +1191,7 @@ const makeDefaultFrameRenderer = (): FrameRendererService => ({
             if (dirty || hasActiveSpinners || hasPendingLogs) {
               yield* renderFrame("tick");
             }
-          } else if (dirty || hasActiveSpinners) {
+          } else if (dirty || hasActiveSpinners || hasPendingLogs) {
             yield* renderFrame("tick");
           }
 
@@ -1219,6 +1202,10 @@ const makeDefaultFrameRenderer = (): FrameRendererService => ({
         Effect.ensuring(
           Effect.gen(function* () {
             if (!rendererActive) {
+              const drainedLogs = yield* Ref.getAndSet(pendingLogsRef, []);
+              if (drainedLogs.length > 0) {
+                yield* replayLogs(drainedLogs);
+              }
               return;
             }
 

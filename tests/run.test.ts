@@ -71,7 +71,7 @@ describe("Progress.run", () => {
     expect(reused).toBeTrue();
   });
 
-  test("manual task auto-captures logs and provides Task context", async () => {
+  test("manual task delegates Console.log to the outer console and provides Task context", async () => {
     const capturedMessage = "manual-captured";
 
     const { result, logs } = await Effect.runPromise(
@@ -98,7 +98,7 @@ describe("Progress.run", () => {
       ),
     );
 
-    expect(logs.some((args) => args[0] === capturedMessage)).toBeFalse();
+    expect(logs.some((args) => args[0] === capturedMessage)).toBeTrue();
     expect(result).toBeTrue();
   });
 
@@ -120,7 +120,7 @@ describe("Progress.run", () => {
       ),
     );
 
-    expect(logs.some((args) => args[0] === capturedMessage)).toBeFalse();
+    expect(logs.some((args) => args[0] === capturedMessage)).toBeTrue();
     expect(result).toBeTrue();
   });
 
@@ -136,7 +136,7 @@ describe("Progress.run", () => {
     expect(result).toEqual([1, "two", true]);
   });
 
-  test("all auto-captures callback Console.log", async () => {
+  test("all delegates callback Console.log to the outer console", async () => {
     const capturedMessage = "all-auto-captured";
 
     const { logs } = await Effect.runPromise(
@@ -147,7 +147,55 @@ describe("Progress.run", () => {
       ),
     );
 
-    expect(logs.some((args) => args[0] === capturedMessage)).toBeFalse();
+    expect(logs.some((args) => args[0] === capturedMessage)).toBeTrue();
+  });
+
+  test("task replays Console.dir with raw arguments", async () => {
+    const payload = { nested: { value: 1 } };
+    type DirOptions = Parameters<Console.Console["dir"]>[1];
+    const options: DirOptions = { depth: 1 };
+    let captured:
+      | {
+          readonly item: unknown;
+          readonly options: DirOptions;
+        }
+      | undefined;
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const outer = yield* Console.consoleWith((console) => Effect.succeed(console));
+        const consoleSpy: Console.Console = {
+          ...outer,
+          dir: (item, nextOptions) => {
+            captured = { item, options: nextOptions };
+            return Effect.void;
+          },
+          unsafe: {
+            ...outer.unsafe,
+            dir: (item, nextOptions) => {
+              captured = { item, options: nextOptions };
+            },
+          },
+        };
+
+        return yield* Effect.withConsole(
+          withNonTTYRenderer(
+            Progress.task(
+              Effect.gen(function* () {
+                yield* Console.dir(payload, options);
+                return true;
+              }),
+              { description: "dir-replay" },
+            ),
+          ),
+          consoleSpy,
+        );
+      }),
+    );
+
+    expect(result).toBeTrue();
+    expect(captured?.item).toEqual(payload);
+    expect(captured?.options).toEqual(options);
   });
 
   test("all supports pipe form", async () => {
@@ -166,7 +214,7 @@ describe("Progress.run", () => {
       ),
     );
 
-    expect(logs.some((args) => args[0] === capturedMessage)).toBeFalse();
+    expect(logs.some((args) => args[0] === capturedMessage)).toBeTrue();
   });
 
   test("forEach supports pipe form", async () => {
@@ -188,7 +236,7 @@ describe("Progress.run", () => {
     expect(result).toEqual([undefined, undefined]);
     expect(
       logs.some((args) => typeof args[0] === "string" && args[0].startsWith(capturedPrefix)),
-    ).toBeFalse();
+    ).toBeTrue();
   });
 
   test("task render option applies top-level column overrides", async () => {

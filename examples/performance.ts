@@ -101,7 +101,6 @@ const configuredProgressProgram = Progress.task(progressProgram, {
   transient: false,
 }).pipe(
   Effect.provideService(Progress.RendererConfig, {
-    maxLogLines: 10,
     renderIntervalMillis: 10,
     nonTtyUpdateStep: 10,
   }),

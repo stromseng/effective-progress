@@ -38,7 +38,6 @@ describe("RendererConfigSchema merge + validation", () => {
   test("accepts valid partial override after merge", () => {
     const config = mergeConfig(defaultRendererConfig, {
       renderIntervalMillis: 25,
-      maxLogLines: 10,
       columns: Columns.defaults(),
       width: 72,
     });
