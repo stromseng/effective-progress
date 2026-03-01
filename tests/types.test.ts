@@ -1,82 +1,38 @@
 import { describe, expect, test } from "bun:test";
 import { Schema } from "effect";
-import { mergeWith } from "es-toolkit/object";
-import {
-  Columns,
-  decodeRendererConfigSync,
-  defaultProgressBarConfig,
-  defaultRendererConfig,
-  ProgressBarConfigSchema,
-} from "../src";
+import * as Progress from "../src";
 
-const decodeProgressBarConfig = Schema.decodeUnknownSync(ProgressBarConfigSchema);
-
-const mergeConfig = <T extends Record<PropertyKey, any>>(base: T, override: unknown): unknown =>
-  mergeWith(
-    structuredClone(base),
-    (override ?? {}) as Record<PropertyKey, any>,
-    (_targetValue, sourceValue) => {
-      if (Array.isArray(sourceValue)) {
-        return sourceValue;
-      }
-      return undefined;
-    },
-  );
-
-describe("ProgressBarConfigSchema merge + validation", () => {
-  test("accepts valid merged progressbar config", () => {
-    const config = mergeConfig(defaultProgressBarConfig, {
-      barWidth: 40,
-      spinnerFrames: [".", "o", "O"],
+describe("types and schemas", () => {
+  test("TaskSnapshot validates without renderer/progressbar fields", () => {
+    const snapshot = new Progress.TaskSnapshot({
+      id: Progress.TaskId(1),
+      parentId: null,
+      description: "task",
+      status: "running",
+      transient: false,
+      units: new Progress.DeterminateTaskUnits({ completed: 1, total: 2 }),
+      startedAt: 0,
+      completedAt: null,
     });
 
-    expect(() => decodeProgressBarConfig(config)).not.toThrow();
-  });
-});
-
-describe("RendererConfigSchema merge + validation", () => {
-  test("accepts valid partial override after merge", () => {
-    const config = mergeConfig(defaultRendererConfig, {
-      renderIntervalMillis: 25,
-      columns: Columns.defaults(),
-      width: 72,
-    });
-
-    expect(() => decodeRendererConfigSync(config)).not.toThrow();
+    expect(snapshot.description).toBe("task");
   });
 
-  test("accepts fullwidth renderer width", () => {
-    const config = mergeConfig(defaultRendererConfig, {
-      columns: Columns.defaults(),
-      width: "fullwidth",
+  test("ProgressTaskEvent schema still decodes task lifecycle events", () => {
+    const decode = Schema.decodeUnknownSync(Progress.ProgressTaskEventSchema);
+    const event = decode({
+      _tag: "TaskUpdated",
+      taskId: 1,
+      description: "updated",
+      completed: 2,
+      total: 5,
+      transient: true,
     });
 
-    expect(() => decodeRendererConfigSync(config)).not.toThrow();
-  });
-
-  test("rejects invalid type after merge", () => {
-    const config = mergeConfig(defaultRendererConfig, {
-      renderIntervalMillis: "fast",
-    });
-
-    expect(() => decodeRendererConfigSync(config)).toThrow();
-  });
-
-  test("rejects removed determinateTaskLayout field", () => {
-    const config = mergeConfig(defaultRendererConfig, {
-      columns: Columns.defaults(),
-      determinateTaskLayout: "two-lines",
-    });
-
-    expect(() => decodeRendererConfigSync(config)).toThrow();
-  });
-
-  test("rejects removed maxTaskWidth field", () => {
-    const config = mergeConfig(defaultRendererConfig, {
-      columns: Columns.defaults(),
-      maxTaskWidth: 120,
-    });
-
-    expect(() => decodeRendererConfigSync(config)).toThrow();
+    expect(event._tag).toBe("TaskUpdated");
+    if (event._tag !== "TaskUpdated") {
+      throw new Error("unexpected event tag");
+    }
+    expect(event.description).toBe("updated");
   });
 });

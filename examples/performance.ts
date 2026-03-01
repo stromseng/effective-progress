@@ -96,19 +96,10 @@ const progressProgram = Effect.gen(function* () {
   yield* Console.log("Performance stress example complete.");
 });
 
-const configuredProgressProgram = Progress.task(progressProgram, {
+const progressRun = Progress.task(progressProgram, {
   description: "Performance run",
   transient: false,
-}).pipe(
-  Effect.provideService(Progress.RendererConfig, {
-    renderIntervalMillis: 10,
-    nonTtyUpdateStep: 10,
-  }),
-  Effect.provideService(Progress.ProgressBarConfig, {
-    barWidth: 24,
-    spinnerFrames: [".", "o", "O", "0"],
-  }),
-);
+});
 
 // --- Run both and compare ---
 console.log("Running bare (no Progress)...\n");
@@ -118,7 +109,7 @@ const bareMillis = performance.now() - bareStart;
 
 console.log("\nRunning with Progress...\n");
 const progressStart = performance.now();
-await Effect.runPromise(configuredProgressProgram);
+await Effect.runPromise(progressRun);
 const progressMillis = performance.now() - progressStart;
 
 const overheadMillis = progressMillis - bareMillis;

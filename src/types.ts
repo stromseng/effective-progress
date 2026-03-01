@@ -1,72 +1,4 @@
 import { Brand, Context, Effect, Option, Schema } from "effect";
-import type { PartialDeep } from "type-fest";
-import type { ProgressColumn } from "./renderer";
-
-export const RendererConfigSchema = Schema.Struct({
-  disableUserInput: Schema.Boolean,
-  renderIntervalMillis: Schema.Number,
-  nonTtyUpdateStep: Schema.Number,
-  width: Schema.Union(Schema.Number, Schema.Literal("fullwidth")),
-  columnGap: Schema.Number,
-  columns: Schema.Array(Schema.Unknown),
-});
-export type RendererConfigShape = {
-  readonly disableUserInput: boolean;
-  readonly renderIntervalMillis: number;
-  readonly nonTtyUpdateStep: number;
-  readonly width: number | "fullwidth";
-  readonly columnGap: number;
-  readonly columns: ReadonlyArray<ProgressColumn | string>;
-};
-const decodeRendererConfigSchemaSync = Schema.decodeUnknownSync(RendererConfigSchema);
-export const decodeRendererConfigSync = (input: unknown): RendererConfigShape => {
-  if (typeof input === "object" && input !== null && "determinateTaskLayout" in input) {
-    throw new Error("determinateTaskLayout has been removed. Use columns instead.");
-  }
-  if (typeof input === "object" && input !== null && "maxTaskWidth" in input) {
-    throw new Error("maxTaskWidth has been removed. Use width on RendererConfig instead.");
-  }
-
-  return decodeRendererConfigSchemaSync(input) as RendererConfigShape;
-};
-
-export const ProgressBarConfigSchema = Schema.Struct({
-  spinnerFrames: Schema.NonEmptyArray(Schema.String),
-  barWidth: Schema.Number,
-  fillChar: Schema.String,
-  emptyChar: Schema.String,
-  leftBracket: Schema.String,
-  rightBracket: Schema.String,
-});
-export type ProgressBarConfigShape = typeof ProgressBarConfigSchema.Type;
-export const decodeProgressBarConfigSync = Schema.decodeUnknownSync(ProgressBarConfigSchema);
-
-export const defaultRendererConfig: RendererConfigShape = {
-  disableUserInput: true,
-  renderIntervalMillis: 100, // 10 FPS
-  nonTtyUpdateStep: 5,
-  width: 120,
-  columnGap: 1,
-  columns: [],
-};
-
-export const defaultProgressBarConfig: ProgressBarConfigShape = {
-  spinnerFrames: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
-  barWidth: 40,
-  fillChar: "━",
-  emptyChar: "─",
-  leftBracket: "",
-  rightBracket: "",
-};
-
-export class RendererConfig extends Context.Tag("stromseng.dev/effective-progress/RendererConfig")<
-  RendererConfig,
-  PartialDeep<RendererConfigShape>
->() {}
-
-export class ProgressBarConfig extends Context.Tag(
-  "stromseng.dev/effective-progress/ProgressBarConfig",
-)<ProgressBarConfig, PartialDeep<ProgressBarConfigShape>>() {}
 
 const TaskIdSchema = Schema.Number.pipe(Schema.brand("TaskId"));
 
@@ -82,7 +14,6 @@ export interface AddTaskOptions {
   readonly total?: number;
   readonly transient?: boolean;
   readonly parentId?: TaskId;
-  readonly progressbar?: PartialDeep<ProgressBarConfigShape>;
 }
 
 export interface UpdateTaskOptions {
@@ -120,7 +51,6 @@ export class TaskSnapshot extends Schema.TaggedClass<TaskSnapshot>()("TaskSnapsh
   status: TaskStatusSchema,
   transient: Schema.Boolean,
   units: TaskUnitsSchema,
-  config: ProgressBarConfigSchema,
   startedAt: Schema.Number,
   completedAt: Schema.NullOr(Schema.Number),
 }) {}

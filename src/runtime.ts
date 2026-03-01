@@ -1,46 +1,22 @@
 import { Clock, Context, Effect, Exit, FiberRef, Layer, Option, Ref } from "effect";
 import { dual } from "effect/Function";
-import { mergeWith } from "es-toolkit/object";
-import type { PartialDeep } from "type-fest";
 import { type BufferedConsoleCall, makeConsoleBridge } from "./console";
-import { Columns, FrameRenderer } from "./renderer";
+import { InkRenderer } from "./ink-renderer";
 import { ProgressTerminal } from "./terminal";
 import type {
   AddTaskOptions,
   ProgressService,
   RenderRow,
-  RendererConfigShape,
   TaskStore,
   UpdateTaskOptions,
 } from "./types";
 import {
-  decodeProgressBarConfigSync,
-  decodeRendererConfigSync,
-  defaultProgressBarConfig,
-  defaultRendererConfig,
   DeterminateTaskUnits,
   IndeterminateTaskUnits,
-  ProgressBarConfig,
-  RendererConfig,
   Task,
   TaskId,
   TaskSnapshot,
 } from "./types";
-
-const mergeConfig = <T extends Record<PropertyKey, any>>(
-  base: T,
-  override: PartialDeep<T> | undefined,
-): T =>
-  mergeWith(
-    structuredClone(base),
-    (override ?? {}) as Record<PropertyKey, any>,
-    (_targetValue, sourceValue) => {
-      if (Array.isArray(sourceValue)) {
-        return sourceValue;
-      }
-      return undefined;
-    },
-  ) as T;
 
 const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): TaskSnapshot => {
   const currentUnits = snapshot.units;
@@ -81,7 +57,6 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): Ta
     status: snapshot.status,
     transient: options.transient ?? snapshot.transient,
     units,
-    config: snapshot.config,
     startedAt: snapshot.startedAt,
     completedAt: snapshot.completedAt,
   });
@@ -95,7 +70,6 @@ const withTransient = (snapshot: TaskSnapshot, transient: boolean): TaskSnapshot
     status: snapshot.status,
     transient,
     units: snapshot.units,
-    config: snapshot.config,
     startedAt: snapshot.startedAt,
     completedAt: snapshot.completedAt,
   });
@@ -129,33 +103,9 @@ const removeFromRenderOrder = (
   return next;
 };
 
-const withDefaultColumns = (rendererConfig: RendererConfigShape): RendererConfigShape => ({
-  ...rendererConfig,
-  columns: rendererConfig.columns.length > 0 ? rendererConfig.columns : Columns.defaults(),
-});
-
 const makeProgressService = Effect.gen(function* () {
-  const rendererConfigOption = yield* Effect.serviceOption(RendererConfig);
-  const progressBarConfigOption = yield* Effect.serviceOption(ProgressBarConfig);
-
-  const rendererConfig = withDefaultColumns(
-    decodeRendererConfigSync(
-      mergeConfig(
-        defaultRendererConfig,
-        Option.isSome(rendererConfigOption) ? rendererConfigOption.value : undefined,
-      ),
-    ),
-  );
-
-  const progressBarConfig = decodeProgressBarConfigSync(
-    mergeConfig(
-      defaultProgressBarConfig,
-      Option.isSome(progressBarConfigOption) ? progressBarConfigOption.value : undefined,
-    ),
-  );
-
   const terminal = yield* ProgressTerminal;
-  const frameRenderer = yield* FrameRenderer;
+  const inkRenderer = yield* InkRenderer;
   const outerConsole = yield* Effect.console;
   const isTTY = yield* terminal.isTTY;
 
@@ -177,15 +127,7 @@ const makeProgressService = Effect.gen(function* () {
   );
 
   yield* Effect.forkIn(
-    frameRenderer.run(
-      storeRef,
-      pendingLogsRef,
-      replayLogs,
-      dirtyRef,
-      terminal,
-      isTTY,
-      rendererConfig,
-    ),
+    inkRenderer.run(storeRef, pendingLogsRef, replayLogs, dirtyRef, terminal, isTTY),
     scope,
   );
   // Let the renderer fiber start so queued logs are reliably flushed on scope teardown.
@@ -206,10 +148,6 @@ const makeProgressService = Effect.gen(function* () {
       const parentSnapshot = Option.isSome(resolvedParentId)
         ? store.tasks.get(resolvedParentId.value)
         : undefined;
-      const inheritedProgressBarConfig = parentSnapshot?.config ?? progressBarConfig;
-      const resolvedProgressBarConfig = decodeProgressBarConfigSync(
-        mergeConfig(inheritedProgressBarConfig, options.progressbar),
-      );
 
       const now = yield* Clock.currentTimeMillis;
       const parentIdValue = Option.getOrNull(resolvedParentId);
@@ -220,7 +158,6 @@ const makeProgressService = Effect.gen(function* () {
         status: "running",
         transient: parentSnapshot?.transient ?? options.transient ?? false,
         units,
-        config: resolvedProgressBarConfig,
         startedAt: now,
         completedAt: null,
       });
@@ -296,7 +233,6 @@ const makeProgressService = Effect.gen(function* () {
           status: snapshot.status,
           transient: snapshot.transient,
           units,
-          config: snapshot.config,
           startedAt: snapshot.startedAt,
           completedAt: snapshot.completedAt,
         }),
@@ -336,7 +272,6 @@ const makeProgressService = Effect.gen(function* () {
                     total: snapshot.units.total,
                   })
                 : snapshot.units,
-            config: snapshot.config,
             startedAt: snapshot.startedAt,
             completedAt: now,
           }),
@@ -371,7 +306,6 @@ const makeProgressService = Effect.gen(function* () {
             status: "failed",
             transient: snapshot.transient,
             units: snapshot.units,
-            config: snapshot.config,
             startedAt: snapshot.startedAt,
             completedAt: now,
           }),
@@ -454,11 +388,11 @@ export class Progress extends Context.Tag("stromseng.dev/effective-progress/Prog
   static readonly Default = Layer.unwrapEffect(
     Effect.gen(function* () {
       const terminalOption = yield* Effect.serviceOption(ProgressTerminal);
-      const frameRendererOption = yield* Effect.serviceOption(FrameRenderer);
+      const inkRendererOption = yield* Effect.serviceOption(InkRenderer);
       let layer: Layer.Layer<Progress, never, any> = Layer.scoped(Progress, makeProgressService);
 
-      if (Option.isNone(frameRendererOption)) {
-        layer = layer.pipe(Layer.provide(FrameRenderer.Default));
+      if (Option.isNone(inkRendererOption)) {
+        layer = layer.pipe(Layer.provide(InkRenderer.Default));
       }
       if (Option.isNone(terminalOption)) {
         layer = layer.pipe(Layer.provide(ProgressTerminal.Default));

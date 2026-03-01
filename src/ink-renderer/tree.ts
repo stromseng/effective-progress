@@ -1,10 +1,4 @@
-import type { TaskSnapshot } from "../types";
-import type { TaskTreeInfo } from "./types";
-
-export interface OrderedTreeTask {
-  readonly snapshot: TaskSnapshot;
-  readonly depth: number;
-}
+import type { OrderedTask, TaskTreeInfo } from "./types";
 
 const treeAncestorPrefix = (tree: TaskTreeInfo): string =>
   tree.ancestorHasNextSibling
@@ -22,8 +16,8 @@ export const renderTreePrefix = (tree: TaskTreeInfo): string => {
 };
 
 export const computeTreeInfo = (
-  ordered: ReadonlyArray<OrderedTreeTask>,
-): ReadonlyArray<OrderedTreeTask & { readonly tree: TaskTreeInfo }> => {
+  ordered: ReadonlyArray<OrderedTask>,
+): ReadonlyArray<OrderedTask & { readonly tree: TaskTreeInfo }> => {
   const hasNextSiblingByIndex: Array<boolean> = Array.from({ length: ordered.length }, () => false);
 
   for (let i = 0; i < ordered.length; i++) {

@@ -13,10 +13,4 @@ const program = Progress.all(
   { description: "Running tasks in parallel", concurrency: 2, transient: false },
 );
 
-Effect.runPromise(
-  program.pipe(
-    Effect.provideService(Progress.RendererConfig, {
-      columns: Progress.Columns.defaults(),
-    }),
-  ),
-);
+Effect.runPromise(program);

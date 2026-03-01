@@ -82,7 +82,7 @@ Effect.runPromise(program);
 ### Other examples
 
 - `examples/simpleExample.ts` - low-boilerplate real-world flow
-- `examples/advancedExample.ts` - full API usage with custom config and manual task control
+- `examples/advancedExample.ts` - full API usage and manual task control
 - `examples/showcase.ts` - nested concurrent tasks, spinner workloads, and mixed Effect/Console logging
 - `examples/performance.ts` - stress-style run with high log volume and deeply nested progress updates
 
@@ -94,88 +94,17 @@ Effect.runPromise(program);
 - Calls are replayed between progress frame renders to avoid tearing the TTY frame.
 - Formatting is controlled by the API consumer's logger/console implementation.
 
-### Configuring renderer and progress bars
+### Rendering model
 
-Configure global renderer behavior once, and a global base progress bar style:
+Rendering is now Ink-based with a built-in flexbox column layout:
 
-Defaults:
+- Description
+- Bar
+- Amount / spinner / done/failed symbol
+- Elapsed
+- ETA
 
-- columns: `DescriptionColumn`, `BarColumn`, `AmountColumn`, `ElapsedColumn`, `EtaColumn`
-- total progress width: `80`
-- bar width: `40`
-
-```ts
-import { Effect } from "effect";
-import * as Progress from "effective-progress";
-
-const configured = program.pipe(
-  Effect.provideService(Progress.RendererConfig, {
-    width: 80,
-    nonTtyUpdateStep: 2,
-  }),
-  Effect.provideService(Progress.ProgressBarConfig, {
-    barWidth: 36,
-  }),
-);
-
-Effect.runPromise(configured);
-```
-
-You can customize column order/content Rich-style by providing a `columns` array:
-
-```ts
-const configured = program.pipe(
-  Effect.provideService(Progress.RendererConfig, {
-    columns: [
-      Progress.DescriptionColumn.Default(),
-      Progress.BarColumn.make({ track: Progress.Track.fr(1) }),
-      Progress.AmountColumn.Default(),
-      "•",
-      Progress.ElapsedColumn.Default(),
-      "•",
-      Progress.EtaColumn.Default(),
-    ],
-  }),
-);
-```
-
-For full terminal width rendering, set:
-
-```ts
-Effect.provideService(Progress.RendererConfig, {
-  width: "fullwidth",
-});
-```
-
-Description-specific caps should be configured on `DescriptionColumn` (for example `DescriptionColumn.make({ maxWidth: 40 })`) rather than globally.
-
-Per top-level call, you can override render config via helper APIs:
-
-```ts
-const run = Progress.task(effect, {
-  description: "work",
-  render: {
-    columns: [Progress.DescriptionColumn.Default(), "|", Progress.AmountColumn.Default()],
-  },
-});
-
-const wrapped = Progress.withRenderConfig(run, {
-  columns: [Progress.DescriptionColumn.Default()],
-});
-```
-
-Task-level `progressbar` config is optional and inherits from its parent task (or from global `ProgressBarConfig` for root tasks):
-
-```ts
-yield *
-  progress.withTask(Effect.sleep("1 second"), {
-    description: "Worker pipeline",
-    progressbar: {
-      barWidth: 20,
-      spinnerFrames: [".", "o", "O", "0"],
-    },
-  });
-```
+This release intentionally removes renderer and progressbar configuration APIs (`RendererConfig`, `ProgressBarConfig`, custom columns, and per-call render overrides) to keep the first Ink implementation small and maintainable.
 
 ## Manual task control
 
@@ -194,22 +123,7 @@ const program = Progress.task(
 
 ## Column customization
 
-Built-in columns are exported as classes with `Default()` and `make()` helpers.  
-You can also pass your own objects/classes implementing `ProgressColumn`:
-
-```ts
-const CustomColumn: Progress.ProgressColumn = {
-  id: "custom",
-  render: () => "extra",
-};
-
-const program = Progress.task(myEffect, {
-  description: "Work",
-  render: {
-    columns: [Progress.DescriptionColumn.Default(), Progress.BarColumn.Default(), CustomColumn],
-  },
-});
-```
+Custom column APIs are not part of the first Ink release. The renderer ships with built-in columns only.
 
 ## Terminal service and mocking
 

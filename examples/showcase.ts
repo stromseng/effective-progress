@@ -29,23 +29,21 @@ const serviceFlow = (service: string, serviceIndex: number) =>
             description: `${service}: batch ${batch} stages`,
           });
 
-          if (Math.random() < 0.4) {
-            // Spinner: optional remote consistency probe with unknown duration.
-            yield* Progress.forEach(
-              ["probe"],
-              () =>
-                Effect.gen(function* () {
-                  yield* sleepRandom(1600, 500);
-                  if (serviceIndex === 0 && batch === 2) {
-                    yield* Effect.logWarning("One consistency probe was slower than expected");
-                  }
-                }),
-              {
-                description: `${service}: batch ${batch} consistency probe`,
-                total: 0,
-              },
-            );
-          }
+          // Spinner: optional remote consistency probe with unknown duration.
+          yield* Progress.forEach(
+            ["probe"],
+            () =>
+              Effect.gen(function* () {
+                yield* sleepRandom(1600, 500);
+                if (serviceIndex === 0 && batch === 2) {
+                  yield* Effect.logWarning("One consistency probe was slower than expected");
+                }
+              }),
+            {
+              description: `${service}: batch ${batch} consistency probe`,
+              total: 0,
+            },
+          );
         }),
       ),
       {

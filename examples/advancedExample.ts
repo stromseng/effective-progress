@@ -42,10 +42,6 @@ const advancedProgram = Effect.gen(function* () {
               }),
             {
               description: `Worker ${index + 1} pipeline`,
-              progressbar: {
-                barWidth: 20,
-                spinnerFrames: [".", "o", "O", "0"],
-              },
             },
           );
 
@@ -82,25 +78,9 @@ const advancedProgram = Effect.gen(function* () {
   yield* Console.log("All advanced progress examples finished.");
 });
 
-const configuredProgram = Progress.task(advancedProgram, {
+const program = Progress.task(advancedProgram, {
   description: "Advanced example",
   transient: false,
-}).pipe(
-  Effect.provideService(Progress.RendererConfig, {
-    nonTtyUpdateStep: 2,
-    columns: [
-      Progress.DescriptionColumn.Default(),
-      Progress.BarColumn.make({ track: Progress.Track.fr(1) }),
-      Progress.AmountColumn.Default(),
-      "•",
-      Progress.ElapsedColumn.Default(),
-      "•",
-      Progress.EtaColumn.Default(),
-    ],
-  }),
-  Effect.provideService(Progress.ProgressBarConfig, {
-    barWidth: 36,
-  }),
-);
+});
 
-Effect.runPromise(configuredProgram);
+Effect.runPromise(program);
