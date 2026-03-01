@@ -120,7 +120,7 @@ describe("Progress.run", () => {
     expect(logs.some((args) => args[0] === capturedMessage)).toBeTrue();
   });
 
-  test("task replays Console.dir with raw arguments", async () => {
+  test("task forwards Console.dir with raw arguments", async () => {
     const payload = { nested: { value: 1 } };
     type DirOptions = Parameters<Console.Console["dir"]>[1];
     const options: DirOptions = { depth: 1 };

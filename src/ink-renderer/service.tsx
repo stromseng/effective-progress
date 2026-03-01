@@ -1,7 +1,6 @@
 import { Writable } from "node:stream";
 import { Clock, Context, Effect, Layer, Ref } from "effect";
 import { render, type Instance } from "ink";
-import type { BufferedConsoleCall } from "../console";
 import type { ProgressTerminalService } from "../terminal";
 import type { TaskSnapshot, TaskStore } from "../types";
 import { ProgressApp } from "./app";
@@ -12,8 +11,6 @@ const RENDER_INTERVAL_MILLIS = 100;
 export interface InkRendererService {
   readonly run: (
     storeRef: Ref.Ref<TaskStore>,
-    pendingLogsRef: Ref.Ref<ReadonlyArray<BufferedConsoleCall>>,
-    replayLogs: (logs: ReadonlyArray<BufferedConsoleCall>) => Effect.Effect<void, never, never>,
     dirtyRef: Ref.Ref<boolean>,
     terminal: ProgressTerminalService,
     isTTY: boolean,
@@ -39,7 +36,7 @@ const createInkWritable = (terminal: ProgressTerminalService): Writable =>
   });
 
 const makeDefaultInkRenderer = (): InkRendererService => ({
-  run: (storeRef, pendingLogsRef, replayLogs, dirtyRef, terminal, isTTY) =>
+  run: (storeRef, dirtyRef, terminal, isTTY) =>
     Effect.gen(function* () {
       const output = createInkWritable(terminal);
       let instance: Instance | undefined;
@@ -75,14 +72,6 @@ const makeDefaultInkRenderer = (): InkRendererService => ({
           instance.rerender(app);
         });
 
-      const flushLogs = (logs: ReadonlyArray<BufferedConsoleCall>) =>
-        Effect.gen(function* () {
-          if (logs.length === 0) {
-            return;
-          }
-          yield* replayLogs(logs);
-        });
-
       const renderLoop = Effect.gen(function* () {
         rendererActive = true;
 
@@ -92,12 +81,9 @@ const makeDefaultInkRenderer = (): InkRendererService => ({
           const tasks = Array.from(store.tasks.values()).filter(
             (task) => !(task.transient && task.status !== "running"),
           );
-          const hasPendingLogs = (yield* Ref.get(pendingLogsRef)).length > 0;
-          const shouldRender = dirty || hasRunningSpinners(tasks) || hasPendingLogs;
+          const shouldRender = dirty || hasRunningSpinners(tasks);
 
           if (shouldRender) {
-            const drainedLogs = yield* Ref.getAndSet(pendingLogsRef, []);
-            yield* flushLogs(drainedLogs);
             const now = yield* Clock.currentTimeMillis;
             const terminalColumns = isTTY ? yield* terminal.stderrColumns : undefined;
             yield* renderStore(store, now, terminalColumns);
@@ -109,9 +95,6 @@ const makeDefaultInkRenderer = (): InkRendererService => ({
       }).pipe(
         Effect.ensuring(
           Effect.gen(function* () {
-            const drainedLogs = yield* Ref.getAndSet(pendingLogsRef, []);
-            yield* flushLogs(drainedLogs);
-
             if (rendererActive) {
               const store = yield* Ref.get(storeRef);
               const now = yield* Clock.currentTimeMillis;

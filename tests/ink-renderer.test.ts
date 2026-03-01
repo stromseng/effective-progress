@@ -70,7 +70,7 @@ describe("Ink renderer integration", () => {
     expect(output.includes("└─ child") || output.includes("├─ child")).toBeTrue();
   });
 
-  test("replays buffered logs through custom Effect Console while Ink is active", async () => {
+  test("emits logs through custom Effect Console while Ink is active", async () => {
     const logs: Array<ReadonlyArray<unknown>> = [];
 
     const result = await captureTerminalOutput(

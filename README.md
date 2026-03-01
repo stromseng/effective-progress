@@ -15,7 +15,7 @@
 
 - multiple nested tree-like progress bars
 - spinner support for “we have no idea how long this takes” work
-- keep using `Console.log` / `Effect.logInfo` while raw console calls are buffered and replayed through your existing `Console` / logger between frame renders
+- keep using `Console.log` / `Effect.logInfo` while progress rendering is active
 - familiar `.all` and `.forEach` APIs — swap `Effect` for `Progress`, get progress bars basically for free
 - flicker-free rendering (in theory) by drawing everything in a single terminal frame
 
@@ -88,23 +88,20 @@ Effect.runPromise(program);
 
 ## Configuration
 
-### Console replay
+### Console behavior
 
-- `Progress.task`, `Progress.all`, and `Progress.forEach` buffer `Console.log`/`Console.dir` calls and replay them through the outer `Console`.
-- Calls are replayed between progress frame renders to avoid tearing the TTY frame.
+- The Ink renderer runs with `patchConsole: true`, so console output is patched by Ink while the app is mounted.
+- `Progress.task`, `Progress.all`, and `Progress.forEach` write through the currently provided Effect `Console` implementation.
 - Formatting is controlled by the API consumer's logger/console implementation.
 
-### Rendering model
+### Ink renderer behavior
 
-Rendering is now Ink-based with a built-in flexbox column layout:
-
-- Description
-- Bar
-- Amount / spinner / done/failed symbol
-- Elapsed
-- ETA
-
-This release intentionally removes renderer and progressbar configuration APIs (`RendererConfig`, `ProgressBarConfig`, custom columns, and per-call render overrides) to keep the first Ink implementation small and maintainable.
+- Rendering is powered by [Ink](https://github.com/vadimdemedes/ink).
+- Built-in columns are: description, bar, amount/spinner, elapsed, and ETA.
+- Column widths are shared per frame (widest visible cell wins), so rows stay aligned.
+- Elapsed and ETA reserve stable widths to reduce jitter while tasks transition states.
+- Layout uses a 100-column baseline and grows when content requires more space.
+- On narrow terminals, layout compacts to fit available width and tree prefixes are suppressed when description space is too tight.
 
 ## Manual task control
 
@@ -123,7 +120,7 @@ const program = Progress.task(
 
 ## Column customization
 
-Custom column APIs are not part of the first Ink release. The renderer ships with built-in columns only.
+Custom column APIs are not part of the first Ink release. The renderer ships with built-in columns only, and old renderer config APIs (`RendererConfig`, `ProgressBarConfig`, custom column definitions) are intentionally removed in this iteration.
 
 ## Terminal service and mocking
 
@@ -153,10 +150,6 @@ const program = Progress.task(Effect.sleep("100 millis"), { description: "work" 
   Effect.provideService(Progress.ProgressTerminal, mockTerminal),
 );
 ```
-
-## Dependencies & package size
-
-This library is designed for CLI workflows, where package size is typically a lower-priority concern. Alongside `effect` though, I will strive to only rely on other high quality packages.
 
 ## Notes
 

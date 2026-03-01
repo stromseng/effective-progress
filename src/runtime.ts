@@ -1,6 +1,5 @@
 import { Clock, Context, Effect, Exit, FiberRef, Layer, Option, Ref } from "effect";
 import { dual } from "effect/Function";
-import { type BufferedConsoleCall, makeConsoleBridge } from "./console";
 import { InkRenderer } from "./ink-renderer";
 import { ProgressTerminal } from "./terminal";
 import type {
@@ -114,22 +113,15 @@ const makeProgressService = Effect.gen(function* () {
     tasks: new Map<TaskId, TaskSnapshot>(),
     renderOrder: [],
   });
-  const pendingLogsRef = yield* Ref.make<ReadonlyArray<BufferedConsoleCall>>([]);
   const dirtyRef = yield* Ref.make(true);
   const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
   const scope = yield* Effect.scope;
 
   const markDirty = Ref.set(dirtyRef, true);
-  const { replayLogs, progressConsole, log } = makeConsoleBridge(
-    outerConsole,
-    pendingLogsRef,
-    markDirty,
-  );
+  const log = (...args: ReadonlyArray<unknown>) =>
+    args.length === 0 ? Effect.void : outerConsole.log(...args);
 
-  yield* Effect.forkIn(
-    inkRenderer.run(storeRef, pendingLogsRef, replayLogs, dirtyRef, terminal, isTTY),
-    scope,
-  );
+  yield* Effect.forkIn(inkRenderer.run(storeRef, dirtyRef, terminal, isTTY), scope);
   // Let the renderer fiber start so queued logs are reliably flushed on scope teardown.
   yield* Effect.sleep("0 millis");
 
@@ -335,7 +327,7 @@ const makeProgressService = Effect.gen(function* () {
         });
 
         return yield* Effect.locally(
-          Effect.withConsole(Effect.provideService(effect, Task, taskId), progressConsole),
+          Effect.provideService(effect, Task, taskId),
           currentParentRef,
           Option.some(taskId),
         );
