@@ -12,13 +12,21 @@
     "url": "git+https://github.com/stromseng/effective-progress.git"
   },
   "files": [
-    "index.ts",
-    "src",
+    "dist",
     "README.md",
     "LICENSE"
   ],
   "type": "module",
-  "module": "index.ts",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
   "engines": {
     "node": ">=20.12.0"
   },
@@ -27,6 +35,8 @@
   },
   "scripts": {
     "prepare": "effect-language-service patch",
+    "build": "tsdown",
+    "prepublishOnly": "bun run build",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",
     "format": "oxfmt --write .",
@@ -43,6 +53,7 @@
     "effect": "^3.19.17",
     "oxfmt": "^0.32.0",
     "oxlint": "^1.47.0",
+    "tsdown": "^0.21.0-beta.2",
     "typescript": "^5"
   },
   "peerDependencies": {
