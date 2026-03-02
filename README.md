@@ -122,35 +122,6 @@ const program = Progress.task(
 
 Custom column APIs are not part of the first Ink release. The renderer ships with built-in columns only, and old renderer config APIs (`RendererConfig`, `ProgressBarConfig`, custom column definitions) are intentionally removed in this iteration.
 
-## Terminal service and mocking
-
-`effective-progress` now exposes a `ProgressTerminal` service that controls terminal detection and I/O:
-
-- `isTTY`
-- `stderrRows`
-- `stderrColumns`
-- `writeStderr(text)`
-- `withRawInputCapture(effect)`
-
-You can provide a mock if you want to alter the behavior of terminal detection or if you want to capture the output for testing:
-
-```ts
-import { Effect } from "effect";
-import * as Progress from "effective-progress";
-
-const mockTerminal: Progress.ProgressTerminalService = {
-  isTTY: Effect.succeed(true),
-  stderrRows: Effect.succeed(40),
-  stderrColumns: Effect.succeed(120),
-  writeStderr: (_text) => Effect.void,
-  withRawInputCapture: (effect) => effect,
-};
-
-const program = Progress.task(Effect.sleep("100 millis"), { description: "work" }).pipe(
-  Effect.provideService(Progress.ProgressTerminal, mockTerminal),
-);
-```
-
 ## Notes
 
 - As Effect 4.0 is around the corner with some changes to logging, there may be some adjustments needed to align with the new Effect APIs.
