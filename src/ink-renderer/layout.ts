@@ -2,7 +2,7 @@ import { formatAmount, formatElapsed, formatEta } from "./format";
 import { renderTreePrefix } from "./tree";
 import type { TaskRowModel } from "./types";
 
-export const DEFAULT_BAR_WIDTH = 20;
+export const DEFAULT_BAR_WIDTH = 30;
 const MIN_DESCRIPTION_WIDTH = 8;
 const MIN_BAR_WIDTH = 8;
 const MIN_ELAPSED_WIDTH = 3;
