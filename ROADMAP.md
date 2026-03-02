@@ -4,6 +4,7 @@
 
 - Fixup default eta styling
 - make it easy to configure order of, and which cells are included
+- figure out why package size on npmx is so large, and why deps arent showing
 
 ## Customization
 
