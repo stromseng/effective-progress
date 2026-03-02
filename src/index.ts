@@ -1,4 +1,4 @@
 export * from "./api";
 export { Progress } from "./runtime";
-export * from "./terminal";
+export * from "./stdio";
 export * from "./types";

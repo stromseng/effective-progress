@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { Console, Effect, Option } from "effect";
 import { pipe } from "effect/Function";
 import * as Progress from "../src";
+import { createMockStdio } from "./helpers/mock-stdio";
 
 const withLogSpy = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
@@ -26,28 +27,22 @@ const withLogSpy = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     return { result, logs };
   });
 
-const withTerminal = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  effect.pipe(
-    Effect.provideService(Progress.ProgressTerminal, {
-      isTTY: Effect.succeed(false),
-      stderrRows: Effect.sync(() => undefined),
-      stderrColumns: Effect.sync(() => undefined),
-      writeStderr: () => Effect.void,
-      withRawInputCapture: (innerEffect) => innerEffect,
-    } satisfies Progress.ProgressTerminalService),
-  );
+const withStdio = <A, E, R>(effect: Effect.Effect<A, E, R>) => {
+  const stdio = createMockStdio();
+  return effect.pipe(Effect.provideService(Progress.ProgressStdio, stdio.service));
+};
 
 describe("Progress.run", () => {
   test("plain logs are not swallowed when no tasks are created", async () => {
     const message = "plain-log-no-task";
-    const { logs } = await Effect.runPromise(withLogSpy(withTerminal(Console.log(message))));
+    const { logs } = await Effect.runPromise(withLogSpy(withStdio(Console.log(message))));
 
     expect(logs.some((args) => args[0] === message)).toBeTrue();
   });
 
   test("nested run reuses the outer service", async () => {
     const reused = await Effect.runPromise(
-      withTerminal(
+      withStdio(
         Progress.task(
           Effect.gen(function* () {
             const outer = yield* Progress.Progress;
@@ -72,7 +67,7 @@ describe("Progress.run", () => {
 
     const { result, logs } = await Effect.runPromise(
       withLogSpy(
-        withTerminal(
+        withStdio(
           Progress.task(
             Effect.gen(function* () {
               const progress = yield* Progress.Progress;
@@ -100,7 +95,7 @@ describe("Progress.run", () => {
 
   test("all returns the values from each effect", async () => {
     const result = await Effect.runPromise(
-      withTerminal(
+      withStdio(
         Progress.all([Effect.succeed(1), Effect.succeed("two"), Effect.succeed(true)], {
           description: "return-values",
         }),
@@ -114,7 +109,7 @@ describe("Progress.run", () => {
     const capturedMessage = "all-auto-captured";
 
     const { logs } = await Effect.runPromise(
-      withLogSpy(withTerminal(Progress.all([Console.log(capturedMessage)], { description: "all" }))),
+      withLogSpy(withStdio(Progress.all([Console.log(capturedMessage)], { description: "all" }))),
     );
 
     expect(logs.some((args) => args[0] === capturedMessage)).toBeTrue();
@@ -149,7 +144,7 @@ describe("Progress.run", () => {
         };
 
         return yield* Effect.withConsole(
-          withTerminal(
+          withStdio(
             Progress.task(
               Effect.gen(function* () {
                 yield* Console.dir(payload, options);
@@ -173,7 +168,7 @@ describe("Progress.run", () => {
 
     const { logs } = await Effect.runPromise(
       withLogSpy(
-        withTerminal(
+        withStdio(
           pipe(
             [Console.log(capturedMessage)],
             Progress.all({
@@ -192,7 +187,7 @@ describe("Progress.run", () => {
 
     const { result, logs } = await Effect.runPromise(
       withLogSpy(
-        withTerminal(
+        withStdio(
           pipe(
             ["a", "b"],
             Progress.forEach((item) => Console.log(`${capturedPrefix}:${item}`), {

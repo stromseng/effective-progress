@@ -1,17 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { Effect, Option } from "effect";
 import * as Progress from "../src";
+import { createMockStdio } from "./helpers/mock-stdio";
 
-const withTerminal = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  effect.pipe(
-    Effect.provideService(Progress.ProgressTerminal, {
-      isTTY: Effect.succeed(false),
-      stderrRows: Effect.sync(() => undefined),
-      stderrColumns: Effect.sync(() => undefined),
-      writeStderr: () => Effect.void,
-      withRawInputCapture: (innerEffect) => innerEffect,
-    } satisfies Progress.ProgressTerminalService),
-  );
+const withStdio = <A, E, R>(effect: Effect.Effect<A, E, R>) => {
+  const stdio = createMockStdio();
+  return effect.pipe(Effect.provideService(Progress.ProgressStdio, stdio.service));
+};
 
 const withProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.scoped(effect.pipe(Effect.provide(Progress.Progress.Default)));
@@ -29,7 +24,7 @@ const getTaskOrThrow = (
 describe("transient propagation", () => {
   test("defaults root tasks to transient false", async () => {
     const root = await Effect.runPromise(
-      withTerminal(
+      withStdio(
         withProgress(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
@@ -45,7 +40,7 @@ describe("transient propagation", () => {
 
   test("children inherit parent transient=true even if child sets false", async () => {
     const result = await Effect.runPromise(
-      withTerminal(
+      withStdio(
         withProgress(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
@@ -73,7 +68,7 @@ describe("transient propagation", () => {
 
   test("children inherit parent transient=false even if child sets true", async () => {
     const result = await Effect.runPromise(
-      withTerminal(
+      withStdio(
         withProgress(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
@@ -101,7 +96,7 @@ describe("transient propagation", () => {
 
   test("updating parent transient propagates to descendants", async () => {
     const result = await Effect.runPromise(
-      withTerminal(
+      withStdio(
         withProgress(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;

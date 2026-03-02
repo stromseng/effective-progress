@@ -1,31 +1,25 @@
 import { describe, expect, test } from "bun:test";
 import { Console, Effect } from "effect";
 import * as Progress from "../src";
+import { createMockStdio } from "./helpers/mock-stdio";
 
-const stripAnsi = (value: string): string =>
-  value.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
+const ANSI_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`, "g");
 
-const captureTerminalOutput = async <A, E, R>(
+const stripAnsi = (value: string): string => value.replace(ANSI_PATTERN, "");
+
+const captureStdioOutput = async <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   options: {
     readonly isTTY: boolean;
   },
 ) => {
-  let stream = "";
-
-  const terminal: Progress.ProgressTerminalService = {
-    isTTY: Effect.succeed(options.isTTY),
-    stderrRows: Effect.succeed(120),
-    stderrColumns: Effect.succeed(160),
-    writeStderr: (text) =>
-      Effect.sync(() => {
-        stream += text;
-      }),
-    withRawInputCapture: (innerEffect) => innerEffect,
-  };
+  const stdio = createMockStdio({
+    stdout: { isTTY: options.isTTY, columns: 160, rows: 120 },
+    stderr: { isTTY: options.isTTY, columns: 160, rows: 120 },
+  });
 
   const result = await Effect.runPromise(
-    effect.pipe(Effect.provideService(Progress.ProgressTerminal, terminal)) as Effect.Effect<
+    effect.pipe(Effect.provideService(Progress.ProgressStdio, stdio.service)) as Effect.Effect<
       A,
       E,
       never
@@ -34,7 +28,9 @@ const captureTerminalOutput = async <A, E, R>(
 
   return {
     result,
-    output: stripAnsi(stream),
+    stdout: stripAnsi(stdio.stdout.getOutput()),
+    stderr: stripAnsi(stdio.stderr.getOutput()),
+    output: stripAnsi(`${stdio.stdout.getOutput()}${stdio.stderr.getOutput()}`),
   };
 };
 
@@ -63,7 +59,7 @@ describe("Ink renderer integration", () => {
       { description: "root", transient: false },
     );
 
-    const { output } = await captureTerminalOutput(program, { isTTY: true });
+    const { output } = await captureStdioOutput(program, { isTTY: true });
 
     expect(output.includes("parent")).toBeTrue();
     expect(output.includes("child")).toBeTrue();
@@ -73,7 +69,7 @@ describe("Ink renderer integration", () => {
   test("emits logs through custom Effect Console while Ink is active", async () => {
     const logs: Array<ReadonlyArray<unknown>> = [];
 
-    const result = await captureTerminalOutput(
+    const result = await captureStdioOutput(
       Effect.gen(function* () {
         const outer = yield* Console.consoleWith((console) => Effect.succeed(console));
         const consoleSpy: Console.Console = {
@@ -109,7 +105,7 @@ describe("Ink renderer integration", () => {
   });
 
   test("renders in non-tty mode via Ink without custom fallback renderer", async () => {
-    const { output } = await captureTerminalOutput(
+    const { output } = await captureStdioOutput(
       Progress.all([Effect.sleep("2 millis")], { description: "non-tty-task", transient: false }),
       { isTTY: false },
     );

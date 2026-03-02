@@ -1,7 +1,7 @@
 import { Clock, Context, Effect, Exit, FiberRef, Layer, Option, Ref } from "effect";
 import { dual } from "effect/Function";
 import { InkRenderer } from "./ink-renderer";
-import { ProgressTerminal } from "./terminal";
+import { ProgressStdio } from "./stdio";
 import type {
   AddTaskOptions,
   ProgressService,
@@ -103,10 +103,10 @@ const removeFromRenderOrder = (
 };
 
 const makeProgressService = Effect.gen(function* () {
-  const terminal = yield* ProgressTerminal;
+  const stdio = yield* ProgressStdio;
   const inkRenderer = yield* InkRenderer;
   const outerConsole = yield* Effect.console;
-  const isTTY = yield* terminal.isTTY;
+  const isTTY = Boolean(stdio.stderr.isTTY);
 
   const nextTaskIdRef = yield* Ref.make(0);
   const storeRef = yield* Ref.make<TaskStore>({
@@ -121,7 +121,7 @@ const makeProgressService = Effect.gen(function* () {
   const log = (...args: ReadonlyArray<unknown>) =>
     args.length === 0 ? Effect.void : outerConsole.log(...args);
 
-  yield* Effect.forkIn(inkRenderer.run(storeRef, dirtyRef, terminal, isTTY), scope);
+  yield* Effect.forkIn(inkRenderer.run(storeRef, dirtyRef, stdio, isTTY), scope);
   // Let the renderer fiber start so queued logs are reliably flushed on scope teardown.
   yield* Effect.sleep("0 millis");
 
@@ -379,15 +379,15 @@ export class Progress extends Context.Tag("stromseng.dev/effective-progress/Prog
 >() {
   static readonly Default = Layer.unwrapEffect(
     Effect.gen(function* () {
-      const terminalOption = yield* Effect.serviceOption(ProgressTerminal);
+      const stdioOption = yield* Effect.serviceOption(ProgressStdio);
       const inkRendererOption = yield* Effect.serviceOption(InkRenderer);
       let layer: Layer.Layer<Progress, never, any> = Layer.scoped(Progress, makeProgressService);
 
       if (Option.isNone(inkRendererOption)) {
         layer = layer.pipe(Layer.provide(InkRenderer.Default));
       }
-      if (Option.isNone(terminalOption)) {
-        layer = layer.pipe(Layer.provide(ProgressTerminal.Default));
+      if (Option.isNone(stdioOption)) {
+        layer = layer.pipe(Layer.provide(ProgressStdio.Default));
       }
 
       return layer as Layer.Layer<Progress, never, never>;

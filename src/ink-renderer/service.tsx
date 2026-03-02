@@ -1,7 +1,6 @@
-import { Writable } from "node:stream";
 import { Clock, Context, Effect, Layer, Ref } from "effect";
 import { render, type Instance } from "ink";
-import type { ProgressTerminalService } from "../terminal";
+import type { ProgressStdioService } from "../stdio";
 import type { TaskSnapshot, TaskStore } from "../types";
 import { ProgressApp } from "./app";
 import { toTaskRows } from "./model";
@@ -12,7 +11,7 @@ export interface InkRendererService {
   readonly run: (
     storeRef: Ref.Ref<TaskStore>,
     dirtyRef: Ref.Ref<boolean>,
-    terminal: ProgressTerminalService,
+    stdio: ProgressStdioService,
     isTTY: boolean,
   ) => Effect.Effect<void>;
 }
@@ -22,23 +21,9 @@ const hasRunningSpinners = (tasks: ReadonlyArray<TaskSnapshot>): boolean =>
     (task) => task.status === "running" && task.units._tag === "IndeterminateTaskUnits",
   );
 
-const createInkWritable = (terminal: ProgressTerminalService): Writable =>
-  new Writable({
-    write(chunk, _encoding, callback) {
-      try {
-        const text = Buffer.isBuffer(chunk) ? chunk.toString("utf8") : `${chunk}`;
-        Effect.runSync(terminal.writeStderr(text));
-        callback();
-      } catch (error) {
-        callback(error as Error);
-      }
-    },
-  });
-
 const makeDefaultInkRenderer = (): InkRendererService => ({
-  run: (storeRef, dirtyRef, terminal, isTTY) =>
+  run: (storeRef, dirtyRef, stdio, isTTY) =>
     Effect.gen(function* () {
-      const output = createInkWritable(terminal);
       let instance: Instance | undefined;
       let tick = 0;
       let rendererActive = false;
@@ -60,8 +45,8 @@ const makeDefaultInkRenderer = (): InkRendererService => ({
           );
           if (instance === undefined) {
             instance = render(app, {
-              stdout: output as unknown as NodeJS.WriteStream,
-              stderr: output as unknown as NodeJS.WriteStream,
+              stdout: stdio.stdout,
+              stderr: stdio.stderr,
               patchConsole: true,
               exitOnCtrlC: false,
               debug: false,
@@ -85,7 +70,7 @@ const makeDefaultInkRenderer = (): InkRendererService => ({
 
           if (shouldRender) {
             const now = yield* Clock.currentTimeMillis;
-            const terminalColumns = isTTY ? yield* terminal.stderrColumns : undefined;
+            const terminalColumns = isTTY ? stdio.stderr.columns : undefined;
             yield* renderStore(store, now, terminalColumns);
           }
 
@@ -98,7 +83,7 @@ const makeDefaultInkRenderer = (): InkRendererService => ({
             if (rendererActive) {
               const store = yield* Ref.get(storeRef);
               const now = yield* Clock.currentTimeMillis;
-              const terminalColumns = isTTY ? yield* terminal.stderrColumns : undefined;
+              const terminalColumns = isTTY ? stdio.stderr.columns : undefined;
               yield* renderStore(store, now, terminalColumns);
             }
 
