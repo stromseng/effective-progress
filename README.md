@@ -11,7 +11,7 @@
 
 <img alt="Showcase output" src="docs/images/showcase.gif" width="600" />
 
-`effective-progress` is an [Effect](https://effect.website/)-first CLI progress bar library with:
+`effective-progress` is an [Effect](https://effect.website/)-native CLI progress bar library with:
 
 - multiple nested tree-like progress bars
 - spinner support for “we have no idea how long this takes” work
