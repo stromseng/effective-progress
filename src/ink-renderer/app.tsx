@@ -1,5 +1,5 @@
 import { Box } from "ink";
-import { computeSharedColumnWidths } from "./layout";
+import { computeFrameLayout } from "./columns/frame-plan";
 import { TaskRow } from "./task-row";
 import type { TaskRowModel } from "./types";
 
@@ -12,19 +12,12 @@ export interface ProgressAppProps {
 }
 
 export const ProgressApp = ({ rows, now, tick, isTTY, terminalColumns }: ProgressAppProps) => {
-  const widths = computeSharedColumnWidths(rows, now, tick, terminalColumns);
+  const layout = computeFrameLayout(rows, now, tick, terminalColumns, isTTY);
 
   return (
     <Box flexDirection="column">
       {rows.map((row) => (
-        <TaskRow
-          key={row.task.id as number}
-          row={row}
-          now={now}
-          tick={tick}
-          isTTY={isTTY}
-          widths={widths}
-        />
+        <TaskRow key={row.task.id as number} row={row} layout={layout} />
       ))}
     </Box>
   );

@@ -3,7 +3,11 @@ import { getTaskIndicator } from "../format";
 import { renderTreePrefix } from "../tree";
 import type { ColumnProps } from "./types";
 
-export const DescriptionColumn = ({ task, tree, showTree, tick }: ColumnProps) => {
+export interface DescriptionColumnProps extends ColumnProps {
+  readonly showTree: boolean;
+}
+
+export const DescriptionColumn = ({ task, tree, showTree, tick }: DescriptionColumnProps) => {
   const treePrefix = showTree ? renderTreePrefix(tree) : "";
   const indicator = getTaskIndicator(task, tick);
 
