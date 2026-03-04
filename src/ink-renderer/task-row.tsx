@@ -1,13 +1,7 @@
 import { Box } from "ink";
 import { DEFAULT_BAR_WIDTH, type SharedColumnWidths } from "./layout";
 import type { TaskRowModel } from "./types";
-import {
-  AmountColumn,
-  BarColumn,
-  DescriptionColumn,
-  ElapsedColumn,
-  EtaColumn,
-} from "./columns";
+import { AmountColumn, BarColumn, DescriptionColumn, ElapsedColumn, EtaColumn } from "./columns";
 
 export interface TaskRowProps {
   readonly row: TaskRowModel;
@@ -25,6 +19,10 @@ export const TaskRow = ({ row, now, tick, isTTY, widths }: TaskRowProps) => {
     tick,
     isTTY,
     showTree: widths.showTree,
+    amountSucceededWidth: widths.amountSucceeded,
+    amountFailedWidth: widths.amountFailed,
+    amountProcessedWidth: widths.amountProcessed,
+    amountTotalWidth: widths.amountTotal,
   } as const;
 
   return (
@@ -37,9 +35,11 @@ export const TaskRow = ({ row, now, tick, isTTY, widths }: TaskRowProps) => {
           <BarColumn {...props} width={Math.max(1, Math.min(widths.bar, DEFAULT_BAR_WIDTH))} />
         </Box>
       ) : null}
-      <Box width={widths.amount} flexShrink={0} marginRight={1}>
-        <AmountColumn {...props} />
-      </Box>
+      {widths.amount > 0 ? (
+        <Box width={widths.amount} flexShrink={0} marginRight={1}>
+          <AmountColumn {...props} />
+        </Box>
+      ) : null}
       <Box width={widths.elapsed} flexShrink={0} marginRight={1}>
         <ElapsedColumn {...props} />
       </Box>

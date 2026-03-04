@@ -9,8 +9,14 @@ describe("types and schemas", () => {
       parentId: null,
       description: "task",
       status: "running",
+      countDisplay: "detailed",
       transient: false,
-      units: new Progress.DeterminateTaskUnits({ completed: 1, total: 2 }),
+      units: new Progress.DeterminateTaskUnits({
+        succeeded: 1,
+        failed: 0,
+        processed: 1,
+        total: 2,
+      }),
       startedAt: 0,
       completedAt: null,
     });
@@ -20,19 +26,31 @@ describe("types and schemas", () => {
 
   test("ProgressTaskEvent schema still decodes task lifecycle events", () => {
     const decode = Schema.decodeUnknownSync(Progress.ProgressTaskEventSchema);
-    const event = decode({
+    const updatedEvent = decode({
       _tag: "TaskUpdated",
       taskId: 1,
       description: "updated",
-      completed: 2,
+      succeeded: 2,
+      failed: 1,
+      processed: 3,
       total: 5,
       transient: true,
+      countDisplay: "processedOnly",
     });
 
-    expect(event._tag).toBe("TaskUpdated");
-    if (event._tag !== "TaskUpdated") {
+    expect(updatedEvent._tag).toBe("TaskUpdated");
+    if (updatedEvent._tag !== "TaskUpdated") {
       throw new Error("unexpected event tag");
     }
-    expect(event.description).toBe("updated");
+    expect(updatedEvent.description).toBe("updated");
+
+    const advancedEvent = decode({
+      _tag: "TaskAdvanced",
+      taskId: 1,
+      amount: 1,
+      kind: "failed",
+    });
+
+    expect(advancedEvent._tag).toBe("TaskAdvanced");
   });
 });

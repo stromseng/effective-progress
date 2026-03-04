@@ -9,13 +9,37 @@ import type {
   TaskStore,
   UpdateTaskOptions,
 } from "./types";
-import {
-  DeterminateTaskUnits,
-  IndeterminateTaskUnits,
-  Task,
-  TaskId,
-  TaskSnapshot,
-} from "./types";
+import { DeterminateTaskUnits, IndeterminateTaskUnits, Task, TaskId, TaskSnapshot } from "./types";
+
+interface DeterminateCounts {
+  readonly succeeded: number;
+  readonly failed: number;
+  readonly total: number;
+}
+
+const normalizeDeterminateCounts = (counts: DeterminateCounts): DeterminateTaskUnits => {
+  const total = Math.max(0, counts.total);
+  const failed = Math.min(total, Math.max(0, counts.failed));
+  const succeeded = Math.min(total - failed, Math.max(0, counts.succeeded));
+  const processed = succeeded + failed;
+
+  return new DeterminateTaskUnits({
+    succeeded,
+    failed,
+    processed,
+    total,
+  });
+};
+
+const updateDeterminateCounts = (
+  units: DeterminateTaskUnits,
+  options: Pick<UpdateTaskOptions, "succeeded" | "failed" | "total">,
+): DeterminateTaskUnits =>
+  normalizeDeterminateCounts({
+    succeeded: options.succeeded ?? units.succeeded,
+    failed: options.failed ?? units.failed,
+    total: options.total ?? units.total,
+  });
 
 const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): TaskSnapshot => {
   const currentUnits = snapshot.units;
@@ -25,25 +49,23 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): Ta
         return new IndeterminateTaskUnits({ spinnerFrame: 0 });
       }
 
-      const completed =
-        options.completed ??
-        (currentUnits._tag === "DeterminateTaskUnits" ? currentUnits.completed : 0);
+      if (currentUnits._tag === "DeterminateTaskUnits") {
+        return updateDeterminateCounts(currentUnits, options);
+      }
 
-      return new DeterminateTaskUnits({
-        completed: Math.max(0, completed),
-        total: Math.max(0, options.total),
+      return normalizeDeterminateCounts({
+        succeeded: options.succeeded ?? 0,
+        failed: options.failed ?? 0,
+        total: options.total,
       });
     }
 
     if (currentUnits._tag === "DeterminateTaskUnits") {
-      if (options.completed === undefined) {
+      if (options.succeeded === undefined && options.failed === undefined) {
         return currentUnits;
       }
 
-      return new DeterminateTaskUnits({
-        completed: Math.max(0, options.completed),
-        total: currentUnits.total,
-      });
+      return updateDeterminateCounts(currentUnits, options);
     }
 
     return currentUnits;
@@ -54,6 +76,7 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): Ta
     parentId: snapshot.parentId,
     description: options.description ?? snapshot.description,
     status: snapshot.status,
+    countDisplay: options.countDisplay ?? snapshot.countDisplay,
     transient: options.transient ?? snapshot.transient,
     units,
     startedAt: snapshot.startedAt,
@@ -67,6 +90,7 @@ const withTransient = (snapshot: TaskSnapshot, transient: boolean): TaskSnapshot
     parentId: snapshot.parentId,
     description: snapshot.description,
     status: snapshot.status,
+    countDisplay: snapshot.countDisplay,
     transient,
     units: snapshot.units,
     startedAt: snapshot.startedAt,
@@ -135,7 +159,11 @@ const makeProgressService = Effect.gen(function* () {
       const units =
         options.total === undefined || options.total <= 0
           ? new IndeterminateTaskUnits({ spinnerFrame: 0 })
-          : new DeterminateTaskUnits({ completed: 0, total: Math.max(0, options.total) });
+          : normalizeDeterminateCounts({
+              succeeded: 0,
+              failed: 0,
+              total: options.total,
+            });
       const store = yield* Ref.get(storeRef);
       const parentSnapshot = Option.isSome(resolvedParentId)
         ? store.tasks.get(resolvedParentId.value)
@@ -143,12 +171,14 @@ const makeProgressService = Effect.gen(function* () {
 
       const now = yield* Clock.currentTimeMillis;
       const parentIdValue = Option.getOrNull(resolvedParentId);
+      const countDisplay = options.countDisplay ?? parentSnapshot?.countDisplay ?? "detailed";
       const snapshot = new TaskSnapshot({
         id: taskId,
         parentId: parentIdValue,
         description: options.description,
         status: "running",
-        transient: parentSnapshot?.transient ?? options.transient ?? false,
+        countDisplay,
+        transient: (parentSnapshot?.transient ?? false) || (options.transient ?? false),
         units,
         startedAt: now,
         completedAt: null,
@@ -207,8 +237,9 @@ const makeProgressService = Effect.gen(function* () {
 
       const units =
         snapshot.units._tag === "DeterminateTaskUnits"
-          ? new DeterminateTaskUnits({
-              completed: Math.min(snapshot.units.total, snapshot.units.completed + amount),
+          ? normalizeDeterminateCounts({
+              succeeded: snapshot.units.succeeded + amount,
+              failed: snapshot.units.failed,
               total: snapshot.units.total,
             })
           : new IndeterminateTaskUnits({
@@ -223,6 +254,41 @@ const makeProgressService = Effect.gen(function* () {
           parentId: snapshot.parentId,
           description: snapshot.description,
           status: snapshot.status,
+          countDisplay: snapshot.countDisplay,
+          transient: snapshot.transient,
+          units,
+          startedAt: snapshot.startedAt,
+          completedAt: snapshot.completedAt,
+        }),
+      );
+
+      return { tasks: nextTasks, renderOrder: store.renderOrder };
+    }).pipe(Effect.zipRight(markDirty));
+
+  const advanceTaskFailed = (taskId: TaskId, amount = 1) =>
+    Ref.update(storeRef, (store) => {
+      const snapshot = store.tasks.get(taskId);
+      if (!snapshot) return store;
+
+      if (snapshot.units._tag !== "DeterminateTaskUnits") {
+        return store;
+      }
+
+      const units = normalizeDeterminateCounts({
+        succeeded: snapshot.units.succeeded,
+        failed: snapshot.units.failed + amount,
+        total: snapshot.units.total,
+      });
+
+      const nextTasks = new Map(store.tasks);
+      nextTasks.set(
+        taskId,
+        new TaskSnapshot({
+          id: snapshot.id,
+          parentId: snapshot.parentId,
+          description: snapshot.description,
+          status: snapshot.status,
+          countDisplay: snapshot.countDisplay,
           transient: snapshot.transient,
           units,
           startedAt: snapshot.startedAt,
@@ -256,11 +322,13 @@ const makeProgressService = Effect.gen(function* () {
             parentId: snapshot.parentId,
             description: snapshot.description,
             status: "done",
+            countDisplay: snapshot.countDisplay,
             transient: snapshot.transient,
             units:
               snapshot.units._tag === "DeterminateTaskUnits"
-                ? new DeterminateTaskUnits({
-                    completed: snapshot.units.total,
+                ? normalizeDeterminateCounts({
+                    succeeded: snapshot.units.total - snapshot.units.failed,
+                    failed: snapshot.units.failed,
                     total: snapshot.units.total,
                   })
                 : snapshot.units,
@@ -296,6 +364,7 @@ const makeProgressService = Effect.gen(function* () {
             parentId: snapshot.parentId,
             description: snapshot.description,
             status: "failed",
+            countDisplay: snapshot.countDisplay,
             transient: snapshot.transient,
             units: snapshot.units,
             startedAt: snapshot.startedAt,
@@ -361,6 +430,7 @@ const makeProgressService = Effect.gen(function* () {
     addTask,
     updateTask,
     advanceTask,
+    advanceTaskFailed,
     completeTask,
     failTask,
     log,

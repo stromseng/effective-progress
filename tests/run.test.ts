@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Console, Effect, Option } from "effect";
+import { Console, Effect, Exit, Option } from "effect";
 import { pipe } from "effect/Function";
 import * as Progress from "../src";
 import { createMockStdio } from "./helpers/mock-stdio";
@@ -30,6 +30,17 @@ const withLogSpy = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
 const withStdio = <A, E, R>(effect: Effect.Effect<A, E, R>) => {
   const stdio = createMockStdio();
   return effect.pipe(Effect.provideService(Progress.ProgressStdio, stdio.service));
+};
+
+const getTaskByDescription = (
+  tasks: ReadonlyArray<Progress.TaskSnapshot>,
+  description: string,
+): Progress.TaskSnapshot => {
+  const task = tasks.find((candidate) => candidate.description === description);
+  if (!task) {
+    throw new Error(`Task "${description}" not found`);
+  }
+  return task;
 };
 
 describe("Progress.run", () => {
@@ -202,5 +213,145 @@ describe("Progress.run", () => {
     expect(
       logs.some((args) => typeof args[0] === "string" && args[0].startsWith(capturedPrefix)),
     ).toBeTrue();
+  });
+
+  test("all fail-fast marks task failed without unresolved failure accounting", async () => {
+    const result = await Effect.runPromise(
+      withStdio(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const description = "all-fail-fast-counters";
+            const exit = yield* Effect.exit(
+              Progress.all(
+                [Effect.fail("boom"), Effect.sleep("50 millis"), Effect.sleep("50 millis")],
+                {
+                  description,
+                  mode: "default",
+                },
+              ),
+            );
+            const task = getTaskByDescription(yield* progress.listTasks, description);
+            return { exit, task };
+          }).pipe(Effect.provide(Progress.Progress.Default)),
+        ),
+      ),
+    );
+
+    expect(Exit.isFailure(result.exit)).toBeTrue();
+    expect(result.task.status).toBe("failed");
+    expect(result.task.countDisplay).toBe("processedOnly");
+    expect(result.task.units._tag).toBe("DeterminateTaskUnits");
+    if (result.task.units._tag !== "DeterminateTaskUnits") {
+      throw new Error("expected determinate units");
+    }
+
+    expect(result.task.units.succeeded).toBe(0);
+    expect(result.task.units.failed).toBe(1);
+    expect(result.task.units.processed).toBe(1);
+    expect(result.task.units.total).toBe(3);
+  });
+
+  test("all either mode completes with mixed succeeded/failed counters", async () => {
+    const result = await Effect.runPromise(
+      withStdio(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const description = "all-either-counters";
+            const exit = yield* Effect.exit(
+              Progress.all([Effect.succeed("ok-1"), Effect.fail("bad"), Effect.succeed("ok-2")], {
+                description,
+                mode: "either",
+              }),
+            );
+            const task = getTaskByDescription(yield* progress.listTasks, description);
+            return { exit, task };
+          }).pipe(Effect.provide(Progress.Progress.Default)),
+        ),
+      ),
+    );
+
+    expect(Exit.isSuccess(result.exit)).toBeTrue();
+    expect(result.task.status).toBe("done");
+    expect(result.task.countDisplay).toBe("detailed");
+    expect(result.task.units._tag).toBe("DeterminateTaskUnits");
+    if (result.task.units._tag !== "DeterminateTaskUnits") {
+      throw new Error("expected determinate units");
+    }
+
+    expect(result.task.units.succeeded).toBe(2);
+    expect(result.task.units.failed).toBe(1);
+    expect(result.task.units.processed).toBe(3);
+    expect(result.task.units.total).toBe(3);
+  });
+
+  test("all validate mode completes task after full accounting even when effect fails", async () => {
+    const result = await Effect.runPromise(
+      withStdio(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const description = "all-validate-counters";
+            const exit = yield* Effect.exit(
+              Progress.all([Effect.succeed("ok-1"), Effect.fail("bad"), Effect.succeed("ok-2")], {
+                description,
+                mode: "validate",
+              }),
+            );
+            const task = getTaskByDescription(yield* progress.listTasks, description);
+            return { exit, task };
+          }).pipe(Effect.provide(Progress.Progress.Default)),
+        ),
+      ),
+    );
+
+    expect(Exit.isFailure(result.exit)).toBeTrue();
+    expect(result.task.status).toBe("done");
+    expect(result.task.countDisplay).toBe("detailed");
+    expect(result.task.units._tag).toBe("DeterminateTaskUnits");
+    if (result.task.units._tag !== "DeterminateTaskUnits") {
+      throw new Error("expected determinate units");
+    }
+
+    expect(result.task.units.succeeded).toBe(2);
+    expect(result.task.units.failed).toBe(1);
+    expect(result.task.units.processed).toBe(3);
+    expect(result.task.units.total).toBe(3);
+  });
+
+  test("forEach fail-fast does not account unresolved items", async () => {
+    const result = await Effect.runPromise(
+      withStdio(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const description = "foreach-fail-fast-counters";
+            const exit = yield* Effect.exit(
+              Progress.forEach(
+                [1, 2, 3],
+                (item) => (item === 2 ? Effect.fail("bad-item") : Effect.succeed(item)),
+                { description },
+              ),
+            );
+            const task = getTaskByDescription(yield* progress.listTasks, description);
+            return { exit, task };
+          }).pipe(Effect.provide(Progress.Progress.Default)),
+        ),
+      ),
+    );
+
+    expect(Exit.isFailure(result.exit)).toBeTrue();
+    expect(result.task.status).toBe("failed");
+    expect(result.task.countDisplay).toBe("processedOnly");
+    expect(result.task.units._tag).toBe("DeterminateTaskUnits");
+    if (result.task.units._tag !== "DeterminateTaskUnits") {
+      throw new Error("expected determinate units");
+    }
+
+    expect(result.task.units.succeeded).toBe(1);
+    expect(result.task.units.failed).toBe(1);
+    expect(result.task.units.processed).toBe(2);
+    expect(result.task.units.total).toBe(3);
   });
 });

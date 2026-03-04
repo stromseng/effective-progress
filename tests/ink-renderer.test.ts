@@ -11,11 +11,12 @@ const captureStdioOutput = async <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   options: {
     readonly isTTY: boolean;
+    readonly columns?: number;
   },
 ) => {
   const stdio = createMockStdio({
-    stdout: { isTTY: options.isTTY, columns: 160, rows: 120 },
-    stderr: { isTTY: options.isTTY, columns: 160, rows: 120 },
+    stdout: { isTTY: options.isTTY, columns: options.columns ?? 160, rows: 120 },
+    stderr: { isTTY: options.isTTY, columns: options.columns ?? 160, rows: 120 },
   });
 
   const result = await Effect.runPromise(
@@ -28,6 +29,9 @@ const captureStdioOutput = async <A, E, R>(
 
   return {
     result,
+    rawStdout: stdio.stdout.getOutput(),
+    rawStderr: stdio.stderr.getOutput(),
+    rawOutput: `${stdio.stdout.getOutput()}${stdio.stderr.getOutput()}`,
     stdout: stripAnsi(stdio.stdout.getOutput()),
     stderr: stripAnsi(stdio.stderr.getOutput()),
     output: stripAnsi(`${stdio.stdout.getOutput()}${stdio.stderr.getOutput()}`),
@@ -63,7 +67,7 @@ describe("Ink renderer integration", () => {
 
     expect(output.includes("parent")).toBeTrue();
     expect(output.includes("child")).toBeTrue();
-    expect(output.includes("└─ child") || output.includes("├─ child")).toBeTrue();
+    expect(output.includes("└─ ") || output.includes("├─ ")).toBeTrue();
   });
 
   test("emits logs through custom Effect Console while Ink is active", async () => {
@@ -111,5 +115,162 @@ describe("Ink renderer integration", () => {
     );
 
     expect(output.includes("non-tty-task")).toBeTrue();
+  });
+
+  test("renders mixed outcome amount text and segmented bar", async () => {
+    const { output } = await captureStdioOutput(
+      Progress.task(
+        Effect.gen(function* () {
+          const progress = yield* Progress.Progress;
+          const taskId = yield* progress.addTask({
+            description: "mixed-counts",
+            total: 10,
+            transient: false,
+          });
+
+          yield* progress.advanceTask(taskId, 6);
+          yield* progress.advanceTaskFailed(taskId, 2);
+          yield* progress.failTask(taskId);
+        }),
+        { description: "mixed-root", transient: false },
+      ),
+      { isTTY: true },
+    );
+
+    const taskLine = output.split("\n").find((line) => line.includes("mixed-counts")) ?? "";
+
+    expect(output.includes("8/10")).toBeTrue();
+    expect(taskLine.includes("━")).toBeTrue();
+    expect(taskLine.includes("─")).toBeTrue();
+  });
+
+  test("aligns slash position between fail-fast and fully-accounted rows", async () => {
+    const { output } = await captureStdioOutput(
+      Progress.task(
+        Effect.gen(function* () {
+          const progress = yield* Progress.Progress;
+
+          const failFastLikeId = yield* progress.addTask({
+            description: "fail-fast-like",
+            total: 4,
+            transient: false,
+            countDisplay: "processedOnly",
+          });
+          yield* progress.advanceTask(failFastLikeId, 3);
+          yield* progress.failTask(failFastLikeId);
+
+          const fullyAccountedId = yield* progress.addTask({
+            description: "fully-accounted",
+            total: 4,
+            transient: false,
+            countDisplay: "detailed",
+          });
+          yield* progress.advanceTask(fullyAccountedId, 3);
+          yield* progress.advanceTaskFailed(fullyAccountedId, 1);
+          yield* progress.failTask(fullyAccountedId);
+        }),
+        { description: "alignment-root", transient: false },
+      ),
+      { isTTY: true },
+    );
+
+    const failFastLine = output.split("\n").find((line) => line.includes("fail-fast-like")) ?? "";
+    const fullyAccountedLine =
+      output.split("\n").find((line) => line.includes("fully-accounted")) ?? "";
+
+    expect(failFastLine.includes("3/4")).toBeTrue();
+    expect(fullyAccountedLine.includes("4/4")).toBeTrue();
+    expect(failFastLine.indexOf("/")).toBe(fullyAccountedLine.indexOf("/"));
+  });
+
+  test("renders completion indicators next to description text", async () => {
+    const { output } = await captureStdioOutput(
+      Progress.task(
+        Effect.gen(function* () {
+          const progress = yield* Progress.Progress;
+
+          const fullSuccessId = yield* progress.addTask({
+            description: "full-success",
+            total: 4,
+            transient: false,
+          });
+          yield* progress.advanceTask(fullSuccessId, 4);
+          yield* progress.completeTask(fullSuccessId);
+
+          const partialSuccessId = yield* progress.addTask({
+            description: "partial-success",
+            total: 4,
+            transient: false,
+          });
+          yield* progress.advanceTask(partialSuccessId, 3);
+          yield* progress.advanceTaskFailed(partialSuccessId, 1);
+          yield* progress.completeTask(partialSuccessId);
+
+          const failedId = yield* progress.addTask({
+            description: "failed-task",
+            total: 4,
+            transient: false,
+          });
+          yield* progress.advanceTaskFailed(failedId, 1);
+          yield* progress.failTask(failedId);
+        }),
+        { description: "indicator-root", transient: false },
+      ),
+      { isTTY: true },
+    );
+
+    expect(output.includes("✓ full-success")).toBeTrue();
+    expect(output.includes("~ partial-success")).toBeTrue();
+    expect(output.includes("✗ failed-task")).toBeTrue();
+  });
+
+  test("keeps indeterminate elapsed close to description when no determinate tasks exist", async () => {
+    const { output } = await captureStdioOutput(
+      Progress.task(Effect.sleep("10 millis"), {
+        description: "indeterminate-single",
+        total: 0,
+        transient: false,
+      }),
+      { isTTY: true },
+    );
+
+    const line =
+      output.split("\n").find((candidate) => candidate.includes("indeterminate-single")) ?? "";
+    const compactGap = /indeterminate-single {1,10}\d+s/.test(line);
+    expect(compactGap).toBeTrue();
+  });
+
+  test("does not wrap amount text into stacked lines on narrow terminals", async () => {
+    const { output } = await captureStdioOutput(
+      Progress.task(
+        Effect.gen(function* () {
+          const progress = yield* Progress.Progress;
+
+          const failFastId = yield* progress.addTask({
+            description: "default mode (fail-fast)",
+            total: 4,
+            transient: false,
+            countDisplay: "processedOnly",
+          });
+          yield* progress.advanceTask(failFastId, 3);
+          yield* progress.failTask(failFastId);
+
+          const detailedId = yield* progress.addTask({
+            description: "either mode (collect all outcomes)",
+            total: 4,
+            transient: false,
+            countDisplay: "detailed",
+          });
+          yield* progress.advanceTask(detailedId, 3);
+          yield* progress.advanceTaskFailed(detailedId, 1);
+          yield* progress.completeTask(detailedId);
+        }),
+        { description: "Mixed outcomes showcase", transient: false },
+      ),
+      { isTTY: true, columns: 52 },
+    );
+
+    const wrappedSlashLine = /\n\s*\/\s*\n/.test(output);
+    expect(wrappedSlashLine).toBeFalse();
   });
 });

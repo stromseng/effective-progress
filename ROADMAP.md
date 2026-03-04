@@ -6,6 +6,7 @@
 - make it easy to configure order of, and which cells are included
 - figure out why package size on npmx is so large, and why deps arent showing
 - figure out if we can remove the renderloop in `service.tsx`, and just rely on Ink rendering
+- configurable transient/cleanup mode, clear fully on completion, leave completion message, leave full bar
 
 ## Customization
 

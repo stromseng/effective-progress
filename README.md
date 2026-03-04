@@ -83,6 +83,7 @@ Effect.runPromise(program);
 
 - `examples/simpleExample.ts` - low-boilerplate real-world flow
 - `examples/advancedExample.ts` - full API usage and manual task control
+- `examples/mixedOutcomes.ts` - fail-fast vs `either`/`validate` with mixed success/failure counters
 - `examples/showcase.ts` - nested concurrent tasks, spinner workloads, and mixed Effect/Console logging
 - `examples/performance.ts` - stress-style run with high log volume and deeply nested progress updates
 
@@ -98,10 +99,19 @@ Effect.runPromise(program);
 
 - Rendering is powered by [Ink](https://github.com/vadimdemedes/ink).
 - Built-in columns are: description, bar, amount/spinner, elapsed, and ETA.
+- Determinate bars are segmented by outcome: succeeded (green), failed (red), and remaining (neutral).
+- Determinate amount text shows counters without prefixes: `<succeeded> <failed> <processed>/<total>`.
 - Column widths are shared per frame (widest visible cell wins), so rows stay aligned.
 - Elapsed and ETA reserve stable widths to reduce jitter while tasks transition states.
 - Layout uses a 100-column baseline and grows when content requires more space.
 - On narrow terminals, layout compacts to fit available width and tree prefixes are suppressed when description space is too tight.
+
+### Mixed outcomes and `mode`
+
+- `Progress.all` in default mode (`mode: "default"`) remains fail-fast.
+- In fail-fast runs, unresolved units remain unprocessed.
+- `mode: "either"` and `mode: "validate"` run all effects and keep mixed outcomes in the task counters.
+- Mixed outcomes can still finalize as `done` when all units are accounted for.
 
 ## Manual task control
 
@@ -110,11 +120,16 @@ For manual usage, `task` still provides the current `Task` context, while logs c
 ```ts
 const program = Progress.task(
   Effect.gen(function* () {
+    const progress = yield* Progress.Progress;
     const currentTask = yield* Progress.Task;
     yield* Console.log("This log is handled by the outer Console", { taskId: currentTask });
+
+    // Manual determinate updates:
+    yield* progress.advanceTask(currentTask, 3);
+    yield* progress.advanceTaskFailed(currentTask, 1);
     yield* Effect.sleep("1 second");
   }),
-  { description: "Manual task" },
+  { description: "Manual task", total: 10 },
 );
 ```
 

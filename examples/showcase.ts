@@ -18,6 +18,7 @@ const serviceFlow = (service: string, serviceIndex: number) =>
     yield* Progress.forEach([service], () => sleepRandom(1400, 450), {
       description: `${service}: waiting for upstream`,
       total: 0,
+      transient: true,
     });
 
     yield* Progress.all(
@@ -42,6 +43,7 @@ const serviceFlow = (service: string, serviceIndex: number) =>
             {
               description: `${service}: batch ${batch} consistency probe`,
               total: 0,
+              transient: true,
             },
           );
         }),

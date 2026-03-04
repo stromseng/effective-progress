@@ -1,9 +1,15 @@
-import { Effect, Exit, Option } from "effect";
+import { Cause, Effect, Exit, Option } from "effect";
 import { dual } from "effect/Function";
 import type { Concurrency } from "effect/Types";
 import { Progress } from "./runtime";
 import { Task } from "./types";
-import type { AddTaskOptions, TrackOptions } from "./types";
+import type {
+  AddTaskOptions,
+  ProgressService,
+  TaskCountDisplay,
+  TaskId,
+  TrackOptions,
+} from "./types";
 import { inferTotal } from "./utils";
 
 const provideProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
@@ -26,7 +32,7 @@ export interface EffectAllExecutionOptions extends EffectExecutionOptions {
   readonly mode?: "default" | "validate" | "either";
 }
 
-export type AllOptions = Omit<TrackOptions, "total"> & EffectAllExecutionOptions;
+export type AllOptions = Omit<TrackOptions, "total" | "countDisplay"> & EffectAllExecutionOptions;
 export type AllReturn<
   Arg extends
     | ReadonlyArray<Effect.Effect<any, any, any>>
@@ -46,7 +52,7 @@ export interface ForEachExecutionOptions extends EffectExecutionOptions {
   readonly discard?: false | undefined;
 }
 
-export type ForEachOptions = TrackOptions & ForEachExecutionOptions;
+export type ForEachOptions = Omit<TrackOptions, "countDisplay"> & ForEachExecutionOptions;
 
 export type TaskOptions = AddTaskOptions;
 
@@ -82,19 +88,57 @@ const wrapEffects = (
 const countEffects = (effects: AllArg): number =>
   Array.isArray(effects) ? effects.length : Object.keys(effects).length;
 
+const isCollectAllMode = (mode: EffectAllExecutionOptions["mode"]): boolean =>
+  mode === "either" || mode === "validate";
+
+const allCountDisplay = (mode: EffectAllExecutionOptions["mode"]): TaskCountDisplay =>
+  isCollectAllMode(mode) ? "detailed" : "processedOnly";
+
+const wrapTrackedEffect = (
+  progress: ProgressService,
+  taskId: TaskId,
+  effect: Effect.Effect<any, any, any>,
+): Effect.Effect<any, any, any> =>
+  Effect.gen(function* () {
+    const exit = yield* Effect.exit(effect);
+
+    if (Exit.isSuccess(exit)) {
+      yield* progress.advanceTask(taskId, 1);
+      return exit.value;
+    }
+
+    if (Cause.isInterruptedOnly(exit.cause)) {
+      return yield* Effect.failCause(exit.cause);
+    }
+
+    yield* progress.advanceTaskFailed(taskId, 1);
+    return yield* Effect.failCause(exit.cause);
+  });
+
+const isTaskFullyProcessed = (progress: ProgressService, taskId: TaskId) =>
+  Effect.gen(function* () {
+    const taskOption = yield* progress.getTask(taskId);
+    if (Option.isNone(taskOption) || taskOption.value.units._tag !== "DeterminateTaskUnits") {
+      return false;
+    }
+
+    const { processed, total } = taskOption.value.units;
+    return processed >= total;
+  });
+
 export const all: {
   <const Arg extends AllArg, O extends EffectAllExecutionOptions>(
     effects: Arg,
-    options: Omit<TrackOptions, "total"> & O,
+    options: Omit<TrackOptions, "total" | "countDisplay"> & O,
   ): AllReturn<Arg, O>;
   <O extends EffectAllExecutionOptions>(
-    options: Omit<TrackOptions, "total"> & O,
+    options: Omit<TrackOptions, "total" | "countDisplay"> & O,
   ): <const Arg extends AllArg>(effects: Arg) => AllReturn<Arg, O>;
 } = dual(
   2,
   <const Arg extends AllArg, O extends EffectAllExecutionOptions>(
     effects: Arg,
-    options: Omit<TrackOptions, "total"> & O,
+    options: Omit<TrackOptions, "total" | "countDisplay"> & O,
   ) =>
     provideProgress(
       Effect.gen(function* () {
@@ -104,9 +148,7 @@ export const all: {
             const taskId = yield* Task;
             const exit = yield* Effect.exit(
               Effect.all(
-                wrapEffects(effects, (effect) =>
-                  Effect.tap(effect, () => progress.advanceTask(taskId, 1)),
-                ),
+                wrapEffects(effects, (effect) => wrapTrackedEffect(progress, taskId, effect)),
                 {
                   concurrency: options.concurrency,
                   batching: options.batching,
@@ -120,7 +162,13 @@ export const all: {
             if (Exit.isSuccess(exit)) {
               yield* progress.completeTask(taskId);
             } else {
-              yield* progress.failTask(taskId);
+              if (!isCollectAllMode(options.mode)) {
+                yield* progress.failTask(taskId);
+              } else if (yield* isTaskFullyProcessed(progress, taskId)) {
+                yield* progress.completeTask(taskId);
+              } else {
+                yield* progress.failTask(taskId);
+              }
             }
 
             return yield* Exit.match(exit, {
@@ -132,6 +180,7 @@ export const all: {
             description: options.description,
             total: countEffects(effects),
             transient: options.transient,
+            countDisplay: allCountDisplay(options.mode),
           },
         );
       }),
@@ -165,7 +214,7 @@ export const forEach: {
             const exit = yield* Effect.exit(
               Effect.forEach(
                 iterable,
-                (item, index) => Effect.tap(f(item, index), () => progress.advanceTask(taskId, 1)),
+                (item, index) => wrapTrackedEffect(progress, taskId, f(item, index)),
                 {
                   concurrency: options.concurrency,
                   batching: options.batching,
@@ -190,6 +239,7 @@ export const forEach: {
             description: options.description,
             total: options.total ?? inferTotal(iterable),
             transient: options.transient,
+            countDisplay: "processedOnly",
           },
         );
       }),

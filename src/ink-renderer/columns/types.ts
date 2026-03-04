@@ -8,4 +8,8 @@ export interface ColumnProps {
   readonly tick: number;
   readonly isTTY: boolean;
   readonly showTree: boolean;
+  readonly amountSucceededWidth: number;
+  readonly amountFailedWidth: number;
+  readonly amountProcessedWidth: number;
+  readonly amountTotalWidth: number;
 }
