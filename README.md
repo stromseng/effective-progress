@@ -79,6 +79,12 @@ Effect.runPromise(program);
 
 <img alt="Nested example output" src="docs/images/nesting.gif" width="600" />
 
+### Effect.all modes
+
+We support the `either`/`validate` modes of `Effect.all` and render the amount of sucesses/failures.
+
+<img alt="Mixed outcomes modes output" src="docs/images/mixedOutcomes.gif" width="600" />
+
 ### Other examples
 
 - `examples/simpleExample.ts` - low-boilerplate real-world flow

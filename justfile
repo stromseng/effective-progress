@@ -16,5 +16,6 @@ record-gifs:
     set -euo pipefail
     mkdir -p docs/images
     vhs docs/tapes/basic.tape
+    vhs docs/tapes/mixedOutcomes.tape
     vhs docs/tapes/nesting.tape
     vhs docs/tapes/showcase.tape
