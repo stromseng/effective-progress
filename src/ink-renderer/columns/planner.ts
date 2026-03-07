@@ -11,6 +11,7 @@ export interface ColumnVariant<Row> {
   readonly id: string;
   readonly minWidth: number;
   readonly idealWidth: number;
+  readonly maxWidth?: number;
   readonly shrinkResistance: number;
   readonly demoteResistance: number;
   readonly hideResistance: number;
@@ -66,6 +67,13 @@ const totalWidth = <Row>(columns: ReadonlyArray<MutableColumn<Row>>): number =>
 const currentVariant = <Row>(column: MutableColumn<Row>): ColumnVariant<Row> =>
   column.variants[column.variantIndex]!;
 
+const variantMaxWidth = <Row>(column: MutableColumn<Row>): number => {
+  const variant = currentVariant(column);
+  return variant.maxWidth === undefined
+    ? Number.POSITIVE_INFINITY
+    : Math.max(variant.minWidth, variant.maxWidth);
+};
+
 const reduceOverflowByShrink = <Row>(
   columns: ReadonlyArray<MutableColumn<Row>>,
   overflow: number,
@@ -92,33 +100,36 @@ const reduceOverflowByShrink = <Row>(
   return remaining;
 };
 
-const demoteOneVariant = <Row>(columns: ReadonlyArray<MutableColumn<Row>>): boolean => {
-  const candidates = activeColumns(columns)
+const nextDemoteCandidate = <Row>(
+  columns: ReadonlyArray<MutableColumn<Row>>,
+): MutableColumn<Row> | undefined =>
+  activeColumns(columns)
     .filter((column) => column.variantIndex + 1 < column.variants.length)
-    .sort((a, b) => currentVariant(a).demoteResistance - currentVariant(b).demoteResistance);
-  const selected = candidates[0];
-  if (selected === undefined) {
-    return false;
-  }
+    .sort((a, b) => currentVariant(a).demoteResistance - currentVariant(b).demoteResistance)[0];
 
-  const nextVariant = selected.variants[selected.variantIndex + 1]!;
-  selected.variantIndex += 1;
-  selected.width = Math.max(nextVariant.minWidth, Math.min(selected.width, nextVariant.idealWidth));
-  return true;
+const applyDemote = <Row>(column: MutableColumn<Row>) => {
+  const nextVariant = column.variants[column.variantIndex + 1]!;
+  column.variantIndex += 1;
+  const nextMaxWidth =
+    nextVariant.maxWidth === undefined
+      ? Number.POSITIVE_INFINITY
+      : Math.max(nextVariant.minWidth, nextVariant.maxWidth);
+  column.width = Math.max(
+    nextVariant.minWidth,
+    Math.min(column.width, nextVariant.idealWidth, nextMaxWidth),
+  );
 };
 
-const hideOneColumn = <Row>(columns: ReadonlyArray<MutableColumn<Row>>): boolean => {
-  const candidates = activeColumns(columns)
+const nextHideCandidate = <Row>(
+  columns: ReadonlyArray<MutableColumn<Row>>,
+): MutableColumn<Row> | undefined =>
+  activeColumns(columns)
     .filter((column) => column.spec.canHide)
-    .sort((a, b) => currentVariant(a).hideResistance - currentVariant(b).hideResistance);
-  const selected = candidates[0];
-  if (selected === undefined) {
-    return false;
-  }
+    .sort((a, b) => currentVariant(a).hideResistance - currentVariant(b).hideResistance)[0];
 
-  selected.hidden = true;
-  selected.width = 0;
-  return true;
+const applyHide = <Row>(column: MutableColumn<Row>) => {
+  column.hidden = true;
+  column.width = 0;
 };
 
 const distributeGrowth = <Row>(columns: ReadonlyArray<MutableColumn<Row>>, extra: number) => {
@@ -126,42 +137,58 @@ const distributeGrowth = <Row>(columns: ReadonlyArray<MutableColumn<Row>>, extra
     return;
   }
 
-  const active = activeColumns(columns);
-  if (active.length === 0) {
-    return;
-  }
-
-  const growSum = active.reduce((sum, column) => sum + Math.max(0, column.spec.grow), 0);
-  if (growSum <= 0) {
-    active[0]!.width += extra;
-    return;
-  }
-
-  let distributed = 0;
-  for (const column of active) {
-    const weight = Math.max(0, column.spec.grow);
-    if (weight <= 0) {
-      continue;
-    }
-    const share = Math.floor((extra * weight) / growSum);
-    column.width += share;
-    distributed += share;
-  }
-
-  let remainder = extra - distributed;
-  for (const column of active) {
-    if (remainder <= 0) {
+  let remaining = extra;
+  while (remaining > 0) {
+    const candidates = activeColumns(columns).filter(
+      (column) => column.spec.grow > 0 && column.width < variantMaxWidth(column),
+    );
+    if (candidates.length === 0) {
       break;
     }
-    if (column.spec.grow <= 0) {
+
+    const growSum = candidates.reduce((sum, column) => sum + Math.max(0, column.spec.grow), 0);
+    if (growSum <= 0) {
+      break;
+    }
+
+    let distributed = 0;
+    for (const column of candidates) {
+      const weight = Math.max(0, column.spec.grow);
+      if (weight <= 0) {
+        continue;
+      }
+      const headroom = Math.max(0, variantMaxWidth(column) - column.width);
+      if (headroom <= 0) {
+        continue;
+      }
+      const share = Math.min(headroom, Math.floor((remaining * weight) / growSum));
+      if (share <= 0) {
+        continue;
+      }
+      column.width += share;
+      distributed += share;
+    }
+
+    if (distributed === 0) {
+      for (const column of candidates) {
+        if (remaining <= 0) {
+          break;
+        }
+        const headroom = Math.max(0, variantMaxWidth(column) - column.width);
+        if (headroom <= 0) {
+          continue;
+        }
+        column.width += 1;
+        distributed += 1;
+        remaining -= 1;
+      }
+      if (distributed === 0) {
+        break;
+      }
       continue;
     }
-    column.width += 1;
-    remainder -= 1;
-  }
 
-  if (remainder > 0) {
-    active[0]!.width += remainder;
+    remaining -= distributed;
   }
 };
 
@@ -180,7 +207,15 @@ export const planColumns = <Row>({
         spec: column,
         variants: column.variants,
         variantIndex: 0,
-        width: Math.max(first.minWidth, first.idealWidth),
+        width: Math.max(
+          first.minWidth,
+          Math.min(
+            first.idealWidth,
+            first.maxWidth === undefined
+              ? Number.POSITIVE_INFINITY
+              : Math.max(first.minWidth, first.maxWidth),
+          ),
+        ),
         hidden: false,
       },
     ];
@@ -215,18 +250,30 @@ export const planColumns = <Row>({
         break;
       }
 
-      if (demoteOneVariant(mutable)) {
-        overflow = Math.max(0, totalWidth(mutable) - target);
-        progressed = true;
-        continue;
-      }
-      if (hideOneColumn(mutable)) {
-        overflow = Math.max(0, totalWidth(mutable) - target);
-        progressed = true;
+      const demoteCandidate = nextDemoteCandidate(mutable);
+      const hideCandidate = nextHideCandidate(mutable);
+      if (demoteCandidate === undefined && hideCandidate === undefined) {
+        progressed = before !== overflow;
         continue;
       }
 
-      progressed = before !== overflow;
+      const demoteScore =
+        demoteCandidate === undefined
+          ? Number.POSITIVE_INFINITY
+          : currentVariant(demoteCandidate).demoteResistance;
+      const hideScore =
+        hideCandidate === undefined
+          ? Number.POSITIVE_INFINITY
+          : currentVariant(hideCandidate).hideResistance;
+
+      if (demoteScore <= hideScore && demoteCandidate !== undefined) {
+        applyDemote(demoteCandidate);
+      } else if (hideCandidate !== undefined) {
+        applyHide(hideCandidate);
+      }
+
+      overflow = Math.max(0, totalWidth(mutable) - target);
+      progressed = true;
     }
 
     const compactedWidth = totalWidth(mutable);

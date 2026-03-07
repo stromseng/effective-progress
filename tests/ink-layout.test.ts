@@ -46,7 +46,7 @@ const variantOf = (layout: ReturnType<typeof computeFrameLayout>, id: string): s
   layout.columns.find((column) => column.id === id)?.variantId ?? "hidden";
 
 describe("frame layout planning", () => {
-  test("uses shared max width for amount/elapsed/eta while keeping baseline width", () => {
+  test("caps growth at shared max widths for utility columns", () => {
     const rows = [
       row(
         makeTask(1, {
@@ -74,12 +74,13 @@ describe("frame layout planning", () => {
 
     const layout = computeFrameLayout(rows, 10_000, 0, undefined, true);
 
-    expect(layout.rowWidth).toBeGreaterThanOrEqual(100);
+    expect(layout.rowWidth).toBeLessThan(100);
     expect(widthOf(layout, "description")).toBeGreaterThan(0);
+    expect(widthOf(layout, "description")).toBe(20);
     expect(widthOf(layout, "amount")).toBeGreaterThanOrEqual("999 0 999/1000".length);
     expect(widthOf(layout, "elapsed")).toBeGreaterThanOrEqual("59m 59s".length);
     expect(widthOf(layout, "eta")).toBeGreaterThanOrEqual("ETA: 1s".length);
-    expect(widthOf(layout, "bar")).toBeGreaterThan(0);
+    expect(widthOf(layout, "bar")).toBe(30);
   });
 
   test("hides eta/bar/amount when no determinate tasks need utility columns", () => {
@@ -169,11 +170,38 @@ describe("frame layout planning", () => {
     ];
 
     const wide = computeFrameLayout(rows, 5_000, 0, 80, true);
-    const narrow = computeFrameLayout(rows, 5_000, 0, 32, true);
+    const narrow = computeFrameLayout(rows, 5_000, 0, 22, true);
 
     expect(variantOf(wide, "amount")).toBe("detailed");
     expect(variantOf(narrow, "amount")).toBe("processed");
     expect(widthOf(narrow, "amount")).toBeLessThan(widthOf(wide, "amount"));
+  });
+
+  test("demotes ETA from prefixed to duration to primary before hiding", () => {
+    const rows = [
+      row(
+        makeTask(12, {
+          description: "eta-variant",
+          units: new Progress.DeterminateTaskUnits({
+            succeeded: 1,
+            failed: 0,
+            processed: 1,
+            total: 1000,
+          }),
+        }),
+      ),
+    ];
+
+    const prefixed = computeFrameLayout(rows, 10_000, 0, 55, true);
+    const duration = computeFrameLayout(rows, 10_000, 0, 50, true);
+    const primary = computeFrameLayout(rows, 10_000, 0, 47, true);
+    const hidden = computeFrameLayout(rows, 10_000, 0, 43, true);
+
+    expect(variantOf(prefixed, "eta")).toBe("prefixed");
+    expect(variantOf(duration, "eta")).toBe("duration");
+    expect(variantOf(primary, "eta")).toBe("primary");
+    expect(widthOf(primary, "eta")).toBeGreaterThan(0);
+    expect(widthOf(hidden, "eta")).toBe(0);
   });
 
   test("reclaims utility reserves under medium pressure", () => {

@@ -5,13 +5,14 @@
     "": {
       "name": "effective-progress",
       "dependencies": {
-        "@types/react": "^19.2.14",
         "ink": "^6.8.0",
         "react": "^19.2.4",
+        "string-width": "^8.2.0",
       },
       "devDependencies": {
         "@effect/language-service": "^0.73.1",
         "@types/bun": "latest",
+        "@types/react": "^19.2.14",
         "effect": "^3.19.17",
         "oxfmt": "^0.32.0",
         "oxlint": "^1.47.0",
