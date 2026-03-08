@@ -41,7 +41,7 @@ const serviceFlow = (service: string, serviceIndex: number) =>
                 }
               }),
             {
-              description: `${service}: batch ${batch} consistency probe`,
+              description: `${service} probe`,
               total: 0,
               transient: true,
             },
