@@ -1,10 +1,10 @@
-import type { DeterminateTaskUnits, TaskSnapshot } from "../../types";
+import type { TaskSnapshot } from "../../types";
 import type { TaskRowModel } from "../snapshot/types";
 
 export const isDeterminate = (
   task: TaskSnapshot,
-): task is TaskSnapshot & { readonly units: DeterminateTaskUnits } =>
-  task.units._tag === "DeterminateTaskUnits";
+): task is TaskSnapshot & { readonly units: TaskSnapshot["units"] & { readonly total: number } } =>
+  task.units.total !== undefined;
 
 export const hasDeterminateRows = (rows: ReadonlyArray<TaskRowModel>): boolean =>
   rows.some((row) => isDeterminate(row.task));

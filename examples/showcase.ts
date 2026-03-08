@@ -17,7 +17,6 @@ const serviceFlow = (service: string, serviceIndex: number) =>
     // Spinner: unknown duration external dependency.
     yield* Progress.forEach([service], () => sleepRandom(1400, 450), {
       description: `${service}: waiting for upstream`,
-      total: 0,
       transient: true,
     });
 
@@ -42,7 +41,6 @@ const serviceFlow = (service: string, serviceIndex: number) =>
               }),
             {
               description: `${service} probe`,
-              total: 0,
               transient: true,
             },
           );

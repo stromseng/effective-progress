@@ -228,7 +228,6 @@ describe("Ink renderer integration", () => {
     const { output } = await captureStdioOutput(
       Progress.task(Effect.sleep("10 millis"), {
         description: "indeterminate-single",
-        total: 0,
         transient: false,
       }),
       { isTTY: true },
@@ -238,6 +237,42 @@ describe("Ink renderer integration", () => {
       output.split("\n").find((candidate) => candidate.includes("indeterminate-single")) ?? "";
     const compactGap = /indeterminate-single {1,10}\d+s/.test(line);
     expect(compactGap).toBeTrue();
+  });
+
+  test("renders counted indeterminate amounts with unknown total", async () => {
+    const { output } = await captureStdioOutput(
+      Progress.task(
+        Effect.gen(function* () {
+          const progress = yield* Progress.Progress;
+
+          const failFastId = yield* progress.addTask({
+            description: "stream-fail-fast",
+            transient: false,
+            countDisplay: "processedOnly",
+          });
+          yield* progress.incrementFailed(failFastId, 3);
+          yield* progress.failTask(failFastId);
+
+          const detailedId = yield* progress.addTask({
+            description: "stream-collect-all",
+            transient: false,
+            countDisplay: "detailed",
+          });
+          yield* progress.incrementSucceeded(detailedId, 3);
+          yield* progress.incrementFailed(detailedId, 1);
+          yield* progress.completeTask(detailedId);
+        }),
+        { description: "unknown-total-root", transient: false },
+      ),
+      { isTTY: true },
+    );
+
+    const failFastLine = output.split("\n").find((line) => line.includes("stream-fail-fast")) ?? "";
+    const detailedLine =
+      output.split("\n").find((line) => line.includes("stream-collect-all")) ?? "";
+
+    expect(failFastLine.includes("3/?")).toBeTrue();
+    expect(detailedLine.includes("3 1 4/4")).toBeTrue();
   });
 
   test("does not wrap amount text into stacked lines on narrow terminals", async () => {

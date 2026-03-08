@@ -11,8 +11,11 @@ const padLeft = (value: string, width: number): string => value.padStart(Math.ma
 const padRight = (value: string, width: number): string => value.padEnd(Math.max(0, width), " ");
 const blank = (width: number): string => " ".repeat(Math.max(0, width));
 
+const shouldShowCountAmount = (task: TaskSnapshot): boolean =>
+  task.units.total !== undefined || task.units.processed > 0;
+
 const shouldShowDetailedCounts = (task: TaskSnapshot): boolean =>
-  task.units._tag === "DeterminateTaskUnits" && task.countDisplay === "detailed";
+  shouldShowCountAmount(task) && task.countDisplay === "detailed";
 
 interface AmountCountProps {
   readonly task: TaskSnapshot;
@@ -21,21 +24,21 @@ interface AmountCountProps {
 
 const SucceededCountColumn = ({ task, width }: AmountCountProps) => {
   if (width <= 0) return null;
-  if (task.units._tag !== "DeterminateTaskUnits") return <Text>{blank(width)}</Text>;
+  if (!shouldShowCountAmount(task)) return <Text>{blank(width)}</Text>;
   if (!shouldShowDetailedCounts(task)) return <Text>{blank(width)}</Text>;
   return <Text color="green">{padLeft(`${task.units.succeeded}`, width)}</Text>;
 };
 
 const FailedCountColumn = ({ task, width }: AmountCountProps) => {
   if (width <= 0) return null;
-  if (task.units._tag !== "DeterminateTaskUnits") return <Text>{blank(width)}</Text>;
+  if (!shouldShowCountAmount(task)) return <Text>{blank(width)}</Text>;
   if (!shouldShowDetailedCounts(task)) return <Text>{blank(width)}</Text>;
   return <Text color="red">{padLeft(`${task.units.failed}`, width)}</Text>;
 };
 
 const ProcessedCountColumn = ({ task, width }: AmountCountProps) => {
   if (width <= 0) return null;
-  if (task.units._tag !== "DeterminateTaskUnits") return <Text>{blank(width)}</Text>;
+  if (!shouldShowCountAmount(task)) return <Text>{blank(width)}</Text>;
   return <Text>{padLeft(`${task.units.processed}`, width)}</Text>;
 };
 
@@ -45,7 +48,7 @@ interface AmountSeparatorProps {
 }
 
 const AmountSeparatorColumn = ({ task, tick }: AmountSeparatorProps) => {
-  if (task.units._tag === "DeterminateTaskUnits") {
+  if (shouldShowCountAmount(task)) {
     return <Text>/</Text>;
   }
 
@@ -61,8 +64,9 @@ const AmountSeparatorColumn = ({ task, tick }: AmountSeparatorProps) => {
 
 const TotalCountColumn = ({ task, width }: AmountCountProps) => {
   if (width <= 0) return null;
-  if (task.units._tag !== "DeterminateTaskUnits") return <Text>{blank(width)}</Text>;
-  return <Text>{padRight(`${task.units.total}`, width)}</Text>;
+  if (!shouldShowCountAmount(task)) return <Text>{blank(width)}</Text>;
+  const totalText = isDeterminate(task) ? `${task.units.total}` : "?";
+  return <Text>{padRight(totalText, width)}</Text>;
 };
 
 interface DetailedAmountLayout {
@@ -143,23 +147,34 @@ const AmountColumn = ({ task, tick, layout }: AmountColumnProps) => {
 };
 
 interface AmountMetrics {
-  readonly hasDeterminate: boolean;
+  readonly hasStructuredCounts: boolean;
   readonly hasDetailed: boolean;
-  readonly totalDigits: number;
+  readonly countDigits: number;
+  readonly totalWidth: number;
   readonly simpleTextWidth: number;
 }
 
 const computeAmountMetrics = (rows: ReadonlyArray<TaskRowModel>, tick: number): AmountMetrics => {
-  let hasDeterminate = false;
+  let hasStructuredCounts = false;
   let hasDetailed = false;
-  let totalDigits = 0;
+  let countDigits = 0;
+  let totalWidth = 0;
   let simpleTextWidth = 0;
 
   for (const row of rows) {
     const { task } = row;
-    if (isDeterminate(task)) {
-      hasDeterminate = true;
-      totalDigits = Math.max(totalDigits, textWidth(`${task.units.total}`));
+    if (shouldShowCountAmount(task)) {
+      hasStructuredCounts = true;
+      countDigits = Math.max(
+        countDigits,
+        textWidth(`${task.units.succeeded}`),
+        textWidth(`${task.units.failed}`),
+        textWidth(`${task.units.processed}`),
+      );
+      totalWidth = Math.max(
+        totalWidth,
+        textWidth(isDeterminate(task) ? `${task.units.total}` : "?"),
+      );
       if (task.countDisplay === "detailed") {
         hasDetailed = true;
       }
@@ -170,41 +185,42 @@ const computeAmountMetrics = (rows: ReadonlyArray<TaskRowModel>, tick: number): 
   }
 
   return {
-    hasDeterminate,
+    hasStructuredCounts,
     hasDetailed,
-    totalDigits: Math.max(1, totalDigits),
+    countDigits: Math.max(1, countDigits),
+    totalWidth: Math.max(1, totalWidth),
     simpleTextWidth,
   };
 };
 
 const detailedAmountLayout = (metrics: AmountMetrics): AmountLayout => ({
   kind: "detailed",
-  succeededWidth: metrics.hasDetailed ? metrics.totalDigits : 0,
-  failedWidth: metrics.hasDetailed ? metrics.totalDigits : 0,
-  processedWidth: metrics.totalDigits,
-  totalWidth: metrics.totalDigits,
+  succeededWidth: metrics.hasDetailed ? metrics.countDigits : 0,
+  failedWidth: metrics.hasDetailed ? metrics.countDigits : 0,
+  processedWidth: metrics.countDigits,
+  totalWidth: metrics.totalWidth,
 });
 
 const processedAmountLayout = (metrics: AmountMetrics): AmountLayout => ({
   kind: "processed",
-  processedWidth: metrics.totalDigits,
-  totalWidth: metrics.totalDigits,
+  processedWidth: metrics.countDigits,
+  totalWidth: metrics.totalWidth,
 });
 
 const detailedAmountWidth = (metrics: AmountMetrics): number =>
-  metrics.totalDigits +
+  metrics.countDigits +
   1 +
-  metrics.totalDigits +
-  (metrics.hasDetailed ? metrics.totalDigits + 1 + metrics.totalDigits + 1 : 0);
+  metrics.totalWidth +
+  (metrics.hasDetailed ? metrics.countDigits + 1 + metrics.countDigits + 1 : 0);
 
 const processedAmountWidth = (metrics: AmountMetrics): number =>
-  metrics.totalDigits + 1 + metrics.totalDigits;
+  metrics.countDigits + 1 + metrics.totalWidth;
 
 export const createAmountColumnSpec = (
   context: ColumnPlanningContext<TaskRowModel>,
 ): ColumnSpec<TaskRowModel> | undefined => {
   const metrics = computeAmountMetrics(context.rows, context.tick);
-  if (!metrics.hasDeterminate && metrics.simpleTextWidth <= 0) {
+  if (!metrics.hasStructuredCounts && metrics.simpleTextWidth <= 0) {
     return undefined;
   }
 
@@ -214,7 +230,7 @@ export const createAmountColumnSpec = (
   const processedWidth = processedAmountWidth(metrics);
 
   const variants =
-    metrics.hasDeterminate && metrics.hasDetailed
+    metrics.hasStructuredCounts && metrics.hasDetailed
       ? [
           {
             id: "detailed",
@@ -233,7 +249,7 @@ export const createAmountColumnSpec = (
             ),
           },
         ]
-      : metrics.hasDeterminate
+      : metrics.hasStructuredCounts
         ? [
             {
               id: "processed",

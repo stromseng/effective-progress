@@ -241,11 +241,7 @@ describe("Progress.run", () => {
     expect(Exit.isFailure(result.exit)).toBeTrue();
     expect(result.task.status).toBe("failed");
     expect(result.task.countDisplay).toBe("processedOnly");
-    expect(result.task.units._tag).toBe("DeterminateTaskUnits");
-    if (result.task.units._tag !== "DeterminateTaskUnits") {
-      throw new Error("expected determinate units");
-    }
-
+    expect(result.task.units.total).toBe(3);
     expect(result.task.units.succeeded).toBe(0);
     expect(result.task.units.failed).toBe(1);
     expect(result.task.units.processed).toBe(1);
@@ -275,11 +271,7 @@ describe("Progress.run", () => {
     expect(Exit.isSuccess(result.exit)).toBeTrue();
     expect(result.task.status).toBe("done");
     expect(result.task.countDisplay).toBe("detailed");
-    expect(result.task.units._tag).toBe("DeterminateTaskUnits");
-    if (result.task.units._tag !== "DeterminateTaskUnits") {
-      throw new Error("expected determinate units");
-    }
-
+    expect(result.task.units.total).toBe(3);
     expect(result.task.units.succeeded).toBe(2);
     expect(result.task.units.failed).toBe(1);
     expect(result.task.units.processed).toBe(3);
@@ -309,11 +301,7 @@ describe("Progress.run", () => {
     expect(Exit.isFailure(result.exit)).toBeTrue();
     expect(result.task.status).toBe("done");
     expect(result.task.countDisplay).toBe("detailed");
-    expect(result.task.units._tag).toBe("DeterminateTaskUnits");
-    if (result.task.units._tag !== "DeterminateTaskUnits") {
-      throw new Error("expected determinate units");
-    }
-
+    expect(result.task.units.total).toBe(3);
     expect(result.task.units.succeeded).toBe(2);
     expect(result.task.units.failed).toBe(1);
     expect(result.task.units.processed).toBe(3);
@@ -344,11 +332,7 @@ describe("Progress.run", () => {
     expect(Exit.isFailure(result.exit)).toBeTrue();
     expect(result.task.status).toBe("failed");
     expect(result.task.countDisplay).toBe("processedOnly");
-    expect(result.task.units._tag).toBe("DeterminateTaskUnits");
-    if (result.task.units._tag !== "DeterminateTaskUnits") {
-      throw new Error("expected determinate units");
-    }
-
+    expect(result.task.units.total).toBe(3);
     expect(result.task.units.succeeded).toBe(1);
     expect(result.task.units.failed).toBe(1);
     expect(result.task.units.processed).toBe(2);

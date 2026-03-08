@@ -1,17 +1,12 @@
 import { Clock, Effect, Option } from "effect";
-import type { AddTaskOptions, TaskId, TaskStore, UpdateTaskOptions } from "../types";
-import {
-  DeterminateTaskUnits,
-  IndeterminateTaskUnits,
-  TaskId as makeTaskId,
-  TaskSnapshot,
-} from "../types";
+import type { AddTaskOptions, TaskId, TaskStore, TaskUnits, UpdateTaskOptions } from "../types";
+import { TaskId as makeTaskId, TaskSnapshot } from "../types";
 import { toRenderSnapshot, type RenderSnapshot } from "./snapshot/render-snapshot";
 
-interface DeterminateCounts {
+interface TaskCounts {
   readonly succeeded: number;
   readonly failed: number;
-  readonly total: number;
+  readonly total?: number;
 }
 
 export interface ProgressRenderStore {
@@ -28,59 +23,56 @@ export interface ProgressRenderStore {
   readonly listTasks: Effect.Effect<ReadonlyArray<TaskSnapshot>>;
 }
 
-const normalizeDeterminateCounts = (counts: DeterminateCounts): DeterminateTaskUnits => {
-  const total = Math.max(0, counts.total);
-  const failed = Math.min(total, Math.max(0, counts.failed));
-  const succeeded = Math.min(total - failed, Math.max(0, counts.succeeded));
-  const processed = succeeded + failed;
+const hasExplicitTotal = (options: Pick<AddTaskOptions | UpdateTaskOptions, "total">): boolean =>
+  Object.prototype.hasOwnProperty.call(options, "total");
 
-  return new DeterminateTaskUnits({
-    succeeded,
-    failed,
-    processed,
-    total,
-  });
+const normalizeTotal = (total: number): number => {
+  if (total <= 0) {
+    throw new Error("Task total must be greater than 0 when provided.");
+  }
+
+  return total;
 };
 
-const updateDeterminateCounts = (
-  units: DeterminateTaskUnits,
-  options: Pick<UpdateTaskOptions, "succeeded" | "failed" | "total">,
-): DeterminateTaskUnits =>
-  normalizeDeterminateCounts({
-    succeeded: options.succeeded ?? units.succeeded,
-    failed: options.failed ?? units.failed,
-    total: options.total ?? units.total,
-  });
+const normalizeUnits = (counts: TaskCounts): TaskUnits => {
+  const total = counts.total;
+
+  if (total === undefined) {
+    const succeeded = Math.max(0, counts.succeeded);
+    const failed = Math.max(0, counts.failed);
+
+    return {
+      succeeded,
+      failed,
+      processed: succeeded + failed,
+    };
+  }
+
+  const normalizedTotal = normalizeTotal(total);
+  const failed = Math.min(normalizedTotal, Math.max(0, counts.failed));
+  const succeeded = Math.min(normalizedTotal - failed, Math.max(0, counts.succeeded));
+
+  return {
+    succeeded,
+    failed,
+    processed: succeeded + failed,
+    total: normalizedTotal,
+  };
+};
 
 const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): TaskSnapshot => {
   const currentUnits = snapshot.units;
-  const units = (() => {
-    if (options.total !== undefined) {
-      if (options.total <= 0) {
-        return new IndeterminateTaskUnits({});
-      }
-
-      if (currentUnits._tag === "DeterminateTaskUnits") {
-        return updateDeterminateCounts(currentUnits, options);
-      }
-
-      return normalizeDeterminateCounts({
-        succeeded: options.succeeded ?? 0,
-        failed: options.failed ?? 0,
-        total: options.total,
-      });
-    }
-
-    if (currentUnits._tag === "DeterminateTaskUnits") {
-      if (options.succeeded === undefined && options.failed === undefined) {
-        return currentUnits;
-      }
-
-      return updateDeterminateCounts(currentUnits, options);
-    }
-
-    return currentUnits;
-  })();
+  const units =
+    options.succeeded === undefined &&
+    options.failed === undefined &&
+    options.total === undefined &&
+    !hasExplicitTotal(options)
+      ? currentUnits
+      : normalizeUnits({
+          succeeded: options.succeeded ?? currentUnits.succeeded,
+          failed: options.failed ?? currentUnits.failed,
+          total: hasExplicitTotal(options) ? options.total : currentUnits.total,
+        });
 
   return new TaskSnapshot({
     id: snapshot.id,
@@ -244,14 +236,11 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
     addTask: (options) =>
       Effect.gen(function* () {
         const taskId = makeTaskId(++nextTaskId);
-        const units =
-          options.total === undefined || options.total <= 0
-            ? new IndeterminateTaskUnits({})
-            : normalizeDeterminateCounts({
-                succeeded: 0,
-                failed: 0,
-                total: options.total,
-              });
+        const units = normalizeUnits({
+          succeeded: 0,
+          failed: 0,
+          total: options.total,
+        });
         const parentSnapshot =
           options.parentId === undefined ? undefined : state.tasks.get(options.parentId);
         const now = yield* Clock.currentTimeMillis;
@@ -322,7 +311,7 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
       Effect.sync(() => {
         updateState((current) => {
           const currentTask = current.tasks.get(taskId);
-          if (!currentTask || currentTask.units._tag !== "DeterminateTaskUnits") {
+          if (!currentTask) {
             return current;
           }
 
@@ -336,7 +325,7 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
               status: currentTask.status,
               countDisplay: currentTask.countDisplay,
               transient: currentTask.transient,
-              units: normalizeDeterminateCounts({
+              units: normalizeUnits({
                 succeeded: currentTask.units.succeeded + amount,
                 failed: currentTask.units.failed,
                 total: currentTask.units.total,
@@ -353,7 +342,7 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
       Effect.sync(() => {
         updateState((current) => {
           const currentTask = current.tasks.get(taskId);
-          if (!currentTask || currentTask.units._tag !== "DeterminateTaskUnits") {
+          if (!currentTask) {
             return current;
           }
 
@@ -367,7 +356,7 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
               status: currentTask.status,
               countDisplay: currentTask.countDisplay,
               transient: currentTask.transient,
-              units: normalizeDeterminateCounts({
+              units: normalizeUnits({
                 succeeded: currentTask.units.succeeded,
                 failed: currentTask.units.failed + amount,
                 total: currentTask.units.total,
@@ -409,13 +398,19 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
               countDisplay: currentTask.countDisplay,
               transient: currentTask.transient,
               units:
-                currentTask.units._tag === "DeterminateTaskUnits"
-                  ? normalizeDeterminateCounts({
+                currentTask.units.total !== undefined
+                  ? normalizeUnits({
                       succeeded: currentTask.units.total - currentTask.units.failed,
                       failed: currentTask.units.failed,
                       total: currentTask.units.total,
                     })
-                  : currentTask.units,
+                  : currentTask.units.processed > 0
+                    ? normalizeUnits({
+                        succeeded: currentTask.units.succeeded,
+                        failed: currentTask.units.failed,
+                        total: currentTask.units.processed,
+                      })
+                    : currentTask.units,
               startedAt: currentTask.startedAt,
               completedAt: now,
             }),

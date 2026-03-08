@@ -38,14 +38,10 @@ describe("progress render store", () => {
 
     const snapshot = store.getSnapshot();
     expect(snapshot.rows).toHaveLength(1);
-    expect(snapshot.rows[0]?.task.units._tag).toBe("DeterminateTaskUnits");
-    if (snapshot.rows[0]?.task.units._tag !== "DeterminateTaskUnits") {
-      throw new Error("expected determinate units");
-    }
-
-    expect(snapshot.rows[0].task.units.succeeded).toBe(2);
-    expect(snapshot.rows[0].task.units.failed).toBe(1);
-    expect(snapshot.rows[0].task.units.processed).toBe(3);
+    expect(snapshot.rows[0]?.task.units.total).toBe(10);
+    expect(snapshot.rows[0]?.task.units.succeeded).toBe(2);
+    expect(snapshot.rows[0]?.task.units.failed).toBe(1);
+    expect(snapshot.rows[0]?.task.units.processed).toBe(3);
   });
 
   test("flush publishes pending updates immediately", async () => {
@@ -74,11 +70,7 @@ describe("progress render store", () => {
 
     expect(notifications).toBe(2);
     const row = store.getSnapshot().rows[0];
-    expect(row?.task.units._tag).toBe("DeterminateTaskUnits");
-    if (!row || row.task.units._tag !== "DeterminateTaskUnits") {
-      throw new Error("expected determinate units");
-    }
-
-    expect(row.task.units.processed).toBe(2);
+    expect(row?.task.units.total).toBe(4);
+    expect(row?.task.units.processed).toBe(2);
   });
 });

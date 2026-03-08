@@ -244,11 +244,7 @@ describe("determinate task counters", () => {
       ),
     );
 
-    expect(task.units._tag).toBe("DeterminateTaskUnits");
-    if (task.units._tag !== "DeterminateTaskUnits") {
-      throw new Error("expected determinate units");
-    }
-
+    expect(task.units.total).toBe(5);
     expect(task.units.succeeded).toBe(2);
     expect(task.units.failed).toBe(1);
     expect(task.units.processed).toBe(3);
@@ -274,11 +270,7 @@ describe("determinate task counters", () => {
       ),
     );
 
-    expect(task.units._tag).toBe("DeterminateTaskUnits");
-    if (task.units._tag !== "DeterminateTaskUnits") {
-      throw new Error("expected determinate units");
-    }
-
+    expect(task.units.total).toBe(5);
     expect(task.units.succeeded).toBe(3);
     expect(task.units.failed).toBe(2);
     expect(task.units.processed).toBe(5);
@@ -303,15 +295,60 @@ describe("determinate task counters", () => {
     );
 
     expect(task.status).toBe("done");
-    expect(task.units._tag).toBe("DeterminateTaskUnits");
-    if (task.units._tag !== "DeterminateTaskUnits") {
-      throw new Error("expected determinate units");
-    }
-
+    expect(task.units.total).toBe(5);
     expect(task.units.succeeded).toBe(4);
     expect(task.units.failed).toBe(1);
     expect(task.units.processed).toBe(5);
     expect(task.units.total).toBe(5);
+  });
+
+  test("updateTask can clear total and keep accumulated counts", async () => {
+    const task = await Effect.runPromise(
+      withStdio(
+        withProgress(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const taskId = yield* progress.addTask({ description: "switch-mode", total: 5 });
+
+            yield* progress.incrementSucceeded(taskId, 2);
+            yield* progress.updateTask(taskId, { total: undefined });
+            yield* progress.incrementFailed(taskId, 1);
+
+            return getTaskOrThrow(yield* progress.getTask(taskId), "switch-mode");
+          }),
+        ),
+      ),
+    );
+
+    expect(task.units.total).toBeUndefined();
+    expect(task.units.succeeded).toBe(2);
+    expect(task.units.failed).toBe(1);
+    expect(task.units.processed).toBe(3);
+  });
+
+  test("completeTask finalizes unknown total as processed count", async () => {
+    const task = await Effect.runPromise(
+      withStdio(
+        withProgress(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const taskId = yield* progress.addTask({ description: "stream-complete" });
+
+            yield* progress.incrementSucceeded(taskId, 2);
+            yield* progress.incrementFailed(taskId, 1);
+            yield* progress.completeTask(taskId);
+
+            return getTaskOrThrow(yield* progress.getTask(taskId), "stream-complete");
+          }),
+        ),
+      ),
+    );
+
+    expect(task.status).toBe("done");
+    expect(task.units.total).toBe(3);
+    expect(task.units.succeeded).toBe(2);
+    expect(task.units.failed).toBe(1);
+    expect(task.units.processed).toBe(3);
   });
 
   test("failTask preserves partial counts", async () => {
@@ -333,14 +370,48 @@ describe("determinate task counters", () => {
     );
 
     expect(task.status).toBe("failed");
-    expect(task.units._tag).toBe("DeterminateTaskUnits");
-    if (task.units._tag !== "DeterminateTaskUnits") {
-      throw new Error("expected determinate units");
-    }
-
+    expect(task.units.total).toBe(5);
     expect(task.units.succeeded).toBe(1);
     expect(task.units.failed).toBe(1);
     expect(task.units.processed).toBe(2);
     expect(task.units.total).toBe(5);
+  });
+
+  test("advance methods still count indeterminate tasks", async () => {
+    const task = await Effect.runPromise(
+      withStdio(
+        withProgress(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const taskId = yield* progress.addTask({ description: "stream" });
+
+            yield* progress.incrementSucceeded(taskId, 2);
+            yield* progress.incrementFailed(taskId, 1);
+
+            return getTaskOrThrow(yield* progress.getTask(taskId), "stream");
+          }),
+        ),
+      ),
+    );
+
+    expect(task.units.total).toBeUndefined();
+    expect(task.units.succeeded).toBe(2);
+    expect(task.units.failed).toBe(1);
+    expect(task.units.processed).toBe(3);
+  });
+
+  test("rejects non-positive totals", async () => {
+    await expect(
+      Effect.runPromise(
+        withStdio(
+          withProgress(
+            Effect.gen(function* () {
+              const progress = yield* Progress.Progress;
+              yield* progress.addTask({ description: "bad-total", total: 0 });
+            }),
+          ),
+        ),
+      ),
+    ).rejects.toThrow("Task total must be greater than 0 when provided.");
   });
 });

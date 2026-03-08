@@ -16,14 +16,12 @@ const makeTask = (
     status: "running",
     countDisplay: "detailed",
     transient: false,
-    units:
-      overrides.units ??
-      new Progress.DeterminateTaskUnits({
-        succeeded: 1,
-        failed: 0,
-        processed: 1,
-        total: 10,
-      }),
+    units: overrides.units ?? {
+      succeeded: 1,
+      failed: 0,
+      processed: 1,
+      total: 10,
+    },
     startedAt: 0,
     completedAt: null,
     ...overrides,
@@ -51,23 +49,23 @@ describe("frame layout planning", () => {
       row(
         makeTask(1, {
           startedAt: 0,
-          units: new Progress.DeterminateTaskUnits({
+          units: {
             succeeded: 9,
             failed: 0,
             processed: 9,
             total: 10,
-          }),
+          },
         }),
       ),
       row(
         makeTask(2, {
           startedAt: 0,
-          units: new Progress.DeterminateTaskUnits({
+          units: {
             succeeded: 999,
             failed: 0,
             processed: 999,
             total: 1000,
-          }),
+          },
         }),
       ),
     ];
@@ -89,7 +87,11 @@ describe("frame layout planning", () => {
         makeTask(3, {
           status: "done",
           completedAt: 2_000,
-          units: new Progress.IndeterminateTaskUnits({}),
+          units: {
+            succeeded: 0,
+            failed: 0,
+            processed: 0,
+          },
         }),
       ),
     ];
@@ -103,6 +105,29 @@ describe("frame layout planning", () => {
     expect(layout.rowWidth).toBeLessThan(100);
   });
 
+  test("shows amount when indeterminate tasks have counted work", () => {
+    const rows = [
+      row(
+        makeTask(32, {
+          status: "failed",
+          completedAt: 2_000,
+          countDisplay: "processedOnly",
+          units: {
+            succeeded: 0,
+            failed: 3,
+            processed: 3,
+          },
+        }),
+      ),
+    ];
+
+    const layout = computeFrameLayout(rows, 2_000, 0, undefined, true);
+
+    expect(widthOf(layout, "amount")).toBeGreaterThanOrEqual("3/?".length);
+    expect(widthOf(layout, "bar")).toBe(0);
+    expect(widthOf(layout, "eta")).toBe(0);
+  });
+
   test("drops zero-width columns from the visible layout so they do not consume a gap", () => {
     const rows = [
       row(
@@ -110,7 +135,11 @@ describe("frame layout planning", () => {
           description: "tight",
           status: "failed",
           completedAt: 2_000,
-          units: new Progress.IndeterminateTaskUnits({}),
+          units: {
+            succeeded: 0,
+            failed: 0,
+            processed: 0,
+          },
         }),
       ),
     ];
@@ -144,12 +173,12 @@ describe("frame layout planning", () => {
         makeTask(5, {
           description:
             "a-very-long-description-that-would-otherwise-wrap-and-break-terminal-frame-clearing",
-          units: new Progress.DeterminateTaskUnits({
+          units: {
             succeeded: 123,
             failed: 0,
             processed: 123,
             total: 999,
-          }),
+          },
         }),
       ),
     ];
@@ -178,12 +207,12 @@ describe("frame layout planning", () => {
       row(
         makeTask(8, {
           countDisplay: "detailed",
-          units: new Progress.DeterminateTaskUnits({
+          units: {
             succeeded: 12,
             failed: 3,
             processed: 15,
             total: 20,
-          }),
+          },
         }),
       ),
     ];
@@ -201,20 +230,20 @@ describe("frame layout planning", () => {
       row(
         makeTask(12, {
           description: "eta-variant",
-          units: new Progress.DeterminateTaskUnits({
+          units: {
             succeeded: 1,
             failed: 0,
             processed: 1,
             total: 1000,
-          }),
+          },
         }),
       ),
     ];
 
     const prefixed = computeFrameLayout(rows, 10_000, 0, 55, true);
-    const duration = computeFrameLayout(rows, 10_000, 0, 50, true);
-    const primary = computeFrameLayout(rows, 10_000, 0, 47, true);
-    const hidden = computeFrameLayout(rows, 10_000, 0, 43, true);
+    const duration = computeFrameLayout(rows, 10_000, 0, 43, true);
+    const primary = computeFrameLayout(rows, 10_000, 0, 38, true);
+    const hidden = computeFrameLayout(rows, 10_000, 0, 34, true);
 
     expect(variantOf(prefixed, "eta")).toBe("prefixed");
     expect(variantOf(duration, "eta")).toBe("duration");
@@ -229,12 +258,12 @@ describe("frame layout planning", () => {
         makeTask(9, {
           description: "short-desc",
           startedAt: 0,
-          units: new Progress.DeterminateTaskUnits({
+          units: {
             succeeded: 1,
             failed: 0,
             processed: 1,
             total: 4,
-          }),
+          },
         }),
       ),
     ];
@@ -253,12 +282,12 @@ describe("frame layout planning", () => {
         makeTask(10, {
           description: "bar-vs-eta",
           startedAt: 0,
-          units: new Progress.DeterminateTaskUnits({
+          units: {
             succeeded: 1,
             failed: 0,
             processed: 1,
             total: 4,
-          }),
+          },
         }),
       ),
     ];
@@ -278,12 +307,12 @@ describe("frame layout planning", () => {
           description: "long-description-for-amount-priority",
           startedAt: 0,
           countDisplay: "processedOnly",
-          units: new Progress.DeterminateTaskUnits({
+          units: {
             succeeded: 1,
             failed: 0,
             processed: 1,
             total: 1234,
-          }),
+          },
         }),
       ),
     ];

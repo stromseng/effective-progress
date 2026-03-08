@@ -2,6 +2,14 @@ import type { TaskSnapshot } from "../types";
 
 export const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 
+const isDeterminate = (
+  task: TaskSnapshot,
+): task is TaskSnapshot & { readonly units: TaskSnapshot["units"] & { readonly total: number } } =>
+  task.units.total !== undefined;
+
+const showsUnknownTotalCounts = (task: TaskSnapshot): boolean =>
+  task.units.total === undefined && task.units.processed > 0;
+
 export const formatDurationSeconds = (seconds: number): string => {
   const value = Math.max(0, Math.floor(seconds));
   if (value < 60) {
@@ -24,7 +32,7 @@ export const formatElapsed = (task: TaskSnapshot, now: number): string => {
 };
 
 export const formatEta = (task: TaskSnapshot, now: number): string => {
-  if (task.status !== "running" || task.units._tag !== "DeterminateTaskUnits") {
+  if (task.status !== "running" || !isDeterminate(task)) {
     return "";
   }
 
@@ -67,7 +75,7 @@ export const getTaskIndicator = (task: TaskSnapshot, tick: number): TaskIndicato
     return { symbol: "✗", color: "red" };
   }
 
-  if (task.units._tag !== "DeterminateTaskUnits") {
+  if (!isDeterminate(task)) {
     return { symbol: "✓", color: "green" };
   }
 
@@ -88,7 +96,7 @@ export const getTaskIndicator = (task: TaskSnapshot, tick: number): TaskIndicato
 export const formatDeterminateAmountParts = (
   task: TaskSnapshot,
 ): DeterminateAmountParts | undefined => {
-  if (task.units._tag !== "DeterminateTaskUnits") {
+  if (!isDeterminate(task)) {
     return undefined;
   }
 
@@ -106,7 +114,7 @@ export const formatDeterminateAmountParts = (
 };
 
 export const getDeterminateProcessedColor = (task: TaskSnapshot): DeterminateProcessedColor => {
-  if (task.units._tag !== "DeterminateTaskUnits") {
+  if (!isDeterminate(task)) {
     return "whiteBright";
   }
 
@@ -130,7 +138,7 @@ export const getDeterminateProcessedColor = (task: TaskSnapshot): DeterminatePro
 };
 
 export const formatAmount = (task: TaskSnapshot, _tick: number): string => {
-  if (task.units._tag === "DeterminateTaskUnits") {
+  if (isDeterminate(task)) {
     const parts = formatDeterminateAmountParts(task);
     if (parts === undefined) {
       return "";
@@ -141,7 +149,14 @@ export const formatAmount = (task: TaskSnapshot, _tick: number): string => {
     return `${parts.processed}/${parts.total}`;
   }
 
-  if (task.status === "running" && task.units._tag === "IndeterminateTaskUnits") {
+  if (showsUnknownTotalCounts(task)) {
+    if (task.countDisplay === "detailed") {
+      return `${task.units.succeeded} ${task.units.failed} ${task.units.processed}/?`;
+    }
+    return `${task.units.processed}/?`;
+  }
+
+  if (task.status === "running") {
     return "";
   }
 

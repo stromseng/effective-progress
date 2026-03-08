@@ -30,22 +30,12 @@ export interface UpdateTaskOptions {
 
 export type TrackOptions = Exclude<AddTaskOptions, "parentId">;
 
-export class DeterminateTaskUnits extends Schema.TaggedClass<DeterminateTaskUnits>()(
-  "DeterminateTaskUnits",
-  {
-    succeeded: Schema.Number,
-    failed: Schema.Number,
-    processed: Schema.Number,
-    total: Schema.Number,
-  },
-) {}
-
-export class IndeterminateTaskUnits extends Schema.TaggedClass<IndeterminateTaskUnits>()(
-  "IndeterminateTaskUnits",
-  {},
-) {}
-
-export const TaskUnitsSchema = Schema.Union(DeterminateTaskUnits, IndeterminateTaskUnits);
+export const TaskUnitsSchema = Schema.Struct({
+  succeeded: Schema.Number,
+  failed: Schema.Number,
+  processed: Schema.Number,
+  total: Schema.optional(Schema.Number),
+});
 
 export type TaskUnits = typeof TaskUnitsSchema.Type;
 

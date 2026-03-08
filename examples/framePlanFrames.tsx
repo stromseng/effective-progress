@@ -10,12 +10,12 @@ const task = new Progress.TaskSnapshot({
   status: "running",
   countDisplay: "detailed",
   transient: false,
-  units: new Progress.DeterminateTaskUnits({
+  units: {
     succeeded: 12,
     failed: 3,
     processed: 15,
     total: 20,
-  }),
+  },
   startedAt: 0,
   completedAt: null,
 });

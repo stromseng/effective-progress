@@ -11,12 +11,12 @@ describe("types and schemas", () => {
       status: "running",
       countDisplay: "detailed",
       transient: false,
-      units: new Progress.DeterminateTaskUnits({
+      units: {
         succeeded: 1,
         failed: 0,
         processed: 1,
         total: 2,
-      }),
+      },
       startedAt: 0,
       completedAt: null,
     });

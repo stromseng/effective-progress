@@ -1,6 +1,7 @@
 import { Text } from "ink";
 import type { TaskRowModel } from "../snapshot/types";
 import { hasDeterminateRows } from "./determinate";
+import { isDeterminate } from "./determinate";
 import type { ColumnPlanningContext } from "./planner";
 import type { ColumnSpec } from "./spec";
 import type { ColumnProps } from "./types";
@@ -32,7 +33,7 @@ const segmentLengths = (width: number, total: number, succeeded: number, failed:
 };
 
 const BarColumn = ({ task, width }: BarColumnProps) => {
-  if (task.units._tag !== "DeterminateTaskUnits") {
+  if (!isDeterminate(task)) {
     return <Text />;
   }
 

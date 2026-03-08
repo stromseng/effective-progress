@@ -118,12 +118,12 @@ const wrapTrackedEffect = (
 const isTaskFullyProcessed = (progress: ProgressService, taskId: TaskId) =>
   Effect.gen(function* () {
     const taskOption = yield* progress.getTask(taskId);
-    if (Option.isNone(taskOption) || taskOption.value.units._tag !== "DeterminateTaskUnits") {
+    if (Option.isNone(taskOption)) {
       return false;
     }
 
     const { processed, total } = taskOption.value.units;
-    return processed >= total;
+    return total !== undefined && processed >= total;
   });
 
 export const all: {

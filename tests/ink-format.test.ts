@@ -7,7 +7,7 @@ import {
 } from "../src/ink-renderer/format";
 
 const makeTask = (
-  units: Progress.DeterminateTaskUnits,
+  units: Progress.TaskSnapshot["units"],
   status: Progress.TaskStatus,
 ): Progress.TaskSnapshot =>
   new Progress.TaskSnapshot({
@@ -25,12 +25,12 @@ const makeTask = (
 describe("determinate processed amount color", () => {
   test("green for all succeeded", () => {
     const task = makeTask(
-      new Progress.DeterminateTaskUnits({
+      {
         succeeded: 4,
         failed: 0,
         processed: 4,
         total: 4,
-      }),
+      },
       "done",
     );
 
@@ -39,12 +39,12 @@ describe("determinate processed amount color", () => {
 
   test("yellow for mixed successes and failures", () => {
     const task = makeTask(
-      new Progress.DeterminateTaskUnits({
+      {
         succeeded: 3,
         failed: 1,
         processed: 4,
         total: 4,
-      }),
+      },
       "done",
     );
 
@@ -53,12 +53,12 @@ describe("determinate processed amount color", () => {
 
   test("red for fail-fast failures", () => {
     const task = makeTask(
-      new Progress.DeterminateTaskUnits({
+      {
         succeeded: 3,
         failed: 1,
         processed: 4,
         total: 10,
-      }),
+      },
       "failed",
     );
 
@@ -67,12 +67,12 @@ describe("determinate processed amount color", () => {
 
   test("red for all failed after full validation", () => {
     const task = makeTask(
-      new Progress.DeterminateTaskUnits({
+      {
         succeeded: 0,
         failed: 4,
         processed: 4,
         total: 4,
-      }),
+      },
       "done",
     );
 
@@ -83,12 +83,12 @@ describe("determinate processed amount color", () => {
 describe("determinate amount formatting", () => {
   test("renders only processed/total for processed-only mode", () => {
     const task = makeTask(
-      new Progress.DeterminateTaskUnits({
+      {
         succeeded: 3,
         failed: 1,
         processed: 4,
         total: 4,
-      }),
+      },
       "failed",
     );
     const processedOnlyTask = new Progress.TaskSnapshot({
@@ -101,28 +101,57 @@ describe("determinate amount formatting", () => {
 
   test("renders succeeded/failed and processed/total for detailed mode", () => {
     const task = makeTask(
-      new Progress.DeterminateTaskUnits({
+      {
         succeeded: 3,
         failed: 1,
         processed: 4,
         total: 4,
-      }),
+      },
       "done",
     );
 
     expect(formatAmount(task, 0)).toBe("3 1 4/4");
+  });
+
+  test("renders processed/? for counted indeterminate tasks", () => {
+    const task = new Progress.TaskSnapshot({
+      ...makeTask(
+        {
+          succeeded: 3,
+          failed: 1,
+          processed: 4,
+        },
+        "failed",
+      ),
+      countDisplay: "processedOnly",
+    });
+
+    expect(formatAmount(task, 0)).toBe("4/?");
+  });
+
+  test("renders succeeded/failed and processed/? for detailed indeterminate tasks", () => {
+    const task = makeTask(
+      {
+        succeeded: 3,
+        failed: 1,
+        processed: 4,
+      },
+      "done",
+    );
+
+    expect(formatAmount(task, 0)).toBe("3 1 4/?");
   });
 });
 
 describe("task indicators", () => {
   test("uses checkmark for full success", () => {
     const task = makeTask(
-      new Progress.DeterminateTaskUnits({
+      {
         succeeded: 4,
         failed: 0,
         processed: 4,
         total: 4,
-      }),
+      },
       "done",
     );
 
@@ -131,12 +160,12 @@ describe("task indicators", () => {
 
   test("uses tilde for partial success", () => {
     const task = makeTask(
-      new Progress.DeterminateTaskUnits({
+      {
         succeeded: 3,
         failed: 1,
         processed: 4,
         total: 4,
-      }),
+      },
       "done",
     );
 
@@ -145,12 +174,12 @@ describe("task indicators", () => {
 
   test("uses x for failures", () => {
     const task = makeTask(
-      new Progress.DeterminateTaskUnits({
+      {
         succeeded: 0,
         failed: 1,
         processed: 1,
         total: 4,
-      }),
+      },
       "failed",
     );
 

@@ -4,7 +4,6 @@ import * as Progress from "../src";
 const program = Effect.gen(function* () {
   yield* Progress.forEach(["init"], () => Effect.sleep("2 seconds"), {
     description: "Bootstrapping environment",
-    total: 0,
   });
 
   yield* Progress.forEach(
