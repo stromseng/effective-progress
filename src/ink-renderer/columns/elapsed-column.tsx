@@ -1,7 +1,7 @@
 import { Text } from "ink";
 import { formatElapsed } from "../format";
-import type { DeterminateTaskUnits, TaskSnapshot } from "../../types";
 import type { TaskRowModel } from "../snapshot/types";
+import { hasDeterminateRows } from "./determinate";
 import type { ColumnPlanningContext } from "./planner";
 import type { ColumnSpec } from "./spec";
 import { textWidth } from "./spec";
@@ -15,14 +15,6 @@ const ElapsedColumn = ({ task, now }: ColumnProps) => (
 
 const MIN_ELAPSED_WIDTH = 2;
 const RESERVED_ELAPSED_WIDTH_UP_TO_ONE_HOUR = Array.from("59m 59s").length;
-
-const isDeterminate = (
-  task: TaskSnapshot,
-): task is TaskSnapshot & { readonly units: DeterminateTaskUnits } =>
-  task.units._tag === "DeterminateTaskUnits";
-
-const hasDeterminateRows = (rows: ReadonlyArray<TaskRowModel>): boolean =>
-  rows.some((row) => isDeterminate(row.task));
 
 const maxElapsedWidth = (rows: ReadonlyArray<TaskRowModel>, now: number): number =>
   rows.reduce(

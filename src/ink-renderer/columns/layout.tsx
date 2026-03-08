@@ -1,7 +1,7 @@
-import type { DeterminateTaskUnits, TaskSnapshot } from "../../types";
 import type { TaskRowModel } from "../snapshot/types";
 import { createAmountColumnSpec } from "./amount-column";
 import { createBarColumnSpec } from "./bar-column";
+import { hasDeterminateRows } from "./determinate";
 import { createDescriptionColumnSpec } from "./description-column";
 import { createElapsedColumnSpec } from "./elapsed-column";
 import { createEtaColumnSpec } from "./eta-column";
@@ -77,14 +77,6 @@ const resistanceFor = (
   columnId: string,
   variantId: string,
 ): number => lookup.get(`${columnId}:${variantId}`) ?? DEFAULT_RESISTANCE;
-
-const isDeterminate = (
-  task: TaskSnapshot,
-): task is TaskSnapshot & { readonly units: DeterminateTaskUnits } =>
-  task.units._tag === "DeterminateTaskUnits";
-
-const hasDeterminateRows = (rows: ReadonlyArray<TaskRowModel>): boolean =>
-  rows.some((row) => isDeterminate(row.task));
 
 const buildColumns = (context: ColumnPlanningContext<TaskRowModel>, isTTY: boolean) => {
   const specs = [

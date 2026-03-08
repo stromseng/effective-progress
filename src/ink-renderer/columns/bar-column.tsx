@@ -1,6 +1,6 @@
 import { Text } from "ink";
-import type { DeterminateTaskUnits, TaskSnapshot } from "../../types";
 import type { TaskRowModel } from "../snapshot/types";
+import { hasDeterminateRows } from "./determinate";
 import type { ColumnPlanningContext } from "./planner";
 import type { ColumnSpec } from "./spec";
 import type { ColumnProps } from "./types";
@@ -52,14 +52,6 @@ const BarColumn = ({ task, width }: BarColumnProps) => {
     </Text>
   );
 };
-
-const isDeterminate = (
-  task: TaskSnapshot,
-): task is TaskSnapshot & { readonly units: DeterminateTaskUnits } =>
-  task.units._tag === "DeterminateTaskUnits";
-
-const hasDeterminateRows = (rows: ReadonlyArray<TaskRowModel>): boolean =>
-  rows.some((row) => isDeterminate(row.task));
 
 export const createBarColumnSpec = (
   context: ColumnPlanningContext<TaskRowModel>,

@@ -1,7 +1,8 @@
 import { Box, Text } from "ink";
 import { formatAmount } from "../format";
-import type { DeterminateTaskUnits, TaskSnapshot } from "../../types";
+import type { TaskSnapshot } from "../../types";
 import type { TaskRowModel } from "../snapshot/types";
+import { isDeterminate } from "./determinate";
 import type { ColumnPlanningContext } from "./planner";
 import type { ColumnSpec } from "./spec";
 import { textWidth } from "./spec";
@@ -147,11 +148,6 @@ interface AmountMetrics {
   readonly totalDigits: number;
   readonly simpleTextWidth: number;
 }
-
-const isDeterminate = (
-  task: TaskSnapshot,
-): task is TaskSnapshot & { readonly units: DeterminateTaskUnits } =>
-  task.units._tag === "DeterminateTaskUnits";
 
 const computeAmountMetrics = (rows: ReadonlyArray<TaskRowModel>, tick: number): AmountMetrics => {
   let hasDeterminate = false;

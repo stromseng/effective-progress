@@ -1,7 +1,8 @@
 import { Text } from "ink";
 import { formatEta } from "../format";
-import type { DeterminateTaskUnits, TaskSnapshot } from "../../types";
+import type { TaskSnapshot } from "../../types";
 import type { TaskRowModel } from "../snapshot/types";
+import { isDeterminate } from "./determinate";
 import type { ColumnPlanningContext } from "./planner";
 import type { ColumnSpec } from "./spec";
 import { textWidth } from "./spec";
@@ -12,11 +13,6 @@ interface EtaColumnProps extends ColumnProps {
 }
 
 const primaryUnit = (duration: string): string => duration.split(" ")[0] ?? duration;
-
-const isDeterminate = (
-  task: TaskSnapshot,
-): task is TaskSnapshot & { readonly units: DeterminateTaskUnits } =>
-  task.units._tag === "DeterminateTaskUnits";
 
 const etaDurationText = (task: TaskSnapshot, now: number): string | undefined => {
   if (task.status !== "running" || !isDeterminate(task)) {
