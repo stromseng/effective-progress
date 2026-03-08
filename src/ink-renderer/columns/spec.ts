@@ -1,4 +1,4 @@
-import stringWidth from "string-width";
+import stringWidth from "fast-string-width";
 import type { ReactNode } from "react";
 import type { ResolvedColumn } from "./planner";
 
