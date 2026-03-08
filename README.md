@@ -17,6 +17,7 @@
 - spinner support for “we have no idea how long this takes” work
 - keep using `Console.log` / `Effect.logInfo` while progress rendering is active
 - familiar `.all` and `.forEach` APIs — swap `Effect` for `Progress`, get progress bars basically for free
+- flicker-free rendering with [Ink](https://github.com/vadimdemedes/ink)
 
 ## Install
 
