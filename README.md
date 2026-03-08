@@ -27,7 +27,7 @@ bun add effective-progress
 
 ## Usage
 
-This shows the simplest usage: iterate items with a single progress bar.
+Iterate items with a single progress bar.
 
 ```ts
 import { Console, Effect } from "effect";
@@ -50,13 +50,7 @@ Effect.runPromise(program);
 
 ### Nested example
 
-Run:
-
-```bash
-bun examples/nesting.ts
-```
-
-This demonstrates nested multibar behavior where parent tasks each run their own child progress bars.
+Nested progress bars with tree-style rendering that highlights parent tasks and their subtasks
 
 ```ts
 import { Effect } from "effect";
@@ -81,9 +75,14 @@ Effect.runPromise(program);
 
 ### Effect.all modes
 
-We support the `either`/`validate` modes of `Effect.all` and render the amount of sucesses/failures.
+Support for `either`/`validate` modes of `Effect.all` and render the amount of sucesses/failures.
 
 <img alt="Mixed outcomes modes output" src="docs/images/mixedOutcomes.gif" width="600" />
+
+- `Progress.all` in default mode (`mode: "default"`) remains fail-fast.
+- In fail-fast runs, unresolved units remain unprocessed.
+- `mode: "either"` and `mode: "validate"` run all effects and keep mixed outcomes in the task counters.
+- Mixed outcomes can still finalize as `done` when all units are accounted for.
 
 ### Other examples
 
@@ -111,13 +110,6 @@ We support the `either`/`validate` modes of `Effect.all` and render the amount o
 - Elapsed and ETA reserve stable widths to reduce jitter while tasks transition states.
 - Layout uses a 100-column baseline and grows when content requires more space.
 - On narrow terminals, layout compacts to fit available width and tree prefixes are suppressed when description space is too tight.
-
-### Mixed outcomes and `mode`
-
-- `Progress.all` in default mode (`mode: "default"`) remains fail-fast.
-- In fail-fast runs, unresolved units remain unprocessed.
-- `mode: "either"` and `mode: "validate"` run all effects and keep mixed outcomes in the task counters.
-- Mixed outcomes can still finalize as `done` when all units are accounted for.
 
 ## Manual task control
 
