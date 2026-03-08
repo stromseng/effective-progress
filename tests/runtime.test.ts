@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Effect, Option } from "effect";
+import { Cause, Effect, Exit, Option } from "effect";
 import * as Progress from "../src";
 import { createMockStdio } from "./helpers/mock-stdio";
 
@@ -11,14 +11,21 @@ const withStdio = <A, E, R>(effect: Effect.Effect<A, E, R>) => {
 const withProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.scoped(effect.pipe(Effect.provide(Progress.Progress.Default)));
 
-const getTaskOrThrow = (
+const getTaskOrFail = (
   task: Option.Option<Progress.TaskSnapshot>,
   label: string,
 ): Progress.TaskSnapshot => {
-  if (Option.isNone(task)) {
-    throw new Error(`Expected task "${label}" to exist`);
-  }
-  return task.value;
+  expect(Option.isSome(task), `Expected task "${label}" to exist`).toBeTrue();
+  return (task as Option.Some<Progress.TaskSnapshot>).value;
+};
+
+const getInvalidTaskTotalError = (
+  exit: Exit.Exit<unknown, Progress.InvalidTaskTotalError>,
+): Progress.InvalidTaskTotalError => {
+  expect(Exit.isFailure(exit)).toBeTrue();
+  const failure = Exit.isFailure(exit) ? Cause.failureOption(exit.cause) : Option.none();
+  expect(Option.isSome(failure)).toBeTrue();
+  return (failure as Option.Some<Progress.InvalidTaskTotalError>).value;
 };
 
 describe("transient propagation", () => {
@@ -29,7 +36,7 @@ describe("transient propagation", () => {
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
             const rootId = yield* progress.addTask({ description: "root" });
-            return getTaskOrThrow(yield* progress.getTask(rootId), "root");
+            return getTaskOrFail(yield* progress.getTask(rootId), "root");
           }),
         ),
       ),
@@ -54,8 +61,8 @@ describe("transient propagation", () => {
               transient: false,
             });
 
-            const parent = getTaskOrThrow(yield* progress.getTask(parentId), "parent");
-            const child = getTaskOrThrow(yield* progress.getTask(childId), "child");
+            const parent = getTaskOrFail(yield* progress.getTask(parentId), "parent");
+            const child = getTaskOrFail(yield* progress.getTask(childId), "child");
             return { parent, child };
           }),
         ),
@@ -82,8 +89,8 @@ describe("transient propagation", () => {
               transient: true,
             });
 
-            const parent = getTaskOrThrow(yield* progress.getTask(parentId), "parent");
-            const child = getTaskOrThrow(yield* progress.getTask(childId), "child");
+            const parent = getTaskOrFail(yield* progress.getTask(parentId), "parent");
+            const child = getTaskOrFail(yield* progress.getTask(childId), "child");
             return { parent, child };
           }),
         ),
@@ -115,9 +122,9 @@ describe("transient propagation", () => {
 
             yield* progress.updateTask(parentId, { transient: true });
 
-            const parent = getTaskOrThrow(yield* progress.getTask(parentId), "parent");
-            const child = getTaskOrThrow(yield* progress.getTask(childId), "child");
-            const grandchild = getTaskOrThrow(yield* progress.getTask(grandchildId), "grandchild");
+            const parent = getTaskOrFail(yield* progress.getTask(parentId), "parent");
+            const child = getTaskOrFail(yield* progress.getTask(childId), "child");
+            const grandchild = getTaskOrFail(yield* progress.getTask(grandchildId), "grandchild");
 
             return { parent, child, grandchild };
           }),
@@ -172,7 +179,7 @@ describe("count display", () => {
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
             const taskId = yield* progress.addTask({ description: "root" });
-            return getTaskOrThrow(yield* progress.getTask(taskId), "root");
+            return getTaskOrFail(yield* progress.getTask(taskId), "root");
           }),
         ),
       ),
@@ -196,8 +203,8 @@ describe("count display", () => {
               parentId,
             });
 
-            const parent = getTaskOrThrow(yield* progress.getTask(parentId), "parent");
-            const child = getTaskOrThrow(yield* progress.getTask(childId), "child");
+            const parent = getTaskOrFail(yield* progress.getTask(parentId), "parent");
+            const child = getTaskOrFail(yield* progress.getTask(childId), "child");
             return { parent, child };
           }),
         ),
@@ -216,7 +223,7 @@ describe("count display", () => {
             const progress = yield* Progress.Progress;
             const taskId = yield* progress.addTask({ description: "mode-change" });
             yield* progress.updateTask(taskId, { countDisplay: "processedOnly" });
-            return getTaskOrThrow(yield* progress.getTask(taskId), "mode-change");
+            return getTaskOrFail(yield* progress.getTask(taskId), "mode-change");
           }),
         ),
       ),
@@ -238,7 +245,7 @@ describe("determinate task counters", () => {
             yield* progress.incrementSucceeded(taskId, 2);
             yield* progress.incrementFailed(taskId, 1);
 
-            return getTaskOrThrow(yield* progress.getTask(taskId), "counts");
+            return getTaskOrFail(yield* progress.getTask(taskId), "counts");
           }),
         ),
       ),
@@ -264,7 +271,7 @@ describe("determinate task counters", () => {
               failed: 2,
             });
 
-            return getTaskOrThrow(yield* progress.getTask(taskId), "clamp");
+            return getTaskOrFail(yield* progress.getTask(taskId), "clamp");
           }),
         ),
       ),
@@ -288,7 +295,7 @@ describe("determinate task counters", () => {
             yield* progress.incrementFailed(taskId, 1);
             yield* progress.completeTask(taskId);
 
-            return getTaskOrThrow(yield* progress.getTask(taskId), "complete");
+            return getTaskOrFail(yield* progress.getTask(taskId), "complete");
           }),
         ),
       ),
@@ -314,7 +321,7 @@ describe("determinate task counters", () => {
             yield* progress.updateTask(taskId, { total: undefined });
             yield* progress.incrementFailed(taskId, 1);
 
-            return getTaskOrThrow(yield* progress.getTask(taskId), "switch-mode");
+            return getTaskOrFail(yield* progress.getTask(taskId), "switch-mode");
           }),
         ),
       ),
@@ -338,7 +345,7 @@ describe("determinate task counters", () => {
             yield* progress.incrementFailed(taskId, 1);
             yield* progress.completeTask(taskId);
 
-            return getTaskOrThrow(yield* progress.getTask(taskId), "stream-complete");
+            return getTaskOrFail(yield* progress.getTask(taskId), "stream-complete");
           }),
         ),
       ),
@@ -363,7 +370,7 @@ describe("determinate task counters", () => {
             yield* progress.incrementFailed(taskId, 1);
             yield* progress.failTask(taskId);
 
-            return getTaskOrThrow(yield* progress.getTask(taskId), "fail");
+            return getTaskOrFail(yield* progress.getTask(taskId), "fail");
           }),
         ),
       ),
@@ -388,7 +395,7 @@ describe("determinate task counters", () => {
             yield* progress.incrementSucceeded(taskId, 2);
             yield* progress.incrementFailed(taskId, 1);
 
-            return getTaskOrThrow(yield* progress.getTask(taskId), "stream");
+            return getTaskOrFail(yield* progress.getTask(taskId), "stream");
           }),
         ),
       ),
@@ -401,17 +408,20 @@ describe("determinate task counters", () => {
   });
 
   test("rejects non-positive totals", async () => {
-    await expect(
-      Effect.runPromise(
-        withStdio(
-          withProgress(
-            Effect.gen(function* () {
-              const progress = yield* Progress.Progress;
-              yield* progress.addTask({ description: "bad-total", total: 0 });
-            }),
-          ),
+    const exit = await Effect.runPromiseExit(
+      withStdio(
+        withProgress(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            yield* progress.addTask({ description: "bad-total", total: 0 });
+          }),
         ),
       ),
-    ).rejects.toThrow("Task total must be greater than 0 when provided.");
+    );
+
+    const error = getInvalidTaskTotalError(exit);
+    expect(error._tag).toBe("InvalidTaskTotalError");
+    expect(error.total).toBe(0);
+    expect(error.message).toBe("Task total must be greater than 0 when provided.");
   });
 });

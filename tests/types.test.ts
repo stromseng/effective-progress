@@ -39,10 +39,8 @@ describe("types and schemas", () => {
     });
 
     expect(updatedEvent._tag).toBe("TaskUpdated");
-    if (updatedEvent._tag !== "TaskUpdated") {
-      throw new Error("unexpected event tag");
-    }
-    expect(updatedEvent.description).toBe("updated");
+    const taskUpdatedEvent = updatedEvent as Progress.TaskUpdatedEvent;
+    expect(taskUpdatedEvent.description).toBe("updated");
 
     const advancedEvent = decode({
       _tag: "TaskAdvanced",

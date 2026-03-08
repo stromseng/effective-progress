@@ -88,7 +88,7 @@ const makeProgressService = Effect.gen(function* () {
       ),
   );
 
-  const service: ProgressService = {
+  const service = {
     addTask,
     updateTask,
     incrementSucceeded,
@@ -100,7 +100,7 @@ const makeProgressService = Effect.gen(function* () {
     listTasks,
     runTask,
     withTask,
-  };
+  } satisfies ProgressService;
 
   return Progress.of(service);
 });

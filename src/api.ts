@@ -5,6 +5,7 @@ import { Progress } from "./services/progress";
 import { Task } from "./types";
 import type {
   AddTaskOptions,
+  InvalidTaskTotalError,
   ProgressService,
   TaskCountDisplay,
   TaskId,
@@ -45,7 +46,7 @@ export type AllReturn<
       ? Effect.All.ReturnObject<Arg, Effect.All.IsDiscard<O>, Effect.All.ExtractMode<O>>
       : never,
 ] extends [Effect.Effect<infer A, infer E, infer R>]
-  ? Effect.Effect<A, E, Exclude<R, Progress | Task>>
+  ? Effect.Effect<A, E | InvalidTaskTotalError, Exclude<R, Progress | Task>>
   : never;
 
 export interface ForEachExecutionOptions extends EffectExecutionOptions {
@@ -60,17 +61,19 @@ export const task: {
   <A, E, R>(
     effect: Effect.Effect<A, E, R>,
     options: TaskOptions,
-  ): Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+  ): Effect.Effect<A, E | InvalidTaskTotalError, Exclude<R, Progress | Task>>;
   <A, E, R>(
     options: TaskOptions,
-  ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+  ): (
+    effect: Effect.Effect<A, E, R>,
+  ) => Effect.Effect<A, E | InvalidTaskTotalError, Exclude<R, Progress | Task>>;
 } = dual(2, <A, E, R>(effect: Effect.Effect<A, E, R>, options: TaskOptions) => {
   return provideProgress(
     Effect.gen(function* () {
       const progress = yield* Progress;
       return yield* progress.withTask(effect, options);
     }),
-  ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+  ) as Effect.Effect<A, E | InvalidTaskTotalError, Exclude<R, Progress | Task>>;
 });
 
 type AllArg =
@@ -80,15 +83,15 @@ type AllArg =
 const wrapEffects = (
   effects: AllArg,
   tap: (effect: Effect.Effect<any, any, any>) => Effect.Effect<any, any, any>,
-): AllArg =>
+) =>
   Array.isArray(effects)
     ? effects.map(tap)
     : Object.fromEntries(Object.entries(effects).map(([k, effect]) => [k, tap(effect)]));
 
-const countEffects = (effects: AllArg): number =>
+const countEffects = (effects: AllArg) =>
   Array.isArray(effects) ? effects.length : Object.keys(effects).length;
 
-const isCollectAllMode = (mode: EffectAllExecutionOptions["mode"]): boolean =>
+const isCollectAllMode = (mode: EffectAllExecutionOptions["mode"]) =>
   mode === "either" || mode === "validate";
 
 const allCountDisplay = (mode: EffectAllExecutionOptions["mode"]): TaskCountDisplay =>
@@ -98,7 +101,7 @@ const wrapTrackedEffect = (
   progress: ProgressService,
   taskId: TaskId,
   effect: Effect.Effect<any, any, any>,
-): Effect.Effect<any, any, any> =>
+) =>
   Effect.gen(function* () {
     const exit = yield* Effect.exit(effect);
 
@@ -192,11 +195,13 @@ export const forEach: {
     iterable: Iterable<A>,
     f: (item: A, index: number) => Effect.Effect<B, E, R>,
     options: ForEachOptions,
-  ): Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress | Task>>;
+  ): Effect.Effect<ReadonlyArray<B>, E | InvalidTaskTotalError, Exclude<R, Progress | Task>>;
   <A, B, E, R>(
     f: (item: A, index: number) => Effect.Effect<B, E, R>,
     options: ForEachOptions,
-  ): (iterable: Iterable<A>) => Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress | Task>>;
+  ): (
+    iterable: Iterable<A>,
+  ) => Effect.Effect<ReadonlyArray<B>, E | InvalidTaskTotalError, Exclude<R, Progress | Task>>;
 } = dual(
   3,
   <A, B, E, R>(
@@ -243,5 +248,5 @@ export const forEach: {
           },
         );
       }),
-    ) as Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress | Task>>,
+    ) as Effect.Effect<ReadonlyArray<B>, E | InvalidTaskTotalError, Exclude<R, Progress | Task>>,
 );

@@ -1,6 +1,17 @@
 import { Clock, Effect, Option } from "effect";
-import type { AddTaskOptions, TaskId, TaskStore, TaskUnits, UpdateTaskOptions } from "../types";
-import { TaskId as makeTaskId, TaskSnapshot } from "../types";
+import type {
+  AddTaskOptions,
+  InvalidTaskTotalError,
+  TaskId,
+  TaskStore,
+  TaskUnits,
+  UpdateTaskOptions,
+} from "../types";
+import {
+  InvalidTaskTotalError as InvalidTaskTotalErrorType,
+  TaskId as makeTaskId,
+  TaskSnapshot,
+} from "../types";
 import { toRenderSnapshot, type RenderSnapshot } from "./snapshot/render-snapshot";
 
 interface TaskCounts {
@@ -13,8 +24,11 @@ export interface ProgressRenderStore {
   readonly getSnapshot: () => RenderSnapshot;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
-  readonly addTask: (options: AddTaskOptions) => Effect.Effect<TaskId>;
-  readonly updateTask: (taskId: TaskId, options: UpdateTaskOptions) => Effect.Effect<void>;
+  readonly addTask: (options: AddTaskOptions) => Effect.Effect<TaskId, InvalidTaskTotalError>;
+  readonly updateTask: (
+    taskId: TaskId,
+    options: UpdateTaskOptions,
+  ) => Effect.Effect<void, InvalidTaskTotalError>;
   readonly incrementSucceeded: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
   readonly incrementFailed: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
   readonly completeTask: (taskId: TaskId) => Effect.Effect<void>;
@@ -23,18 +37,52 @@ export interface ProgressRenderStore {
   readonly listTasks: Effect.Effect<ReadonlyArray<TaskSnapshot>>;
 }
 
-const hasExplicitTotal = (options: Pick<AddTaskOptions | UpdateTaskOptions, "total">): boolean =>
+const hasExplicitTotal = (options: Pick<AddTaskOptions | UpdateTaskOptions, "total">) =>
   Object.prototype.hasOwnProperty.call(options, "total");
 
-const normalizeTotal = (total: number): number => {
+const INVALID_TASK_TOTAL_MESSAGE = "Task total must be greater than 0 when provided.";
+
+const normalizeTotal = (total: number) => {
   if (total <= 0) {
-    throw new Error("Task total must be greater than 0 when provided.");
+    return Effect.fail(
+      new InvalidTaskTotalErrorType({
+        total,
+        message: INVALID_TASK_TOTAL_MESSAGE,
+      }),
+    );
   }
 
-  return total;
+  return Effect.succeed(total);
 };
 
-const normalizeUnits = (counts: TaskCounts): TaskUnits => {
+const normalizeUnits = (counts: TaskCounts) => {
+  const total = counts.total;
+
+  if (total === undefined) {
+    const succeeded = Math.max(0, counts.succeeded);
+    const failed = Math.max(0, counts.failed);
+
+    return Effect.succeed({
+      succeeded,
+      failed,
+      processed: succeeded + failed,
+    });
+  }
+
+  return Effect.map(normalizeTotal(total), (normalizedTotal) => {
+    const failed = Math.min(normalizedTotal, Math.max(0, counts.failed));
+    const succeeded = Math.min(normalizedTotal - failed, Math.max(0, counts.succeeded));
+
+    return {
+      succeeded,
+      failed,
+      processed: succeeded + failed,
+      total: normalizedTotal,
+    };
+  });
+};
+
+const normalizeUnitsUnsafe = (counts: TaskCounts) => {
   const total = counts.total;
 
   if (total === undefined) {
@@ -48,46 +96,49 @@ const normalizeUnits = (counts: TaskCounts): TaskUnits => {
     };
   }
 
-  const normalizedTotal = normalizeTotal(total);
-  const failed = Math.min(normalizedTotal, Math.max(0, counts.failed));
-  const succeeded = Math.min(normalizedTotal - failed, Math.max(0, counts.succeeded));
+  const failed = Math.min(total, Math.max(0, counts.failed));
+  const succeeded = Math.min(total - failed, Math.max(0, counts.succeeded));
 
   return {
     succeeded,
     failed,
     processed: succeeded + failed,
-    total: normalizedTotal,
+    total,
   };
 };
 
-const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): TaskSnapshot => {
+const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => {
   const currentUnits = snapshot.units;
   const units =
     options.succeeded === undefined &&
     options.failed === undefined &&
     options.total === undefined &&
     !hasExplicitTotal(options)
-      ? currentUnits
+      ? Effect.succeed(currentUnits)
       : normalizeUnits({
           succeeded: options.succeeded ?? currentUnits.succeeded,
           failed: options.failed ?? currentUnits.failed,
           total: hasExplicitTotal(options) ? options.total : currentUnits.total,
         });
 
-  return new TaskSnapshot({
-    id: snapshot.id,
-    parentId: snapshot.parentId,
-    description: options.description ?? snapshot.description,
-    status: snapshot.status,
-    countDisplay: options.countDisplay ?? snapshot.countDisplay,
-    transient: options.transient ?? snapshot.transient,
+  return Effect.map(
     units,
-    startedAt: snapshot.startedAt,
-    completedAt: snapshot.completedAt,
-  });
+    (resolvedUnits) =>
+      new TaskSnapshot({
+        id: snapshot.id,
+        parentId: snapshot.parentId,
+        description: options.description ?? snapshot.description,
+        status: snapshot.status,
+        countDisplay: options.countDisplay ?? snapshot.countDisplay,
+        transient: options.transient ?? snapshot.transient,
+        units: resolvedUnits,
+        startedAt: snapshot.startedAt,
+        completedAt: snapshot.completedAt,
+      }),
+  );
 };
 
-const withTransient = (snapshot: TaskSnapshot, transient: boolean): TaskSnapshot =>
+const withTransient = (snapshot: TaskSnapshot, transient: boolean) =>
   new TaskSnapshot({
     id: snapshot.id,
     parentId: snapshot.parentId,
@@ -103,7 +154,7 @@ const withTransient = (snapshot: TaskSnapshot, transient: boolean): TaskSnapshot
 const findInsertionIndex = (
   renderOrder: ReadonlyArray<TaskStore["renderOrder"][number]>,
   parentId: TaskId | null,
-): { index: number; depth: number } => {
+) => {
   if (parentId === null) {
     return { index: renderOrder.length, depth: 0 };
   }
@@ -125,7 +176,7 @@ const findInsertionIndex = (
 const removeFromRenderOrder = (
   renderOrder: ReadonlyArray<TaskStore["renderOrder"][number]>,
   taskId: TaskId,
-): ReadonlyArray<TaskStore["renderOrder"][number]> => {
+) => {
   const idx = renderOrder.findIndex((row) => row.id === taskId);
   if (idx === -1) {
     return renderOrder;
@@ -144,7 +195,7 @@ const removeFromRenderOrder = (
 
 const SNAPSHOT_PUBLISH_INTERVAL_MILLIS = 50;
 
-export const makeProgressRenderStore = (): ProgressRenderStore => {
+export const makeProgressRenderStore = () => {
   let nextTaskId = 0;
   let state: TaskStore = {
     tasks: new Map<TaskId, TaskSnapshot>(),
@@ -218,7 +269,7 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
     publish(transform(state));
   };
 
-  return {
+  const store = {
     getSnapshot: () => publishedSnapshot,
     subscribe: (listener) => {
       listeners.add(listener);
@@ -236,7 +287,7 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
     addTask: (options) =>
       Effect.gen(function* () {
         const taskId = makeTaskId(++nextTaskId);
-        const units = normalizeUnits({
+        const units = yield* normalizeUnits({
           succeeded: 0,
           failed: 0,
           total: options.total,
@@ -270,15 +321,21 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
         return taskId;
       }),
     updateTask: (taskId, options) =>
-      Effect.sync(() => {
+      Effect.gen(function* () {
+        const currentTask = state.tasks.get(taskId);
+        if (!currentTask) {
+          return;
+        }
+
+        const nextTask = yield* updatedSnapshot(currentTask, options);
+
         updateState((current) => {
-          const currentTask = current.tasks.get(taskId);
-          if (!currentTask) {
+          const liveTask = current.tasks.get(taskId);
+          if (!liveTask) {
             return current;
           }
 
           const nextTasks = new Map(current.tasks);
-          const nextTask = updatedSnapshot(currentTask, options);
           nextTasks.set(taskId, nextTask);
 
           if (options.transient !== undefined) {
@@ -325,7 +382,7 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
               status: currentTask.status,
               countDisplay: currentTask.countDisplay,
               transient: currentTask.transient,
-              units: normalizeUnits({
+              units: normalizeUnitsUnsafe({
                 succeeded: currentTask.units.succeeded + amount,
                 failed: currentTask.units.failed,
                 total: currentTask.units.total,
@@ -356,7 +413,7 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
               status: currentTask.status,
               countDisplay: currentTask.countDisplay,
               transient: currentTask.transient,
-              units: normalizeUnits({
+              units: normalizeUnitsUnsafe({
                 succeeded: currentTask.units.succeeded,
                 failed: currentTask.units.failed + amount,
                 total: currentTask.units.total,
@@ -399,13 +456,13 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
               transient: currentTask.transient,
               units:
                 currentTask.units.total !== undefined
-                  ? normalizeUnits({
+                  ? normalizeUnitsUnsafe({
                       succeeded: currentTask.units.total - currentTask.units.failed,
                       failed: currentTask.units.failed,
                       total: currentTask.units.total,
                     })
                   : currentTask.units.processed > 0
-                    ? normalizeUnits({
+                    ? normalizeUnitsUnsafe({
                         succeeded: currentTask.units.succeeded,
                         failed: currentTask.units.failed,
                         total: currentTask.units.processed,
@@ -458,5 +515,7 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
       }),
     getTask: (taskId) => Effect.sync(() => Option.fromNullable(state.tasks.get(taskId))),
     listTasks: Effect.sync(() => Array.from(state.tasks.values())),
-  };
+  } satisfies ProgressRenderStore;
+
+  return store;
 };

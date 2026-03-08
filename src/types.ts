@@ -11,6 +11,14 @@ export type TaskStatus = typeof TaskStatusSchema.Type;
 export const TaskCountDisplaySchema = Schema.Literal("processedOnly", "detailed");
 export type TaskCountDisplay = typeof TaskCountDisplaySchema.Type;
 
+export class InvalidTaskTotalError extends Schema.TaggedError<InvalidTaskTotalError>()(
+  "InvalidTaskTotalError",
+  {
+    total: Schema.Number,
+    message: Schema.String,
+  },
+) {}
+
 export interface AddTaskOptions {
   readonly description: string;
   readonly total?: number;
@@ -62,8 +70,11 @@ export interface TaskStore {
 }
 
 export interface ProgressService {
-  readonly addTask: (options: AddTaskOptions) => Effect.Effect<TaskId>;
-  readonly updateTask: (taskId: TaskId, options: UpdateTaskOptions) => Effect.Effect<void>;
+  readonly addTask: (options: AddTaskOptions) => Effect.Effect<TaskId, InvalidTaskTotalError>;
+  readonly updateTask: (
+    taskId: TaskId,
+    options: UpdateTaskOptions,
+  ) => Effect.Effect<void, InvalidTaskTotalError>;
   readonly incrementSucceeded: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
   readonly incrementFailed: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
   readonly completeTask: (taskId: TaskId) => Effect.Effect<void>;
@@ -75,19 +86,23 @@ export interface ProgressService {
     <A, E, R>(
       effect: Effect.Effect<A, E, R>,
       options: AddTaskOptions,
-    ): Effect.Effect<A, E, Exclude<R, Task>>;
+    ): Effect.Effect<A, E | InvalidTaskTotalError, Exclude<R, Task>>;
     <A, E, R>(
       options: AddTaskOptions,
-    ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Task>>;
+    ): (
+      effect: Effect.Effect<A, E, R>,
+    ) => Effect.Effect<A, E | InvalidTaskTotalError, Exclude<R, Task>>;
   };
   readonly withTask: {
     <A, E, R>(
       effect: Effect.Effect<A, E, R>,
       options: AddTaskOptions,
-    ): Effect.Effect<A, E, Exclude<R, Task>>;
+    ): Effect.Effect<A, E | InvalidTaskTotalError, Exclude<R, Task>>;
     <A, E, R>(
       options: AddTaskOptions,
-    ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Task>>;
+    ): (
+      effect: Effect.Effect<A, E, R>,
+    ) => Effect.Effect<A, E | InvalidTaskTotalError, Exclude<R, Task>>;
   };
 }
 
