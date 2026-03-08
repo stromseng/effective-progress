@@ -122,10 +122,11 @@ export const getDeterminateProcessedColor = (task: TaskSnapshot): DeterminatePro
   if (task.status === "failed" && processed < total) {
     return "red";
   }
-  if (processed === total && failed === 0) {
+  // Match cli-progress: zero-total tasks are treated as visually complete by default.
+  if (processed >= total && failed === 0) {
     return "green";
   }
-  if (processed === total && failed === total) {
+  if (processed >= total && failed > 0 && succeeded === 0) {
     return "red";
   }
   if (succeeded > 0 && failed > 0) {

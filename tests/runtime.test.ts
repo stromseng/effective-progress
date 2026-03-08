@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Cause, Effect, Exit, Option } from "effect";
+import { Effect, Option } from "effect";
 import * as Progress from "../src";
 import { createMockStdio } from "./helpers/mock-stdio";
 
@@ -17,15 +17,6 @@ const getTaskOrFail = (
 ): Progress.TaskSnapshot => {
   expect(Option.isSome(task), `Expected task "${label}" to exist`).toBeTrue();
   return (task as Option.Some<Progress.TaskSnapshot>).value;
-};
-
-const getInvalidTaskTotalError = (
-  exit: Exit.Exit<unknown, Progress.InvalidTaskTotalError>,
-): Progress.InvalidTaskTotalError => {
-  expect(Exit.isFailure(exit)).toBeTrue();
-  const failure = Exit.isFailure(exit) ? Cause.failureOption(exit.cause) : Option.none();
-  expect(Option.isSome(failure)).toBeTrue();
-  return (failure as Option.Some<Progress.InvalidTaskTotalError>).value;
 };
 
 describe("transient propagation", () => {
@@ -234,7 +225,7 @@ describe("count display", () => {
 });
 
 describe("determinate task counters", () => {
-  test("advance methods maintain succeeded/failed invariants", async () => {
+  test("advance methods preserve raw counts when processed exceeds total", async () => {
     const task = await Effect.runPromise(
       withStdio(
         withProgress(
@@ -242,8 +233,8 @@ describe("determinate task counters", () => {
             const progress = yield* Progress.Progress;
             const taskId = yield* progress.addTask({ description: "counts", total: 5 });
 
-            yield* progress.incrementSucceeded(taskId, 2);
-            yield* progress.incrementFailed(taskId, 1);
+            yield* progress.incrementSucceeded(taskId, 6);
+            yield* progress.incrementFailed(taskId, 2);
 
             return getTaskOrFail(yield* progress.getTask(taskId), "counts");
           }),
@@ -252,13 +243,13 @@ describe("determinate task counters", () => {
     );
 
     expect(task.units.total).toBe(5);
-    expect(task.units.succeeded).toBe(2);
-    expect(task.units.failed).toBe(1);
-    expect(task.units.processed).toBe(3);
+    expect(task.units.succeeded).toBe(6);
+    expect(task.units.failed).toBe(2);
+    expect(task.units.processed).toBe(8);
     expect(task.units.total).toBe(5);
   });
 
-  test("updateTask clamps counts and recomputes processed", async () => {
+  test("updateTask preserves overflow counts and recomputes processed", async () => {
     const task = await Effect.runPromise(
       withStdio(
         withProgress(
@@ -278,9 +269,9 @@ describe("determinate task counters", () => {
     );
 
     expect(task.units.total).toBe(5);
-    expect(task.units.succeeded).toBe(3);
+    expect(task.units.succeeded).toBe(4);
     expect(task.units.failed).toBe(2);
-    expect(task.units.processed).toBe(5);
+    expect(task.units.processed).toBe(6);
     expect(task.units.total).toBe(5);
   });
 
@@ -307,6 +298,31 @@ describe("determinate task counters", () => {
     expect(task.units.failed).toBe(1);
     expect(task.units.processed).toBe(5);
     expect(task.units.total).toBe(5);
+  });
+
+  test("completeTask preserves overflowed determinate counts", async () => {
+    const task = await Effect.runPromise(
+      withStdio(
+        withProgress(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const taskId = yield* progress.addTask({ description: "overflow-complete", total: 5 });
+
+            yield* progress.incrementSucceeded(taskId, 6);
+            yield* progress.incrementFailed(taskId, 2);
+            yield* progress.completeTask(taskId);
+
+            return getTaskOrFail(yield* progress.getTask(taskId), "overflow-complete");
+          }),
+        ),
+      ),
+    );
+
+    expect(task.status).toBe("done");
+    expect(task.units.total).toBe(5);
+    expect(task.units.succeeded).toBe(6);
+    expect(task.units.failed).toBe(2);
+    expect(task.units.processed).toBe(8);
   });
 
   test("updateTask can clear total and keep accumulated counts", async () => {
@@ -407,21 +423,54 @@ describe("determinate task counters", () => {
     expect(task.units.processed).toBe(3);
   });
 
-  test("rejects non-positive totals", async () => {
-    const exit = await Effect.runPromiseExit(
+  test("accepts zero totals", async () => {
+    const task = await Effect.runPromise(
       withStdio(
         withProgress(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
-            yield* progress.addTask({ description: "bad-total", total: 0 });
+            const taskId = yield* progress.addTask({ description: "zero-total", total: 0 });
+            return getTaskOrFail(yield* progress.getTask(taskId), "zero-total");
           }),
         ),
       ),
     );
 
-    const error = getInvalidTaskTotalError(exit);
-    expect(error._tag).toBe("InvalidTaskTotalError");
-    expect(error.total).toBe(0);
-    expect(error.message).toBe("Task total must be greater than 0 when provided.");
+    expect(task.units.total).toBe(0);
+    expect(task.units.processed).toBe(0);
+  });
+
+  test("negative totals fall back to 100 on addTask", async () => {
+    const task = await Effect.runPromise(
+      withStdio(
+        withProgress(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const taskId = yield* progress.addTask({ description: "negative-total", total: -5 });
+            return getTaskOrFail(yield* progress.getTask(taskId), "negative-total");
+          }),
+        ),
+      ),
+    );
+
+    expect(task.units.total).toBe(100);
+    expect(task.units.processed).toBe(0);
+  });
+
+  test("negative totals are ignored on updateTask", async () => {
+    const task = await Effect.runPromise(
+      withStdio(
+        withProgress(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const taskId = yield* progress.addTask({ description: "negative-update", total: 5 });
+            yield* progress.updateTask(taskId, { total: -5 });
+            return getTaskOrFail(yield* progress.getTask(taskId), "negative-update");
+          }),
+        ),
+      ),
+    );
+
+    expect(task.units.total).toBe(5);
   });
 });

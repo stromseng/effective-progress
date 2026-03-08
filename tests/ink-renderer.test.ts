@@ -144,6 +144,61 @@ describe("Ink renderer integration", () => {
     expect(taskLine.includes("─")).toBeTrue();
   });
 
+  test("renders raw overflow counts with a fully clamped bar", async () => {
+    const { output } = await captureStdioOutput(
+      Progress.task(
+        Effect.gen(function* () {
+          const progress = yield* Progress.Progress;
+          const taskId = yield* progress.addTask({
+            description: "overflow-counts",
+            total: 5,
+            transient: false,
+          });
+
+          yield* progress.incrementSucceeded(taskId, 6);
+          yield* progress.incrementFailed(taskId, 2);
+          yield* progress.completeTask(taskId);
+        }),
+        { description: "overflow-root", transient: false },
+      ),
+      { isTTY: true },
+    );
+
+    const taskLine = output.split("\n").find((line) => line.includes("overflow-counts")) ?? "";
+    const renderedBar = taskLine.split("overflow-counts")[1] ?? "";
+
+    expect(taskLine.includes("8/5")).toBeTrue();
+    expect(renderedBar.includes("━")).toBeTrue();
+    expect(renderedBar.includes("─")).toBeFalse();
+  });
+
+  test("renders zero-total determinate tasks as full bars", async () => {
+    const { output } = await captureStdioOutput(
+      Progress.task(
+        Effect.gen(function* () {
+          const progress = yield* Progress.Progress;
+          const taskId = yield* progress.addTask({
+            description: "zero-total",
+            total: 0,
+            transient: false,
+            countDisplay: "processedOnly",
+          });
+
+          yield* progress.completeTask(taskId);
+        }),
+        { description: "zero-root", transient: false },
+      ),
+      { isTTY: true },
+    );
+
+    const taskLine = output.split("\n").find((line) => line.includes("zero-total")) ?? "";
+    const renderedBar = taskLine.split("zero-total")[1] ?? "";
+
+    expect(taskLine.includes("0/0")).toBeTrue();
+    expect(renderedBar.includes("━")).toBeTrue();
+    expect(renderedBar.includes("─")).toBeFalse();
+  });
+
   test("aligns slash position between fail-fast and fully-accounted rows", async () => {
     const { output } = await captureStdioOutput(
       Progress.task(

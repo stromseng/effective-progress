@@ -14,12 +14,15 @@ const DEFAULT_BAR_WIDTH = 30;
 const MIN_BAR_WIDTH = 8;
 
 const segmentLengths = (width: number, total: number, succeeded: number, failed: number) => {
-  if (total <= 0) {
-    return { succeeded: 0, failed: 0, remaining: width };
+  if (total === 0) {
+    // Match cli-progress: zero-total bars render as visually complete by default.
+    return { succeeded: width, failed: 0, remaining: 0 };
   }
 
-  const succeededEnd = Math.round((succeeded / total) * width);
-  const failedEnd = Math.round(((succeeded + failed) / total) * width);
+  // Preserve raw overflow counts in the amount text, but clamp the bar at the display layer.
+  const displayTotal = Math.max(total, succeeded + failed);
+  const succeededEnd = Math.round((succeeded / displayTotal) * width);
+  const failedEnd = Math.round(((succeeded + failed) / displayTotal) * width);
 
   const succeededLength = Math.max(0, Math.min(width, succeededEnd));
   const failedLength = Math.max(0, Math.min(width, failedEnd) - succeededLength);

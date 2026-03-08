@@ -83,12 +83,14 @@ Support for `either`/`validate` modes of `Effect.all` and render the amount of s
 - In fail-fast runs, unresolved units remain unprocessed.
 - `mode: "either"` and `mode: "validate"` run all effects and keep mixed outcomes in the task counters.
 - Mixed outcomes can still finalize as `done` when all units are accounted for.
+- Empty collections are valid inputs for `Progress.all` / `Progress.forEach` and render as `0/0` instead of failing.
 
 ### Other examples
 
 - `examples/simpleExample.ts` - low-boilerplate real-world flow
 - `examples/advancedExample.ts` - full API usage and manual task control
 - `examples/mixedOutcomes.ts` - fail-fast vs `either`/`validate` with mixed success/failure counters
+- `examples/cliProgressSemantics.ts` - zero totals, negative totals, overflow counts, and empty `all` / `forEach`
 - `examples/unknownTotalCounting.ts` - count successes/failures without a known total and render `processed/?`
 - `examples/showcase.ts` - nested concurrent tasks, spinner workloads, and mixed Effect/Console logging
 - `examples/performance.ts` - stress-style run with high log volume and deeply nested progress updates
@@ -107,6 +109,8 @@ Support for `either`/`validate` modes of `Effect.all` and render the amount of s
 - Built-in columns are: description, bar, amount/spinner, elapsed, and ETA.
 - Determinate bars are segmented by outcome: succeeded (green), failed (red), and remaining (neutral).
 - Determinate amount text shows counters without prefixes: `<succeeded> <failed> <processed>/<total>`.
+- Counts can exceed `total`; the amount text keeps those raw values (for example `12/10`) while the bar stays visually clamped at full.
+- `total: 0` is valid for determinate tasks and renders as a full bar by default.
 - Column widths are shared per frame (widest visible cell wins), so rows stay aligned.
 - Elapsed and ETA reserve stable widths to reduce jitter while tasks transition states.
 - Layout uses a 100-column baseline and grows when content requires more space.
@@ -131,6 +135,12 @@ const program = Progress.task(
   { description: "Manual task", total: 10 },
 );
 ```
+
+Manual total behavior follows cli-progress-style semantics:
+
+- negative totals on task creation fall back to `100`
+- negative totals on later `updateTask` calls are ignored
+- explicit `total: undefined` on `updateTask` clears the total and switches back to indeterminate rendering
 
 ## Column customization
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Cause, Console, Effect, Exit, Option } from "effect";
+import { Console, Effect, Exit, Option } from "effect";
 import { pipe } from "effect/Function";
 import * as Progress from "../src";
 import { createMockStdio } from "./helpers/mock-stdio";
@@ -39,15 +39,6 @@ const getTaskByDescription = (
   const task = tasks.find((candidate) => candidate.description === description);
   expect(task, `Task "${description}" not found`).toBeDefined();
   return task!;
-};
-
-const getInvalidTaskTotalError = (
-  exit: Exit.Exit<unknown, Progress.InvalidTaskTotalError>,
-): Progress.InvalidTaskTotalError => {
-  expect(Exit.isFailure(exit)).toBeTrue();
-  const failure = Exit.isFailure(exit) ? Cause.failureOption(exit.cause) : Option.none();
-  expect(Option.isSome(failure)).toBeTrue();
-  return (failure as Option.Some<Progress.InvalidTaskTotalError>).value;
 };
 
 describe("Progress.run", () => {
@@ -222,65 +213,99 @@ describe("Progress.run", () => {
     ).toBeTrue();
   });
 
-  test("task fails with InvalidTaskTotalError when total is zero", async () => {
-    const exit = await Effect.runPromiseExit(
+  test("task accepts total zero", async () => {
+    const result = await Effect.runPromise(
       withStdio(
-        Progress.task(Effect.succeed("ok"), {
-          description: "invalid-task-total",
-          total: 0,
-        }),
-      ),
-    );
-
-    const error = getInvalidTaskTotalError(exit);
-    expect(error._tag).toBe("InvalidTaskTotalError");
-    expect(error.total).toBe(0);
-    expect(error.message).toBe("Task total must be greater than 0 when provided.");
-  });
-
-  test("all fails with InvalidTaskTotalError for an empty array", async () => {
-    const exit = await Effect.runPromiseExit(
-      withStdio(
-        Progress.all([], {
-          description: "invalid-empty-all-array",
-        }),
-      ),
-    );
-
-    const error = getInvalidTaskTotalError(exit);
-    expect(error.total).toBe(0);
-    expect(error.message).toBe("Task total must be greater than 0 when provided.");
-  });
-
-  test("all fails with InvalidTaskTotalError for an empty object", async () => {
-    const exit = await Effect.runPromiseExit(
-      withStdio(
-        Progress.all(
-          {},
-          {
-            description: "invalid-empty-all-object",
-          },
+        Effect.scoped(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const description = "zero-total-task";
+            const value = yield* Progress.task(Effect.succeed("ok"), {
+              description,
+              total: 0,
+            });
+            const task = getTaskByDescription(yield* progress.listTasks, description);
+            return { value, task };
+          }).pipe(Effect.provide(Progress.Progress.Default)),
         ),
       ),
     );
 
-    const error = getInvalidTaskTotalError(exit);
-    expect(error.total).toBe(0);
-    expect(error.message).toBe("Task total must be greater than 0 when provided.");
+    expect(result.value).toBe("ok");
+    expect(result.task.units.total).toBe(0);
+    expect(result.task.units.processed).toBe(0);
   });
 
-  test("forEach fails with InvalidTaskTotalError for an empty iterable with known length", async () => {
-    const exit = await Effect.runPromiseExit(
+  test("all accepts an empty array and renders 0/0 counts", async () => {
+    const result = await Effect.runPromise(
       withStdio(
-        Progress.forEach([], (item) => Effect.succeed(item), {
-          description: "invalid-empty-foreach",
-        }),
+        Effect.scoped(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const description = "empty-all-array";
+            const value = yield* Progress.all([], {
+              description,
+            });
+            const task = getTaskByDescription(yield* progress.listTasks, description);
+            return { value, task };
+          }).pipe(Effect.provide(Progress.Progress.Default)),
+        ),
       ),
     );
 
-    const error = getInvalidTaskTotalError(exit);
-    expect(error.total).toBe(0);
-    expect(error.message).toBe("Task total must be greater than 0 when provided.");
+    expect(result.value).toEqual([]);
+    expect(result.task.units.total).toBe(0);
+    expect(result.task.units.processed).toBe(0);
+    expect(result.task.status).toBe("done");
+  });
+
+  test("all accepts an empty object and renders 0/0 counts", async () => {
+    const result = await Effect.runPromise(
+      withStdio(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const description = "empty-all-object";
+            const value = yield* Progress.all(
+              {},
+              {
+                description,
+              },
+            );
+            const task = getTaskByDescription(yield* progress.listTasks, description);
+            return { value, task };
+          }).pipe(Effect.provide(Progress.Progress.Default)),
+        ),
+      ),
+    );
+
+    expect(result.value).toEqual({});
+    expect(result.task.units.total).toBe(0);
+    expect(result.task.units.processed).toBe(0);
+    expect(result.task.status).toBe("done");
+  });
+
+  test("forEach accepts an empty iterable with known length and renders 0/0 counts", async () => {
+    const result = await Effect.runPromise(
+      withStdio(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const description = "empty-foreach";
+            const value = yield* Progress.forEach([], (item) => Effect.succeed(item), {
+              description,
+            });
+            const task = getTaskByDescription(yield* progress.listTasks, description);
+            return { value, task };
+          }).pipe(Effect.provide(Progress.Progress.Default)),
+        ),
+      ),
+    );
+
+    expect(result.value).toEqual([]);
+    expect(result.task.units.total).toBe(0);
+    expect(result.task.units.processed).toBe(0);
+    expect(result.task.status).toBe("done");
   });
 
   test("all fail-fast marks task failed without unresolved failure accounting", async () => {

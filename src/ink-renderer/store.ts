@@ -1,17 +1,6 @@
 import { Clock, Effect, Option } from "effect";
-import type {
-  AddTaskOptions,
-  InvalidTaskTotalError,
-  TaskId,
-  TaskStore,
-  TaskUnits,
-  UpdateTaskOptions,
-} from "../types";
-import {
-  InvalidTaskTotalError as InvalidTaskTotalErrorType,
-  TaskId as makeTaskId,
-  TaskSnapshot,
-} from "../types";
+import type { AddTaskOptions, TaskId, TaskStore, TaskUnits, UpdateTaskOptions } from "../types";
+import { TaskId as makeTaskId, TaskSnapshot } from "../types";
 import { toRenderSnapshot, type RenderSnapshot } from "./snapshot/render-snapshot";
 
 interface TaskCounts {
@@ -24,11 +13,8 @@ export interface ProgressRenderStore {
   readonly getSnapshot: () => RenderSnapshot;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
-  readonly addTask: (options: AddTaskOptions) => Effect.Effect<TaskId, InvalidTaskTotalError>;
-  readonly updateTask: (
-    taskId: TaskId,
-    options: UpdateTaskOptions,
-  ) => Effect.Effect<void, InvalidTaskTotalError>;
+  readonly addTask: (options: AddTaskOptions) => Effect.Effect<TaskId>;
+  readonly updateTask: (taskId: TaskId, options: UpdateTaskOptions) => Effect.Effect<void>;
   readonly incrementSucceeded: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
   readonly incrementFailed: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
   readonly completeTask: (taskId: TaskId) => Effect.Effect<void>;
@@ -40,71 +26,43 @@ export interface ProgressRenderStore {
 const hasExplicitTotal = (options: Pick<AddTaskOptions | UpdateTaskOptions, "total">) =>
   Object.prototype.hasOwnProperty.call(options, "total");
 
-const INVALID_TASK_TOTAL_MESSAGE = "Task total must be greater than 0 when provided.";
+const DEFAULT_TOTAL = 100;
 
-const normalizeTotal = (total: number) => {
-  if (total <= 0) {
-    return Effect.fail(
-      new InvalidTaskTotalErrorType({
-        total,
-        message: INVALID_TASK_TOTAL_MESSAGE,
-      }),
-    );
+const sanitizeTotalOnAdd = (total: number | undefined) => {
+  if (total === undefined) {
+    return undefined;
   }
 
-  return Effect.succeed(total);
+  // Match cli-progress start(): negative totals fall back to the default total.
+  return total < 0 ? DEFAULT_TOTAL : total;
+};
+
+const sanitizeTotalOnUpdate = (currentTotal: number | undefined, nextTotal: number | undefined) => {
+  if (nextTotal === undefined) {
+    return undefined;
+  }
+
+  // Match cli-progress setTotal(): negative totals are ignored on update.
+  return nextTotal < 0 ? currentTotal : nextTotal;
 };
 
 const normalizeUnits = (counts: TaskCounts) => {
-  const total = counts.total;
+  const succeeded = Math.max(0, counts.succeeded);
+  const failed = Math.max(0, counts.failed);
 
-  if (total === undefined) {
-    const succeeded = Math.max(0, counts.succeeded);
-    const failed = Math.max(0, counts.failed);
-
-    return Effect.succeed({
-      succeeded,
-      failed,
-      processed: succeeded + failed,
-    });
-  }
-
-  return Effect.map(normalizeTotal(total), (normalizedTotal) => {
-    const failed = Math.min(normalizedTotal, Math.max(0, counts.failed));
-    const succeeded = Math.min(normalizedTotal - failed, Math.max(0, counts.succeeded));
-
-    return {
-      succeeded,
-      failed,
-      processed: succeeded + failed,
-      total: normalizedTotal,
-    };
-  });
-};
-
-const normalizeUnitsUnsafe = (counts: TaskCounts) => {
-  const total = counts.total;
-
-  if (total === undefined) {
-    const succeeded = Math.max(0, counts.succeeded);
-    const failed = Math.max(0, counts.failed);
-
-    return {
-      succeeded,
-      failed,
-      processed: succeeded + failed,
-    };
-  }
-
-  const failed = Math.min(total, Math.max(0, counts.failed));
-  const succeeded = Math.min(total - failed, Math.max(0, counts.succeeded));
-
-  return {
-    succeeded,
-    failed,
-    processed: succeeded + failed,
-    total,
-  };
+  // Keep raw overflow counts in state; the bar clamps only at render time.
+  return counts.total === undefined
+    ? {
+        succeeded,
+        failed,
+        processed: succeeded + failed,
+      }
+    : {
+        succeeded,
+        failed,
+        processed: succeeded + failed,
+        total: counts.total,
+      };
 };
 
 const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => {
@@ -114,28 +72,26 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => 
     options.failed === undefined &&
     options.total === undefined &&
     !hasExplicitTotal(options)
-      ? Effect.succeed(currentUnits)
+      ? currentUnits
       : normalizeUnits({
           succeeded: options.succeeded ?? currentUnits.succeeded,
           failed: options.failed ?? currentUnits.failed,
-          total: hasExplicitTotal(options) ? options.total : currentUnits.total,
+          total: hasExplicitTotal(options)
+            ? sanitizeTotalOnUpdate(currentUnits.total, options.total)
+            : currentUnits.total,
         });
 
-  return Effect.map(
+  return new TaskSnapshot({
+    id: snapshot.id,
+    parentId: snapshot.parentId,
+    description: options.description ?? snapshot.description,
+    status: snapshot.status,
+    countDisplay: options.countDisplay ?? snapshot.countDisplay,
+    transient: options.transient ?? snapshot.transient,
     units,
-    (resolvedUnits) =>
-      new TaskSnapshot({
-        id: snapshot.id,
-        parentId: snapshot.parentId,
-        description: options.description ?? snapshot.description,
-        status: snapshot.status,
-        countDisplay: options.countDisplay ?? snapshot.countDisplay,
-        transient: options.transient ?? snapshot.transient,
-        units: resolvedUnits,
-        startedAt: snapshot.startedAt,
-        completedAt: snapshot.completedAt,
-      }),
-  );
+    startedAt: snapshot.startedAt,
+    completedAt: snapshot.completedAt,
+  });
 };
 
 const withTransient = (snapshot: TaskSnapshot, transient: boolean) =>
@@ -287,10 +243,10 @@ export const makeProgressRenderStore = () => {
     addTask: (options) =>
       Effect.gen(function* () {
         const taskId = makeTaskId(++nextTaskId);
-        const units = yield* normalizeUnits({
+        const units = normalizeUnits({
           succeeded: 0,
           failed: 0,
-          total: options.total,
+          total: sanitizeTotalOnAdd(options.total),
         });
         const parentSnapshot =
           options.parentId === undefined ? undefined : state.tasks.get(options.parentId);
@@ -327,7 +283,7 @@ export const makeProgressRenderStore = () => {
           return;
         }
 
-        const nextTask = yield* updatedSnapshot(currentTask, options);
+        const nextTask = updatedSnapshot(currentTask, options);
 
         updateState((current) => {
           const liveTask = current.tasks.get(taskId);
@@ -382,7 +338,7 @@ export const makeProgressRenderStore = () => {
               status: currentTask.status,
               countDisplay: currentTask.countDisplay,
               transient: currentTask.transient,
-              units: normalizeUnitsUnsafe({
+              units: normalizeUnits({
                 succeeded: currentTask.units.succeeded + amount,
                 failed: currentTask.units.failed,
                 total: currentTask.units.total,
@@ -413,7 +369,7 @@ export const makeProgressRenderStore = () => {
               status: currentTask.status,
               countDisplay: currentTask.countDisplay,
               transient: currentTask.transient,
-              units: normalizeUnitsUnsafe({
+              units: normalizeUnits({
                 succeeded: currentTask.units.succeeded,
                 failed: currentTask.units.failed + amount,
                 total: currentTask.units.total,
@@ -456,13 +412,18 @@ export const makeProgressRenderStore = () => {
               transient: currentTask.transient,
               units:
                 currentTask.units.total !== undefined
-                  ? normalizeUnitsUnsafe({
-                      succeeded: currentTask.units.total - currentTask.units.failed,
-                      failed: currentTask.units.failed,
-                      total: currentTask.units.total,
-                    })
+                  ? currentTask.units.processed < currentTask.units.total
+                    ? normalizeUnits({
+                        succeeded:
+                          currentTask.units.succeeded +
+                          (currentTask.units.total - currentTask.units.processed),
+                        failed: currentTask.units.failed,
+                        total: currentTask.units.total,
+                      })
+                    : // Preserve overflowed raw counts once the task has already reached/passed total.
+                      currentTask.units
                   : currentTask.units.processed > 0
-                    ? normalizeUnitsUnsafe({
+                    ? normalizeUnits({
                         succeeded: currentTask.units.succeeded,
                         failed: currentTask.units.failed,
                         total: currentTask.units.processed,

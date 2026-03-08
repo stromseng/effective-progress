@@ -78,6 +78,34 @@ describe("determinate processed amount color", () => {
 
     expect(getDeterminateProcessedColor(task)).toBe("red");
   });
+
+  test("green for successful determinate overflow", () => {
+    const task = makeTask(
+      {
+        succeeded: 6,
+        failed: 0,
+        processed: 6,
+        total: 5,
+      },
+      "done",
+    );
+
+    expect(getDeterminateProcessedColor(task)).toBe("green");
+  });
+
+  test("green for zero-total determinate tasks", () => {
+    const task = makeTask(
+      {
+        succeeded: 0,
+        failed: 0,
+        processed: 0,
+        total: 0,
+      },
+      "done",
+    );
+
+    expect(getDeterminateProcessedColor(task)).toBe("green");
+  });
 });
 
 describe("determinate amount formatting", () => {
@@ -111,6 +139,37 @@ describe("determinate amount formatting", () => {
     );
 
     expect(formatAmount(task, 0)).toBe("3 1 4/4");
+  });
+
+  test("renders raw overflow counts for determinate tasks", () => {
+    const task = makeTask(
+      {
+        succeeded: 6,
+        failed: 2,
+        processed: 8,
+        total: 5,
+      },
+      "done",
+    );
+
+    expect(formatAmount(task, 0)).toBe("6 2 8/5");
+  });
+
+  test("renders zero-total determinate counts as 0/0", () => {
+    const task = new Progress.TaskSnapshot({
+      ...makeTask(
+        {
+          succeeded: 0,
+          failed: 0,
+          processed: 0,
+          total: 0,
+        },
+        "done",
+      ),
+      countDisplay: "processedOnly",
+    });
+
+    expect(formatAmount(task, 0)).toBe("0/0");
   });
 
   test("renders processed/? for counted indeterminate tasks", () => {
