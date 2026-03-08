@@ -103,6 +103,25 @@ describe("frame layout planning", () => {
     expect(layout.rowWidth).toBeLessThan(100);
   });
 
+  test("drops zero-width columns from the visible layout so they do not consume a gap", () => {
+    const rows = [
+      row(
+        makeTask(31, {
+          description: "tight",
+          status: "failed",
+          completedAt: 2_000,
+          units: new Progress.IndeterminateTaskUnits({}),
+        }),
+      ),
+    ];
+
+    const layout = computeFrameLayout(rows, 2_000, 0, 12, true);
+
+    expect(layout.columns.map((column) => column.id)).toEqual(["description", "elapsed"]);
+    expect(widthOf(layout, "amount")).toBe(0);
+    expect(layout.rowWidth).toBe(12);
+  });
+
   test("expands beyond baseline when content requires more width", () => {
     const rows = [
       row(

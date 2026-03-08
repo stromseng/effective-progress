@@ -58,11 +58,15 @@ const activeColumns = <Row>(
   columns: ReadonlyArray<MutableColumn<Row>>,
 ): Array<MutableColumn<Row>> => columns.filter((column) => !column.hidden);
 
+const visibleColumns = <Row>(
+  columns: ReadonlyArray<MutableColumn<Row>>,
+): Array<MutableColumn<Row>> => columns.filter((column) => !column.hidden && column.width > 0);
+
 const visibleGapWidth = <Row>(columns: ReadonlyArray<MutableColumn<Row>>): number =>
-  Math.max(0, activeColumns(columns).length - 1);
+  Math.max(0, visibleColumns(columns).length - 1);
 
 const totalWidth = <Row>(columns: ReadonlyArray<MutableColumn<Row>>): number =>
-  activeColumns(columns).reduce((sum, column) => sum + column.width, 0) + visibleGapWidth(columns);
+  visibleColumns(columns).reduce((sum, column) => sum + column.width, 0) + visibleGapWidth(columns);
 
 const currentVariant = <Row>(column: MutableColumn<Row>): ColumnVariant<Row> =>
   column.variants[column.variantIndex]!;
@@ -282,7 +286,7 @@ export const planColumns = <Row>({
     }
   }
 
-  const visible = activeColumns(mutable);
+  const visible = visibleColumns(mutable);
   return {
     rowWidth: totalWidth(mutable),
     columns: visible.map((column) => {
