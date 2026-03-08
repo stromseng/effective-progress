@@ -42,9 +42,7 @@ export class DeterminateTaskUnits extends Schema.TaggedClass<DeterminateTaskUnit
 
 export class IndeterminateTaskUnits extends Schema.TaggedClass<IndeterminateTaskUnits>()(
   "IndeterminateTaskUnits",
-  {
-    spinnerFrame: Schema.Number,
-  },
+  {},
 ) {}
 
 export const TaskUnitsSchema = Schema.Union(DeterminateTaskUnits, IndeterminateTaskUnits);

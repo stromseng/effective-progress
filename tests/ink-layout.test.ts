@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import * as Progress from "../src";
-import { computeSharedColumnWidths } from "../src/ink-renderer/layout";
-import type { TaskRowModel } from "../src/ink-renderer/types";
+import { computeFrameLayout } from "../src/ink-renderer/columns/layout";
+import type { TaskRowModel } from "../src/ink-renderer/snapshot/types";
 
 const makeTask = (
   id: number,
@@ -29,18 +29,24 @@ const makeTask = (
     ...overrides,
   });
 
-const row = (task: Progress.TaskSnapshot): TaskRowModel => ({
+const row = (task: Progress.TaskSnapshot, depth = 0): TaskRowModel => ({
   task,
   tree: {
-    depth: 0,
+    depth,
     hasChildren: false,
     hasNextSibling: false,
     ancestorHasNextSibling: [],
   },
 });
 
-describe("shared ink column widths", () => {
-  test("uses max width across rows for amount/elapsed/eta", () => {
+const widthOf = (layout: ReturnType<typeof computeFrameLayout>, id: string): number =>
+  layout.columns.find((column) => column.id === id)?.width ?? 0;
+
+const variantOf = (layout: ReturnType<typeof computeFrameLayout>, id: string): string =>
+  layout.columns.find((column) => column.id === id)?.variantId ?? "hidden";
+
+describe("frame layout planning", () => {
+  test("caps growth at shared max widths for utility columns", () => {
     const rows = [
       row(
         makeTask(1, {
@@ -66,37 +72,57 @@ describe("shared ink column widths", () => {
       ),
     ];
 
-    const widths = computeSharedColumnWidths(rows, 10_000, 0);
+    const layout = computeFrameLayout(rows, 10_000, 0, undefined, true);
 
-    expect(widths.row).toBeGreaterThanOrEqual(100);
-    expect(widths.description).toBeGreaterThan(0);
-    expect(widths.amount).toBeGreaterThanOrEqual("999 0 999/1000".length);
-    expect(widths.elapsed).toBeGreaterThanOrEqual("59m 59s".length);
-    expect(widths.eta).toBeGreaterThanOrEqual("ETA: 1s".length);
-    expect(widths.bar).toBeGreaterThan(0);
+    expect(layout.rowWidth).toBeLessThan(100);
+    expect(widthOf(layout, "description")).toBeGreaterThan(0);
+    expect(widthOf(layout, "description")).toBe(20);
+    expect(widthOf(layout, "amount")).toBeGreaterThanOrEqual("999 0 999/1000".length);
+    expect(widthOf(layout, "elapsed")).toBeGreaterThanOrEqual("59m 59s".length);
+    expect(widthOf(layout, "eta")).toBeGreaterThanOrEqual("ETA: 1s".length);
+    expect(widthOf(layout, "bar")).toBe(30);
   });
 
-  test("hides ETA and bar columns when no determinate running tasks need them", () => {
+  test("hides eta/bar/amount when no determinate tasks need utility columns", () => {
     const rows = [
       row(
         makeTask(3, {
           status: "done",
           completedAt: 2_000,
-          units: new Progress.IndeterminateTaskUnits({ spinnerFrame: 0 }),
+          units: new Progress.IndeterminateTaskUnits({}),
         }),
       ),
     ];
 
-    const widths = computeSharedColumnWidths(rows, 2_000, 0);
+    const layout = computeFrameLayout(rows, 2_000, 0, undefined, true);
 
-    expect(widths.bar).toBe(0);
-    expect(widths.eta).toBe(0);
-    expect(widths.amount).toBe(0);
-    expect(widths.elapsed).toBeGreaterThanOrEqual("2s".length);
-    expect(widths.row).toBeLessThan(100);
+    expect(widthOf(layout, "bar")).toBe(0);
+    expect(widthOf(layout, "eta")).toBe(0);
+    expect(widthOf(layout, "amount")).toBe(0);
+    expect(widthOf(layout, "elapsed")).toBeGreaterThanOrEqual("2s".length);
+    expect(layout.rowWidth).toBeLessThan(100);
   });
 
-  test("expands beyond 100 columns when descriptions require it", () => {
+  test("drops zero-width columns from the visible layout so they do not consume a gap", () => {
+    const rows = [
+      row(
+        makeTask(31, {
+          description: "tight",
+          status: "failed",
+          completedAt: 2_000,
+          units: new Progress.IndeterminateTaskUnits({}),
+        }),
+      ),
+    ];
+
+    const layout = computeFrameLayout(rows, 2_000, 0, 12, true);
+
+    expect(layout.columns.map((column) => column.id)).toEqual(["description", "elapsed"]);
+    expect(widthOf(layout, "amount")).toBe(0);
+    expect(layout.rowWidth).toBe(12);
+  });
+
+  test("expands beyond baseline when content requires more width", () => {
     const rows = [
       row(
         makeTask(4, {
@@ -106,10 +132,10 @@ describe("shared ink column widths", () => {
       ),
     ];
 
-    const widths = computeSharedColumnWidths(rows, 1_000, 0);
+    const layout = computeFrameLayout(rows, 1_000, 0, undefined, true);
 
-    expect(widths.row).toBeGreaterThan(100);
-    expect(widths.description).toBeGreaterThan(8);
+    expect(layout.rowWidth).toBeGreaterThan(100);
+    expect(widthOf(layout, "description")).toBeGreaterThan(8);
   });
 
   test("compacts to terminal width in narrow terminals", () => {
@@ -128,52 +154,79 @@ describe("shared ink column widths", () => {
       ),
     ];
 
-    const widths = computeSharedColumnWidths(rows, 5_000, 0, 60);
+    const layout = computeFrameLayout(rows, 5_000, 0, 60, true);
 
-    expect(widths.row).toBeLessThanOrEqual(60);
-    expect(widths.amount).toBeGreaterThanOrEqual(0);
-    expect(widths.elapsed).toBeGreaterThan(0);
+    expect(layout.rowWidth).toBeLessThanOrEqual(60);
+    expect(widthOf(layout, "elapsed")).toBeGreaterThan(0);
   });
 
-  test("omits succeeded/failed columns when all determinate rows are processed-only", () => {
+  test("demotes description from tree to plain when width is constrained", () => {
+    const rows = [
+      row(makeTask(6, { description: "parent-node" }), 0),
+      row(makeTask(7, { description: "child-node" }), 1),
+    ];
+
+    const wide = computeFrameLayout(rows, 5_000, 0, 90, true);
+    const narrow = computeFrameLayout(rows, 5_000, 0, 30, true);
+
+    expect(variantOf(wide, "description")).toBe("tree");
+    expect(variantOf(narrow, "description")).toBe("plain");
+  });
+
+  test("demotes amount from detailed to processed variant on narrow terminals", () => {
     const rows = [
       row(
-        makeTask(6, {
-          countDisplay: "processedOnly",
+        makeTask(8, {
+          countDisplay: "detailed",
           units: new Progress.DeterminateTaskUnits({
-            succeeded: 5,
-            failed: 1,
-            processed: 6,
-            total: 10,
-          }),
-        }),
-      ),
-      row(
-        makeTask(7, {
-          countDisplay: "processedOnly",
-          units: new Progress.DeterminateTaskUnits({
-            succeeded: 15,
-            failed: 0,
+            succeeded: 12,
+            failed: 3,
             processed: 15,
-            total: 15,
+            total: 20,
           }),
         }),
       ),
     ];
 
-    const widths = computeSharedColumnWidths(rows, 10_000, 0);
+    const wide = computeFrameLayout(rows, 5_000, 0, 80, true);
+    const narrow = computeFrameLayout(rows, 5_000, 0, 22, true);
 
-    expect(widths.amountSucceeded).toBe(0);
-    expect(widths.amountFailed).toBe(0);
-    expect(widths.amountProcessed).toBe(2);
-    expect(widths.amountTotal).toBe(2);
-    expect(widths.amount).toBe(5);
+    expect(variantOf(wide, "amount")).toBe("detailed");
+    expect(variantOf(narrow, "amount")).toBe("processed");
+    expect(widthOf(narrow, "amount")).toBeLessThan(widthOf(wide, "amount"));
   });
 
-  test("reclaims utility reserves before shrinking description on narrow terminals", () => {
+  test("demotes ETA from prefixed to duration to primary before hiding", () => {
     const rows = [
       row(
-        makeTask(8, {
+        makeTask(12, {
+          description: "eta-variant",
+          units: new Progress.DeterminateTaskUnits({
+            succeeded: 1,
+            failed: 0,
+            processed: 1,
+            total: 1000,
+          }),
+        }),
+      ),
+    ];
+
+    const prefixed = computeFrameLayout(rows, 10_000, 0, 55, true);
+    const duration = computeFrameLayout(rows, 10_000, 0, 50, true);
+    const primary = computeFrameLayout(rows, 10_000, 0, 47, true);
+    const hidden = computeFrameLayout(rows, 10_000, 0, 43, true);
+
+    expect(variantOf(prefixed, "eta")).toBe("prefixed");
+    expect(variantOf(duration, "eta")).toBe("duration");
+    expect(variantOf(primary, "eta")).toBe("primary");
+    expect(widthOf(primary, "eta")).toBeGreaterThan(0);
+    expect(widthOf(hidden, "eta")).toBe(0);
+  });
+
+  test("reclaims utility reserves under medium pressure", () => {
+    const rows = [
+      row(
+        makeTask(9, {
           description: "short-desc",
           startedAt: 0,
           units: new Progress.DeterminateTaskUnits({
@@ -186,18 +239,18 @@ describe("shared ink column widths", () => {
       ),
     ];
 
-    const medium = computeSharedColumnWidths(rows, 1_000, 0, 70);
-    const narrow = computeSharedColumnWidths(rows, 1_000, 0, 60);
+    const medium = computeFrameLayout(rows, 1_000, 0, 90, true);
+    const narrow = computeFrameLayout(rows, 1_000, 0, 70, true);
 
-    expect(medium.description).toBe(narrow.description);
-    expect(narrow.elapsed).toBeLessThan(medium.elapsed);
-    expect(narrow.eta).toBeLessThan(medium.eta);
+    expect(widthOf(narrow, "description")).toBeLessThanOrEqual(widthOf(medium, "description"));
+    expect(widthOf(narrow, "elapsed")).toBeLessThan(widthOf(medium, "elapsed"));
+    expect(widthOf(narrow, "eta")).toBeLessThan(widthOf(medium, "eta"));
   });
 
-  test("shrinks bar before hiding ETA text", () => {
+  test("shrinks bar before hiding ETA", () => {
     const rows = [
       row(
-        makeTask(9, {
+        makeTask(10, {
           description: "bar-vs-eta",
           startedAt: 0,
           units: new Progress.DeterminateTaskUnits({
@@ -210,18 +263,18 @@ describe("shared ink column widths", () => {
       ),
     ];
 
-    const wide = computeSharedColumnWidths(rows, 1_000, 0, 70);
-    const narrow = computeSharedColumnWidths(rows, 1_000, 0, 50);
+    const wide = computeFrameLayout(rows, 1_000, 0, 70, true);
+    const narrow = computeFrameLayout(rows, 1_000, 0, 50, true);
 
-    expect(wide.eta).toBeGreaterThan(0);
-    expect(narrow.eta).toBeGreaterThan(0);
-    expect(narrow.bar).toBeLessThan(wide.bar);
+    expect(widthOf(wide, "eta")).toBeGreaterThan(0);
+    expect(widthOf(narrow, "eta")).toBeGreaterThan(0);
+    expect(widthOf(narrow, "bar")).toBeLessThan(widthOf(wide, "bar"));
   });
 
-  test("shrinks description before shrinking processed-total amount column", () => {
+  test("shrinks description before dropping processed amount", () => {
     const rows = [
       row(
-        makeTask(10, {
+        makeTask(11, {
           description: "long-description-for-amount-priority",
           startedAt: 0,
           countDisplay: "processedOnly",
@@ -235,10 +288,10 @@ describe("shared ink column widths", () => {
       ),
     ];
 
-    const medium = computeSharedColumnWidths(rows, 1_000, 0, 30);
-    const narrow = computeSharedColumnWidths(rows, 1_000, 0, 24);
+    const medium = computeFrameLayout(rows, 1_000, 0, 50, true);
+    const narrow = computeFrameLayout(rows, 1_000, 0, 40, true);
 
-    expect(narrow.description).toBeLessThan(medium.description);
-    expect(narrow.amount).toBe(medium.amount);
+    expect(widthOf(narrow, "description")).toBeLessThan(widthOf(medium, "description"));
+    expect(widthOf(narrow, "amount")).toBe(widthOf(medium, "amount"));
   });
 });

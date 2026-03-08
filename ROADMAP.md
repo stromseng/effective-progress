@@ -7,6 +7,11 @@
 - figure out why package size on npmx is so large, and why deps arent showing
 - figure out if we can remove the renderloop in `service.tsx`, and just rely on Ink rendering
 - configurable transient/cleanup mode, clear fully on completion, leave completion message, leave full bar
+- add speed calculation column, I.e 100/s or download speed 200Mbit/s etc.
+- allow precreating tasks then passing them to the public APIs, `.all` `.foreach` to have them use an existing task instead of creating a new one, to allow for showing the upcoming tasks, even though they are executed lazily.
+
+- make SNAPSHOT_PUBLISH_INTERVAL_MILLIS and other rendering constants etc be effect Configs.
+- look into making composable components like shadcn for the progress bar columns.
 
 ## Customization
 

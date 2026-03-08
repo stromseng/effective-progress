@@ -1,5 +1,5 @@
 import type { TaskSnapshot } from "../../types";
-import type { TaskTreeInfo } from "../types";
+import type { TaskTreeInfo } from "../snapshot/types";
 
 export interface ColumnProps {
   readonly task: TaskSnapshot;
@@ -7,9 +7,4 @@ export interface ColumnProps {
   readonly now: number;
   readonly tick: number;
   readonly isTTY: boolean;
-  readonly showTree: boolean;
-  readonly amountSucceededWidth: number;
-  readonly amountFailedWidth: number;
-  readonly amountProcessedWidth: number;
-  readonly amountTotalWidth: number;
 }

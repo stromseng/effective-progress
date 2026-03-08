@@ -1,9 +1,16 @@
 import { Text } from "ink";
+import type { TaskRowModel } from "../snapshot/types";
+import { hasDeterminateRows } from "./determinate";
+import type { ColumnPlanningContext } from "./planner";
+import type { ColumnSpec } from "./spec";
 import type { ColumnProps } from "./types";
 
-export interface BarColumnProps extends ColumnProps {
+interface BarColumnProps extends ColumnProps {
   readonly width: number;
 }
+
+const DEFAULT_BAR_WIDTH = 30;
+const MIN_BAR_WIDTH = 8;
 
 const segmentLengths = (width: number, total: number, succeeded: number, failed: number) => {
   if (total <= 0) {
@@ -24,7 +31,7 @@ const segmentLengths = (width: number, total: number, succeeded: number, failed:
   };
 };
 
-export const BarColumn = ({ task, width }: BarColumnProps) => {
+const BarColumn = ({ task, width }: BarColumnProps) => {
   if (task.units._tag !== "DeterminateTaskUnits") {
     return <Text />;
   }
@@ -44,4 +51,53 @@ export const BarColumn = ({ task, width }: BarColumnProps) => {
       <Text color="gray">{"─".repeat(lengths.remaining)}</Text>
     </Text>
   );
+};
+
+export const createBarColumnSpec = (
+  context: ColumnPlanningContext<TaskRowModel>,
+  isTTY: boolean,
+): ColumnSpec<TaskRowModel> | undefined => {
+  if (!hasDeterminateRows(context.rows)) {
+    return undefined;
+  }
+
+  return {
+    id: "bar",
+    grow: 0,
+    canHide: true,
+    variants: [
+      {
+        id: "full",
+        minWidth: MIN_BAR_WIDTH,
+        idealWidth: DEFAULT_BAR_WIDTH,
+        maxWidth: DEFAULT_BAR_WIDTH,
+        renderCell: (row, width) => (
+          <BarColumn
+            task={row.task}
+            tree={row.tree}
+            now={context.now}
+            tick={context.tick}
+            isTTY={isTTY}
+            width={Math.max(1, Math.min(width, DEFAULT_BAR_WIDTH))}
+          />
+        ),
+      },
+      {
+        id: "compact",
+        minWidth: 1,
+        idealWidth: MIN_BAR_WIDTH,
+        maxWidth: MIN_BAR_WIDTH,
+        renderCell: (row, width) => (
+          <BarColumn
+            task={row.task}
+            tree={row.tree}
+            now={context.now}
+            tick={context.tick}
+            isTTY={isTTY}
+            width={Math.max(1, width)}
+          />
+        ),
+      },
+    ],
+  };
 };

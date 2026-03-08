@@ -1,5 +1,5 @@
 import { PassThrough } from "node:stream";
-import type { ProgressStdioService } from "../../src/stdio";
+import type { ProgressStdioService } from "../../src/services/stdio";
 
 interface MockWriteStreamOptions {
   readonly isTTY: boolean;
@@ -56,12 +56,8 @@ const createMockWriteStream = (options: MockWriteStreamOptions): MockWriteStream
 };
 
 export const createMockStdio = (options: MockStdioOptions = {}): MockStdioHandle => {
-  const stdout = createMockWriteStream(
-    options.stdout ?? { isTTY: false, columns: 0, rows: 0 },
-  );
-  const stderr = createMockWriteStream(
-    options.stderr ?? { isTTY: false, columns: 0, rows: 0 },
-  );
+  const stdout = createMockWriteStream(options.stdout ?? { isTTY: false, columns: 0, rows: 0 });
+  const stderr = createMockWriteStream(options.stderr ?? { isTTY: false, columns: 0, rows: 0 });
 
   return {
     service: {
