@@ -29,7 +29,6 @@
   - Compute speed as `deltaCompleted / deltaTime` over only the retained window. ETA = `remaining / speed`.
   - Reference: Rich's `Task` class (`rich/progress.py:1023-1038`) uses a `deque[ProgressSample]` with `maxlen=1000` and a 30s default window. The `speed` property sums recent deltas and divides by window duration.
   - Needs a new field on the task snapshot (e.g. `samples: Array<ProgressSample>`) and a renderer-level config surface for `speedEstimatePeriod`.
-- [ ] Failure-aware determinate bars for `Effect.all` modes (`validate` / `either`), e.g. red failure tip.
 - [ ] Better non-TTY strategy and configurability.
 
 ## Rendering
