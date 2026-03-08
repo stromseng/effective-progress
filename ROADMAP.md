@@ -11,6 +11,7 @@
 - make `SNAPSHOT_PUBLISH_INTERVAL_MILLIS` and other rendering constants etc be effect Configs.
 - make preallocated task description space configurable
 - look into making composable components like shadcn for the progress bar columns.
+- update task api to have methods on the tasks instead of having to pass the ids to functions. i.e `task.incrementSuccess`
 
 ## Customization
 
