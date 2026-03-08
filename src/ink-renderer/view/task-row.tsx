@@ -1,6 +1,6 @@
 import { Box } from "ink";
-import type { FrameLayout } from "./columns/frame-plan";
-import type { TaskRowModel } from "./types";
+import type { FrameLayout } from "../columns/layout";
+import type { TaskRowModel } from "../snapshot/types";
 
 export interface TaskRowProps {
   readonly row: TaskRowModel;

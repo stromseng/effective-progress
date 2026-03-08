@@ -1,6 +1,6 @@
 import { Text } from "ink";
 import type { DeterminateTaskUnits, TaskSnapshot } from "../../types";
-import type { TaskRowModel } from "../types";
+import type { TaskRowModel } from "../snapshot/types";
 import type { ColumnPlanningContext } from "./planner";
 import type { ColumnSpec } from "./spec";
 import type { ColumnProps } from "./types";

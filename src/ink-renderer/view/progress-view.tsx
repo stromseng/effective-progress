@@ -1,9 +1,9 @@
 import { Box } from "ink";
-import { computeFrameLayout } from "./columns/frame-plan";
+import { computeFrameLayout } from "../columns/layout";
+import type { TaskRowModel } from "../snapshot/types";
 import { TaskRow } from "./task-row";
-import type { TaskRowModel } from "./types";
 
-export interface ProgressAppProps {
+export interface ProgressViewProps {
   readonly rows: ReadonlyArray<TaskRowModel>;
   readonly now: number;
   readonly tick: number;
@@ -11,7 +11,7 @@ export interface ProgressAppProps {
   readonly terminalColumns?: number;
 }
 
-export const ProgressApp = ({ rows, now, tick, isTTY, terminalColumns }: ProgressAppProps) => {
+export const ProgressView = ({ rows, now, tick, isTTY, terminalColumns }: ProgressViewProps) => {
   const layout = computeFrameLayout(rows, now, tick, terminalColumns, isTTY);
 
   return (

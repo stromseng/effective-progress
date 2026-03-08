@@ -1,7 +1,7 @@
 import { Text } from "ink";
 import { formatElapsed } from "../format";
 import type { DeterminateTaskUnits, TaskSnapshot } from "../../types";
-import type { TaskRowModel } from "../types";
+import type { TaskRowModel } from "../snapshot/types";
 import type { ColumnPlanningContext } from "./planner";
 import type { ColumnSpec } from "./spec";
 import { textWidth } from "./spec";

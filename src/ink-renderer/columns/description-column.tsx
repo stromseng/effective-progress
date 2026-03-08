@@ -1,7 +1,7 @@
 import { Text } from "ink";
 import { getTaskIndicator } from "../format";
-import { renderTreePrefix } from "../tree";
-import type { TaskRowModel } from "../types";
+import type { TaskRowModel } from "../snapshot/types";
+import { renderTreePrefix } from "../view/tree-prefix";
 import type { ColumnPlanningContext } from "./planner";
 import type { ColumnSpec } from "./spec";
 import { textWidth } from "./spec";

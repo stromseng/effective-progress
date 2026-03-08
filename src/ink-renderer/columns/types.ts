@@ -1,5 +1,5 @@
 import type { TaskSnapshot } from "../../types";
-import type { TaskTreeInfo } from "../types";
+import type { TaskTreeInfo } from "../snapshot/types";
 
 export interface ColumnProps {
   readonly task: TaskSnapshot;

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import * as Progress from "../src";
-import { computeFrameLayout } from "../src/ink-renderer/columns/frame-plan";
-import type { TaskRowModel } from "../src/ink-renderer/types";
+import { computeFrameLayout } from "../src/ink-renderer/columns/layout";
+import type { TaskRowModel } from "../src/ink-renderer/snapshot/types";
 
 const makeTask = (
   id: number,

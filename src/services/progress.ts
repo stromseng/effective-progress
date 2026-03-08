@@ -1,10 +1,10 @@
 import { Context, Effect, Exit, FiberRef, Layer, Option } from "effect";
 import { dual } from "effect/Function";
+import { makeProgressRenderStore } from "../ink-renderer/store";
+import type { AddTaskOptions, ProgressService, TaskId } from "../types";
+import { Task } from "../types";
 import { InkRenderer } from "./ink-renderer";
-import { makeProgressRenderStore } from "./ink-renderer/store";
 import { ProgressStdio } from "./stdio";
-import type { AddTaskOptions, ProgressService, TaskId } from "./types";
-import { Task } from "./types";
 
 const makeProgressService = Effect.gen(function* () {
   const stdio = yield* ProgressStdio;

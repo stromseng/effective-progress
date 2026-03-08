@@ -1,7 +1,7 @@
 import { Cause, Effect, Exit, Option } from "effect";
 import { dual } from "effect/Function";
 import type { Concurrency } from "effect/Types";
-import { Progress } from "./runtime";
+import { Progress } from "./services/progress";
 import { Task } from "./types";
 import type {
   AddTaskOptions,

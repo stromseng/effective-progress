@@ -1,23 +1,29 @@
-import type { OrderedTask, TaskTreeInfo } from "./types";
+import type { TaskStore } from "../../types";
+import type { OrderedTask, TaskRowModel } from "./types";
 
-const treeAncestorPrefix = (tree: TaskTreeInfo): string =>
-  tree.ancestorHasNextSibling
-    .slice(1)
-    .map((hasNext) => (hasNext ? "│  " : "   "))
-    .join("");
+const orderedVisibleTasks = (store: TaskStore): ReadonlyArray<OrderedTask> =>
+  store.renderOrder.flatMap((row) => {
+    const snapshot = store.tasks.get(row.id);
+    if (!snapshot || (snapshot.transient && snapshot.status !== "running")) {
+      return [];
+    }
 
-export const renderTreePrefix = (tree: TaskTreeInfo): string => {
-  if (tree.depth <= 0) {
-    return "";
-  }
+    return [
+      {
+        snapshot,
+        depth: row.depth,
+      },
+    ];
+  });
 
-  const ancestor = treeAncestorPrefix(tree);
-  return `${ancestor}${tree.hasNextSibling ? "├─ " : "└─ "}`;
-};
+export interface RenderSnapshot {
+  readonly rows: ReadonlyArray<TaskRowModel>;
+  readonly hasRunningTasks: boolean;
+}
 
-export const computeTreeInfo = (
+const computeTreeInfo = (
   ordered: ReadonlyArray<OrderedTask>,
-): ReadonlyArray<OrderedTask & { readonly tree: TaskTreeInfo }> => {
+): ReadonlyArray<OrderedTask & { readonly tree: TaskRowModel["tree"] }> => {
   const hasNextSiblingByIndex: Array<boolean> = Array.from({ length: ordered.length }, () => false);
 
   for (let i = 0; i < ordered.length; i++) {
@@ -45,7 +51,7 @@ export const computeTreeInfo = (
       ordered[index + 1] !== undefined &&
       ordered[index + 1]!.depth > depth;
 
-    const tree: TaskTreeInfo = {
+    const tree = {
       depth,
       hasNextSibling: hasNextSiblingByIndex[index] ?? false,
       hasChildren,
@@ -59,4 +65,17 @@ export const computeTreeInfo = (
       tree,
     };
   });
+};
+
+export const toRenderSnapshot = (store: TaskStore): RenderSnapshot => {
+  const visibleTasks = orderedVisibleTasks(store);
+  const hasRunningTasks = visibleTasks.some((entry) => entry.snapshot.status === "running");
+
+  return {
+    rows: computeTreeInfo(visibleTasks).map((entry) => ({
+      task: entry.snapshot,
+      tree: entry.tree,
+    })),
+    hasRunningTasks,
+  };
 };

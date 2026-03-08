@@ -1,5 +1,5 @@
 import type { DeterminateTaskUnits, TaskSnapshot } from "../../types";
-import type { TaskRowModel } from "../types";
+import type { TaskRowModel } from "../snapshot/types";
 import { createAmountColumnSpec } from "./amount-column";
 import { createBarColumnSpec } from "./bar-column";
 import { createDescriptionColumnSpec } from "./description-column";

@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from "react";
-import { ProgressApp } from "./app";
-import type { ProgressRenderStore } from "./store";
-import { useNowClock } from "./use-now-clock";
-import { useSpinnerClock } from "./use-spinner-clock";
+import type { ProgressRenderStore } from "../store";
+import { ProgressView } from "./progress-view";
+import { useNowClock } from "./hooks/use-now-clock";
+import { useSpinnerClock } from "./hooks/use-spinner-clock";
 
 const SPINNER_INTERVAL_MILLIS = 100;
 const NOW_INTERVAL_MILLIS = 1_000;
@@ -19,7 +19,7 @@ export const ProgressRoot = ({ store, isTTY, getTerminalColumns }: ProgressRootP
   const now = useNowClock(snapshot.hasRunningTasks, NOW_INTERVAL_MILLIS);
 
   return (
-    <ProgressApp
+    <ProgressView
       rows={snapshot.rows}
       now={now}
       tick={tick}

@@ -1,8 +1,8 @@
 import { Context, Effect, Layer } from "effect";
 import { render } from "ink";
-import type { ProgressStdioService } from "../stdio";
-import { ProgressRoot } from "./root";
-import type { ProgressRenderStore } from "./store";
+import type { ProgressRenderStore } from "../ink-renderer/store";
+import { ProgressRoot } from "../ink-renderer/view/render-root";
+import type { ProgressStdioService } from "./stdio";
 
 const MAX_FPS = 12;
 

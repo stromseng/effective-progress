@@ -6,7 +6,7 @@ import {
   TaskId as makeTaskId,
   TaskSnapshot,
 } from "../types";
-import { toRenderSnapshot, type RenderSnapshot } from "./model";
+import { toRenderSnapshot, type RenderSnapshot } from "./snapshot/render-snapshot";
 
 interface DeterminateCounts {
   readonly succeeded: number;

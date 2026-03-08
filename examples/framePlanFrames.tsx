@@ -1,7 +1,7 @@
 import { renderToString } from "ink";
 import * as Progress from "../src";
-import { ProgressApp } from "../src/ink-renderer/app";
-import type { TaskRowModel } from "../src/ink-renderer/types";
+import type { TaskRowModel } from "../src/ink-renderer/snapshot/types";
+import { ProgressView } from "../src/ink-renderer/view/progress-view";
 
 const task = new Progress.TaskSnapshot({
   id: Progress.TaskId(1),
@@ -45,7 +45,13 @@ for (
   terminalWidth--
 ) {
   const output = renderToString(
-    <ProgressApp rows={[row]} now={NOW} tick={TICK} isTTY={true} terminalColumns={terminalWidth} />,
+    <ProgressView
+      rows={[row]}
+      now={NOW}
+      tick={TICK}
+      isTTY={true}
+      terminalColumns={terminalWidth}
+    />,
     { columns: terminalWidth },
   );
   console.log(output);
