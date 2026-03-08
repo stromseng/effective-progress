@@ -71,7 +71,7 @@ const advancedProgram = Effect.gen(function* () {
     yield* progress.updateTask(deployTask, {
       description: `Manual deployment (step ${step}/5)`,
     });
-    yield* progress.advanceTask(deployTask, 1);
+    yield* progress.incrementSucceeded(deployTask, 1);
   }
 
   yield* progress.completeTask(deployTask);

@@ -66,13 +66,13 @@ const program = Effect.gen(function* () {
 
   for (let i = 0; i < 5; i++) {
     yield* Effect.sleep("500 millis");
-    yield* progress.advanceTask(taskId, 1);
+    yield* progress.incrementSucceeded(taskId, 1);
   }
 
   yield* Effect.sleep("700 millis");
-  yield* progress.advanceTaskFailed(taskId, 1);
+  yield* progress.incrementFailed(taskId, 1);
   yield* Effect.sleep("700 millis");
-  yield* progress.advanceTaskFailed(taskId, 1);
+  yield* progress.incrementFailed(taskId, 1);
   yield* Effect.sleep("500 millis");
   yield* progress.completeTask(taskId);
 }).pipe(Progress.task({ description: "Mixed outcomes showcase", transient: false }));

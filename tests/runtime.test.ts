@@ -147,7 +147,7 @@ describe("transient propagation", () => {
               total: 1,
             });
 
-            yield* progress.advanceTask(childId, 1);
+            yield* progress.incrementSucceeded(childId, 1);
             yield* progress.completeTask(childId);
 
             const parent = yield* progress.getTask(parentId);
@@ -235,8 +235,8 @@ describe("determinate task counters", () => {
             const progress = yield* Progress.Progress;
             const taskId = yield* progress.addTask({ description: "counts", total: 5 });
 
-            yield* progress.advanceTask(taskId, 2);
-            yield* progress.advanceTaskFailed(taskId, 1);
+            yield* progress.incrementSucceeded(taskId, 2);
+            yield* progress.incrementFailed(taskId, 1);
 
             return getTaskOrThrow(yield* progress.getTask(taskId), "counts");
           }),
@@ -293,7 +293,7 @@ describe("determinate task counters", () => {
             const progress = yield* Progress.Progress;
             const taskId = yield* progress.addTask({ description: "complete", total: 5 });
 
-            yield* progress.advanceTaskFailed(taskId, 1);
+            yield* progress.incrementFailed(taskId, 1);
             yield* progress.completeTask(taskId);
 
             return getTaskOrThrow(yield* progress.getTask(taskId), "complete");
@@ -322,8 +322,8 @@ describe("determinate task counters", () => {
             const progress = yield* Progress.Progress;
             const taskId = yield* progress.addTask({ description: "fail", total: 5 });
 
-            yield* progress.advanceTask(taskId, 1);
-            yield* progress.advanceTaskFailed(taskId, 1);
+            yield* progress.incrementSucceeded(taskId, 1);
+            yield* progress.incrementFailed(taskId, 1);
             yield* progress.failTask(taskId);
 
             return getTaskOrThrow(yield* progress.getTask(taskId), "fail");

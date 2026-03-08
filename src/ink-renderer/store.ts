@@ -20,8 +20,8 @@ export interface ProgressRenderStore {
   readonly flush: () => void;
   readonly addTask: (options: AddTaskOptions) => Effect.Effect<TaskId>;
   readonly updateTask: (taskId: TaskId, options: UpdateTaskOptions) => Effect.Effect<void>;
-  readonly addSuccess: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
-  readonly addFailure: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
+  readonly incrementSucceeded: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
+  readonly incrementFailed: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
   readonly completeTask: (taskId: TaskId) => Effect.Effect<void>;
   readonly failTask: (taskId: TaskId) => Effect.Effect<void>;
   readonly getTask: (taskId: TaskId) => Effect.Effect<Option.Option<TaskSnapshot>>;
@@ -318,7 +318,7 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
           return { tasks: nextTasks, renderOrder: current.renderOrder };
         });
       }),
-    addSuccess: (taskId, amount = 1) =>
+    incrementSucceeded: (taskId, amount = 1) =>
       Effect.sync(() => {
         updateState((current) => {
           const currentTask = current.tasks.get(taskId);
@@ -349,7 +349,7 @@ export const makeProgressRenderStore = (): ProgressRenderStore => {
           return { tasks: nextTasks, renderOrder: current.renderOrder };
         });
       }),
-    addFailure: (taskId, amount = 1) =>
+    incrementFailed: (taskId, amount = 1) =>
       Effect.sync(() => {
         updateState((current) => {
           const currentTask = current.tasks.get(taskId);

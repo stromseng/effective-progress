@@ -123,8 +123,8 @@ const program = Progress.task(
     yield* Console.log("This log is handled by the outer Console", { taskId: currentTask });
 
     // Manual determinate updates:
-    yield* progress.advanceTask(currentTask, 3);
-    yield* progress.advanceTaskFailed(currentTask, 1);
+    yield* progress.incrementSucceeded(currentTask, 3);
+    yield* progress.incrementFailed(currentTask, 1);
     yield* Effect.sleep("1 second");
   }),
   { description: "Manual task", total: 10 },

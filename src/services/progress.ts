@@ -36,8 +36,8 @@ const makeProgressService = Effect.gen(function* () {
     });
 
   const updateTask = store.updateTask;
-  const advanceTask = store.addSuccess;
-  const advanceTaskFailed = store.addFailure;
+  const incrementSucceeded = store.incrementSucceeded;
+  const incrementFailed = store.incrementFailed;
   const completeTask = store.completeTask;
   const failTask = store.failTask;
   const getTask = store.getTask;
@@ -91,8 +91,8 @@ const makeProgressService = Effect.gen(function* () {
   const service: ProgressService = {
     addTask,
     updateTask,
-    advanceTask,
-    advanceTaskFailed,
+    incrementSucceeded,
+    incrementFailed,
     completeTask,
     failTask,
     log,

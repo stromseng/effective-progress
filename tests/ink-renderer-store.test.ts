@@ -26,9 +26,9 @@ describe("progress render store", () => {
 
     expect(notifications).toBe(1);
 
-    await Effect.runPromise(store.addSuccess(taskId, 1));
-    await Effect.runPromise(store.addSuccess(taskId, 1));
-    await Effect.runPromise(store.addFailure(taskId, 1));
+    await Effect.runPromise(store.incrementSucceeded(taskId, 1));
+    await Effect.runPromise(store.incrementSucceeded(taskId, 1));
+    await Effect.runPromise(store.incrementFailed(taskId, 1));
 
     expect(notifications).toBe(1);
 
@@ -66,7 +66,7 @@ describe("progress render store", () => {
 
     expect(notifications).toBe(1);
 
-    await Effect.runPromise(store.addSuccess(taskId, 2));
+    await Effect.runPromise(store.incrementSucceeded(taskId, 2));
 
     expect(notifications).toBe(1);
 

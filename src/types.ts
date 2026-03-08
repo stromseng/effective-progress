@@ -74,8 +74,8 @@ export interface TaskStore {
 export interface ProgressService {
   readonly addTask: (options: AddTaskOptions) => Effect.Effect<TaskId>;
   readonly updateTask: (taskId: TaskId, options: UpdateTaskOptions) => Effect.Effect<void>;
-  readonly advanceTask: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
-  readonly advanceTaskFailed: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
+  readonly incrementSucceeded: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
+  readonly incrementFailed: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
   readonly completeTask: (taskId: TaskId) => Effect.Effect<void>;
   readonly failTask: (taskId: TaskId) => Effect.Effect<void>;
   readonly log: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>;

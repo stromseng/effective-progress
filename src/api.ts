@@ -103,7 +103,7 @@ const wrapTrackedEffect = (
     const exit = yield* Effect.exit(effect);
 
     if (Exit.isSuccess(exit)) {
-      yield* progress.advanceTask(taskId, 1);
+      yield* progress.incrementSucceeded(taskId, 1);
       return exit.value;
     }
 
@@ -111,7 +111,7 @@ const wrapTrackedEffect = (
       return yield* Effect.failCause(exit.cause);
     }
 
-    yield* progress.advanceTaskFailed(taskId, 1);
+    yield* progress.incrementFailed(taskId, 1);
     return yield* Effect.failCause(exit.cause);
   });
 

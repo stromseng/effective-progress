@@ -55,8 +55,8 @@ describe("Ink renderer integration", () => {
           transient: false,
         });
 
-        yield* progress.advanceTask(parentId, 1);
-        yield* progress.advanceTask(childId, 1);
+        yield* progress.incrementSucceeded(parentId, 1);
+        yield* progress.incrementSucceeded(childId, 1);
         yield* progress.completeTask(childId);
         yield* progress.completeTask(parentId);
       }),
@@ -128,8 +128,8 @@ describe("Ink renderer integration", () => {
             transient: false,
           });
 
-          yield* progress.advanceTask(taskId, 6);
-          yield* progress.advanceTaskFailed(taskId, 2);
+          yield* progress.incrementSucceeded(taskId, 6);
+          yield* progress.incrementFailed(taskId, 2);
           yield* progress.failTask(taskId);
         }),
         { description: "mixed-root", transient: false },
@@ -156,7 +156,7 @@ describe("Ink renderer integration", () => {
             transient: false,
             countDisplay: "processedOnly",
           });
-          yield* progress.advanceTask(failFastLikeId, 3);
+          yield* progress.incrementSucceeded(failFastLikeId, 3);
           yield* progress.failTask(failFastLikeId);
 
           const fullyAccountedId = yield* progress.addTask({
@@ -165,8 +165,8 @@ describe("Ink renderer integration", () => {
             transient: false,
             countDisplay: "detailed",
           });
-          yield* progress.advanceTask(fullyAccountedId, 3);
-          yield* progress.advanceTaskFailed(fullyAccountedId, 1);
+          yield* progress.incrementSucceeded(fullyAccountedId, 3);
+          yield* progress.incrementFailed(fullyAccountedId, 1);
           yield* progress.failTask(fullyAccountedId);
         }),
         { description: "alignment-root", transient: false },
@@ -194,7 +194,7 @@ describe("Ink renderer integration", () => {
             total: 4,
             transient: false,
           });
-          yield* progress.advanceTask(fullSuccessId, 4);
+          yield* progress.incrementSucceeded(fullSuccessId, 4);
           yield* progress.completeTask(fullSuccessId);
 
           const partialSuccessId = yield* progress.addTask({
@@ -202,8 +202,8 @@ describe("Ink renderer integration", () => {
             total: 4,
             transient: false,
           });
-          yield* progress.advanceTask(partialSuccessId, 3);
-          yield* progress.advanceTaskFailed(partialSuccessId, 1);
+          yield* progress.incrementSucceeded(partialSuccessId, 3);
+          yield* progress.incrementFailed(partialSuccessId, 1);
           yield* progress.completeTask(partialSuccessId);
 
           const failedId = yield* progress.addTask({
@@ -211,7 +211,7 @@ describe("Ink renderer integration", () => {
             total: 4,
             transient: false,
           });
-          yield* progress.advanceTaskFailed(failedId, 1);
+          yield* progress.incrementFailed(failedId, 1);
           yield* progress.failTask(failedId);
         }),
         { description: "indicator-root", transient: false },
@@ -252,7 +252,7 @@ describe("Ink renderer integration", () => {
             transient: false,
             countDisplay: "processedOnly",
           });
-          yield* progress.advanceTask(failFastId, 3);
+          yield* progress.incrementSucceeded(failFastId, 3);
           yield* progress.failTask(failFastId);
 
           const detailedId = yield* progress.addTask({
@@ -261,8 +261,8 @@ describe("Ink renderer integration", () => {
             transient: false,
             countDisplay: "detailed",
           });
-          yield* progress.advanceTask(detailedId, 3);
-          yield* progress.advanceTaskFailed(detailedId, 1);
+          yield* progress.incrementSucceeded(detailedId, 3);
+          yield* progress.incrementFailed(detailedId, 1);
           yield* progress.completeTask(detailedId);
         }),
         { description: "Mixed outcomes showcase", transient: false },
