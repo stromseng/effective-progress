@@ -23,7 +23,22 @@ export interface VariantResistanceResolver {
   readonly hide: (columnId: string, variantId: string) => number;
 }
 
-export const textWidth = (text: string): number => stringWidth(text);
+const WIDTH_CACHE_LIMIT = 4_096;
+const widthCache = new Map<string, number>();
+
+export const textWidth = (text: string): number => {
+  const cached = widthCache.get(text);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const width = stringWidth(text);
+  if (widthCache.size >= WIDTH_CACHE_LIMIT) {
+    widthCache.clear();
+  }
+  widthCache.set(text, width);
+  return width;
+};
 
 export const resolveColumnSpec = <Row>(
   spec: ColumnSpec<Row>,

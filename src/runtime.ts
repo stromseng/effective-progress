@@ -1,130 +1,10 @@
-import { Clock, Context, Effect, Exit, FiberRef, Layer, Option, Ref } from "effect";
+import { Context, Effect, Exit, FiberRef, Layer, Option } from "effect";
 import { dual } from "effect/Function";
 import { InkRenderer } from "./ink-renderer";
+import { makeProgressRenderStore } from "./ink-renderer/store";
 import { ProgressStdio } from "./stdio";
-import type {
-  AddTaskOptions,
-  ProgressService,
-  RenderRow,
-  TaskStore,
-  UpdateTaskOptions,
-} from "./types";
-import { DeterminateTaskUnits, IndeterminateTaskUnits, Task, TaskId, TaskSnapshot } from "./types";
-
-interface DeterminateCounts {
-  readonly succeeded: number;
-  readonly failed: number;
-  readonly total: number;
-}
-
-const normalizeDeterminateCounts = (counts: DeterminateCounts): DeterminateTaskUnits => {
-  const total = Math.max(0, counts.total);
-  const failed = Math.min(total, Math.max(0, counts.failed));
-  const succeeded = Math.min(total - failed, Math.max(0, counts.succeeded));
-  const processed = succeeded + failed;
-
-  return new DeterminateTaskUnits({
-    succeeded,
-    failed,
-    processed,
-    total,
-  });
-};
-
-const updateDeterminateCounts = (
-  units: DeterminateTaskUnits,
-  options: Pick<UpdateTaskOptions, "succeeded" | "failed" | "total">,
-): DeterminateTaskUnits =>
-  normalizeDeterminateCounts({
-    succeeded: options.succeeded ?? units.succeeded,
-    failed: options.failed ?? units.failed,
-    total: options.total ?? units.total,
-  });
-
-const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions): TaskSnapshot => {
-  const currentUnits = snapshot.units;
-  const units = (() => {
-    if (options.total !== undefined) {
-      if (options.total <= 0) {
-        return new IndeterminateTaskUnits({ spinnerFrame: 0 });
-      }
-
-      if (currentUnits._tag === "DeterminateTaskUnits") {
-        return updateDeterminateCounts(currentUnits, options);
-      }
-
-      return normalizeDeterminateCounts({
-        succeeded: options.succeeded ?? 0,
-        failed: options.failed ?? 0,
-        total: options.total,
-      });
-    }
-
-    if (currentUnits._tag === "DeterminateTaskUnits") {
-      if (options.succeeded === undefined && options.failed === undefined) {
-        return currentUnits;
-      }
-
-      return updateDeterminateCounts(currentUnits, options);
-    }
-
-    return currentUnits;
-  })();
-
-  return new TaskSnapshot({
-    id: snapshot.id,
-    parentId: snapshot.parentId,
-    description: options.description ?? snapshot.description,
-    status: snapshot.status,
-    countDisplay: options.countDisplay ?? snapshot.countDisplay,
-    transient: options.transient ?? snapshot.transient,
-    units,
-    startedAt: snapshot.startedAt,
-    completedAt: snapshot.completedAt,
-  });
-};
-
-const withTransient = (snapshot: TaskSnapshot, transient: boolean): TaskSnapshot =>
-  new TaskSnapshot({
-    id: snapshot.id,
-    parentId: snapshot.parentId,
-    description: snapshot.description,
-    status: snapshot.status,
-    countDisplay: snapshot.countDisplay,
-    transient,
-    units: snapshot.units,
-    startedAt: snapshot.startedAt,
-    completedAt: snapshot.completedAt,
-  });
-
-const findInsertionIndex = (
-  renderOrder: ReadonlyArray<RenderRow>,
-  parentId: TaskId | null,
-): { index: number; depth: number } => {
-  if (parentId === null) {
-    return { index: renderOrder.length, depth: 0 };
-  }
-  const parentIdx = renderOrder.findIndex((row) => row.id === parentId);
-  if (parentIdx === -1) return { index: renderOrder.length, depth: 0 };
-  const parentDepth = renderOrder[parentIdx]!.depth;
-  let i = parentIdx + 1;
-  while (i < renderOrder.length && renderOrder[i]!.depth > parentDepth) i++;
-  return { index: i, depth: parentDepth + 1 };
-};
-
-const removeFromRenderOrder = (
-  renderOrder: ReadonlyArray<RenderRow>,
-  taskId: TaskId,
-): ReadonlyArray<RenderRow> => {
-  const idx = renderOrder.findIndex((row) => row.id === taskId);
-  if (idx === -1) return renderOrder;
-  const taskDepth = renderOrder[idx]!.depth;
-  let end = idx + 1;
-  while (end < renderOrder.length && renderOrder[end]!.depth > taskDepth) end++;
-  const next = [...renderOrder];
-  next.splice(idx, end - idx);
-  return next;
-};
+import type { AddTaskOptions, ProgressService, TaskId } from "./types";
+import { Task } from "./types";
 
 const makeProgressService = Effect.gen(function* () {
   const stdio = yield* ProgressStdio;
@@ -132,20 +12,14 @@ const makeProgressService = Effect.gen(function* () {
   const outerConsole = yield* Effect.console;
   const isTTY = Boolean(stdio.stderr.isTTY);
 
-  const nextTaskIdRef = yield* Ref.make(0);
-  const storeRef = yield* Ref.make<TaskStore>({
-    tasks: new Map<TaskId, TaskSnapshot>(),
-    renderOrder: [],
-  });
-  const dirtyRef = yield* Ref.make(true);
+  const store = makeProgressRenderStore();
   const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
   const scope = yield* Effect.scope;
 
-  const markDirty = Ref.set(dirtyRef, true);
   const log = (...args: ReadonlyArray<unknown>) =>
     args.length === 0 ? Effect.void : outerConsole.log(...args);
 
-  yield* Effect.forkIn(inkRenderer.run(storeRef, dirtyRef, stdio, isTTY), scope);
+  yield* Effect.forkIn(inkRenderer.run(store, stdio, isTTY), scope);
   // Let the renderer fiber start so queued logs are reliably flushed on scope teardown.
   yield* Effect.sleep("0 millis");
 
@@ -155,231 +29,19 @@ const makeProgressService = Effect.gen(function* () {
         options.parentId === undefined
           ? yield* FiberRef.get(currentParentRef)
           : Option.some(options.parentId);
-      const taskId = TaskId(yield* Ref.updateAndGet(nextTaskIdRef, (id) => id + 1));
-      const units =
-        options.total === undefined || options.total <= 0
-          ? new IndeterminateTaskUnits({ spinnerFrame: 0 })
-          : normalizeDeterminateCounts({
-              succeeded: 0,
-              failed: 0,
-              total: options.total,
-            });
-      const store = yield* Ref.get(storeRef);
-      const parentSnapshot = Option.isSome(resolvedParentId)
-        ? store.tasks.get(resolvedParentId.value)
-        : undefined;
-
-      const now = yield* Clock.currentTimeMillis;
-      const parentIdValue = Option.getOrNull(resolvedParentId);
-      const countDisplay = options.countDisplay ?? parentSnapshot?.countDisplay ?? "detailed";
-      const snapshot = new TaskSnapshot({
-        id: taskId,
-        parentId: parentIdValue,
-        description: options.description,
-        status: "running",
-        countDisplay,
-        transient: (parentSnapshot?.transient ?? false) || (options.transient ?? false),
-        units,
-        startedAt: now,
-        completedAt: null,
+      return yield* store.addTask({
+        ...options,
+        parentId: Option.isSome(resolvedParentId) ? resolvedParentId.value : undefined,
       });
-
-      yield* Ref.update(storeRef, (s) => {
-        const nextTasks = new Map(s.tasks);
-        nextTasks.set(taskId, snapshot);
-        const { index, depth } = findInsertionIndex(s.renderOrder, parentIdValue);
-        const nextOrder = [...s.renderOrder];
-        nextOrder.splice(index, 0, { id: taskId, depth });
-        return { tasks: nextTasks, renderOrder: nextOrder };
-      });
-      yield* markDirty;
-
-      return taskId;
     });
 
-  const updateTask = (taskId: TaskId, options: UpdateTaskOptions) =>
-    Ref.update(storeRef, (store) => {
-      const snapshot = store.tasks.get(taskId);
-      if (!snapshot) return store;
-      const nextTasks = new Map(store.tasks);
-      const nextSnapshot = updatedSnapshot(snapshot, options);
-      nextTasks.set(taskId, nextSnapshot);
-
-      if (options.transient !== undefined) {
-        for (const [candidateId, candidate] of store.tasks.entries()) {
-          if (candidateId === taskId) {
-            continue;
-          }
-
-          let parentId = candidate.parentId;
-          let isDescendant = false;
-          while (parentId !== null) {
-            if (parentId === taskId) {
-              isDescendant = true;
-              break;
-            }
-            parentId = store.tasks.get(parentId)?.parentId ?? null;
-          }
-
-          if (isDescendant) {
-            nextTasks.set(candidateId, withTransient(candidate, nextSnapshot.transient));
-          }
-        }
-      }
-
-      return { tasks: nextTasks, renderOrder: store.renderOrder };
-    }).pipe(Effect.zipRight(markDirty));
-
-  const advanceTask = (taskId: TaskId, amount = 1) =>
-    Ref.update(storeRef, (store) => {
-      const snapshot = store.tasks.get(taskId);
-      if (!snapshot) return store;
-
-      const units =
-        snapshot.units._tag === "DeterminateTaskUnits"
-          ? normalizeDeterminateCounts({
-              succeeded: snapshot.units.succeeded + amount,
-              failed: snapshot.units.failed,
-              total: snapshot.units.total,
-            })
-          : new IndeterminateTaskUnits({
-              spinnerFrame: Math.max(0, snapshot.units.spinnerFrame + amount),
-            });
-
-      const nextTasks = new Map(store.tasks);
-      nextTasks.set(
-        taskId,
-        new TaskSnapshot({
-          id: snapshot.id,
-          parentId: snapshot.parentId,
-          description: snapshot.description,
-          status: snapshot.status,
-          countDisplay: snapshot.countDisplay,
-          transient: snapshot.transient,
-          units,
-          startedAt: snapshot.startedAt,
-          completedAt: snapshot.completedAt,
-        }),
-      );
-
-      return { tasks: nextTasks, renderOrder: store.renderOrder };
-    }).pipe(Effect.zipRight(markDirty));
-
-  const advanceTaskFailed = (taskId: TaskId, amount = 1) =>
-    Ref.update(storeRef, (store) => {
-      const snapshot = store.tasks.get(taskId);
-      if (!snapshot) return store;
-
-      if (snapshot.units._tag !== "DeterminateTaskUnits") {
-        return store;
-      }
-
-      const units = normalizeDeterminateCounts({
-        succeeded: snapshot.units.succeeded,
-        failed: snapshot.units.failed + amount,
-        total: snapshot.units.total,
-      });
-
-      const nextTasks = new Map(store.tasks);
-      nextTasks.set(
-        taskId,
-        new TaskSnapshot({
-          id: snapshot.id,
-          parentId: snapshot.parentId,
-          description: snapshot.description,
-          status: snapshot.status,
-          countDisplay: snapshot.countDisplay,
-          transient: snapshot.transient,
-          units,
-          startedAt: snapshot.startedAt,
-          completedAt: snapshot.completedAt,
-        }),
-      );
-
-      return { tasks: nextTasks, renderOrder: store.renderOrder };
-    }).pipe(Effect.zipRight(markDirty));
-
-  const completeTask = (taskId: TaskId) =>
-    Effect.gen(function* () {
-      const now = yield* Clock.currentTimeMillis;
-      yield* Ref.update(storeRef, (store) => {
-        const snapshot = store.tasks.get(taskId);
-        if (!snapshot) return store;
-
-        const nextTasks = new Map(store.tasks);
-        if (snapshot.transient) {
-          nextTasks.delete(taskId);
-          return {
-            tasks: nextTasks,
-            renderOrder: removeFromRenderOrder(store.renderOrder, taskId),
-          };
-        }
-
-        nextTasks.set(
-          taskId,
-          new TaskSnapshot({
-            id: snapshot.id,
-            parentId: snapshot.parentId,
-            description: snapshot.description,
-            status: "done",
-            countDisplay: snapshot.countDisplay,
-            transient: snapshot.transient,
-            units:
-              snapshot.units._tag === "DeterminateTaskUnits"
-                ? normalizeDeterminateCounts({
-                    succeeded: snapshot.units.total - snapshot.units.failed,
-                    failed: snapshot.units.failed,
-                    total: snapshot.units.total,
-                  })
-                : snapshot.units,
-            startedAt: snapshot.startedAt,
-            completedAt: now,
-          }),
-        );
-        return { tasks: nextTasks, renderOrder: store.renderOrder };
-      });
-      yield* markDirty;
-    });
-
-  const failTask = (taskId: TaskId) =>
-    Effect.gen(function* () {
-      const now = yield* Clock.currentTimeMillis;
-      yield* Ref.update(storeRef, (store) => {
-        const snapshot = store.tasks.get(taskId);
-        if (!snapshot) return store;
-
-        const nextTasks = new Map(store.tasks);
-        if (snapshot.transient) {
-          nextTasks.delete(taskId);
-          return {
-            tasks: nextTasks,
-            renderOrder: removeFromRenderOrder(store.renderOrder, taskId),
-          };
-        }
-
-        nextTasks.set(
-          taskId,
-          new TaskSnapshot({
-            id: snapshot.id,
-            parentId: snapshot.parentId,
-            description: snapshot.description,
-            status: "failed",
-            countDisplay: snapshot.countDisplay,
-            transient: snapshot.transient,
-            units: snapshot.units,
-            startedAt: snapshot.startedAt,
-            completedAt: now,
-          }),
-        );
-        return { tasks: nextTasks, renderOrder: store.renderOrder };
-      });
-      yield* markDirty;
-    });
-
-  const getTask = (taskId: TaskId) =>
-    Ref.get(storeRef).pipe(Effect.map((store) => Option.fromNullable(store.tasks.get(taskId))));
-
-  const listTasks = Ref.get(storeRef).pipe(Effect.map((store) => Array.from(store.tasks.values())));
+  const updateTask = store.updateTask;
+  const advanceTask = store.addSuccess;
+  const advanceTaskFailed = store.addFailure;
+  const completeTask = store.completeTask;
+  const failTask = store.failTask;
+  const getTask = store.getTask;
+  const listTasks = store.listTasks;
 
   const runTask: ProgressService["runTask"] = dual(
     2,

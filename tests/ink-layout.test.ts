@@ -89,7 +89,7 @@ describe("frame layout planning", () => {
         makeTask(3, {
           status: "done",
           completedAt: 2_000,
-          units: new Progress.IndeterminateTaskUnits({ spinnerFrame: 0 }),
+          units: new Progress.IndeterminateTaskUnits({}),
         }),
       ),
     ];

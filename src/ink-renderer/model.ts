@@ -17,8 +17,20 @@ const orderedVisibleTasks = (store: TaskStore): ReadonlyArray<OrderedTask> =>
     ];
   });
 
-export const toTaskRows = (store: TaskStore): ReadonlyArray<TaskRowModel> =>
-  computeTreeInfo(orderedVisibleTasks(store)).map((entry) => ({
-    task: entry.snapshot,
-    tree: entry.tree,
-  }));
+export interface RenderSnapshot {
+  readonly rows: ReadonlyArray<TaskRowModel>;
+  readonly hasRunningTasks: boolean;
+}
+
+export const toRenderSnapshot = (store: TaskStore): RenderSnapshot => {
+  const visibleTasks = orderedVisibleTasks(store);
+  const hasRunningTasks = visibleTasks.some((entry) => entry.snapshot.status === "running");
+
+  return {
+    rows: computeTreeInfo(visibleTasks).map((entry) => ({
+      task: entry.snapshot,
+      tree: entry.tree,
+    })),
+    hasRunningTasks,
+  };
+};
