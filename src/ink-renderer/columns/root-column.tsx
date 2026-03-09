@@ -23,12 +23,6 @@ interface MeasuredColumn {
   readonly render: (taskId: TaskId, width: number) => ReactNode;
 }
 
-export interface FlatColumnLayout {
-  readonly id: string;
-  readonly width: number;
-  readonly render: (taskId: TaskId, width: number) => ReactNode;
-}
-
 export interface RootColumnInstance {
   render: () => ReactNode;
 }
@@ -42,13 +36,29 @@ const buildColumns = (
   frame: RenderFrameContextValue,
   _stickyWidths: Map<string, number>,
 ): Map<string, StickyAwareColumn> => {
+  const descriptionTree = DescriptionColumn(frame, { variant: "tree" });
+  const descriptionPlain = DescriptionColumn(frame, { variant: "plain" });
+  const descriptionCompact = DescriptionColumn(frame, { variant: "compact" });
+  const descriptionSpinner = DescriptionColumn(frame, { variant: "spinner" });
   const progress = ProgressMetricsColumn(frame, { mode: "full" });
   const progressPercent = ProgressMetricsColumn(frame, { mode: "percent" });
   const eta = EtaColumn(frame);
   const columns: Array<StickyAwareColumn | undefined> = [
     {
-      id: "description",
-      column: DescriptionColumn(frame),
+      id: "description-tree",
+      column: descriptionTree,
+    },
+    {
+      id: "description-plain",
+      column: descriptionPlain,
+    },
+    {
+      id: "description-compact",
+      column: descriptionCompact,
+    },
+    {
+      id: "description-spinner",
+      column: descriptionSpinner,
     },
     progress === undefined
       ? undefined
@@ -118,18 +128,19 @@ const rootColumnSets = (
   };
 
   return [
-    unique(fromIds(["description", "progress", "elapsed", "eta"])),
-    unique(fromIds(["description", "progress-percent", "elapsed", "eta"])),
-    unique(fromIds(["description", "progress-percent", "elapsed"])),
-    unique(fromIds(["description", "progress-percent"])),
+    unique(fromIds(["description-tree", "progress", "elapsed", "eta"])),
+    unique(fromIds(["description-plain", "progress", "elapsed", "eta"])),
+    unique(fromIds(["description-plain", "progress-percent", "elapsed", "eta"])),
+    unique(fromIds(["description-plain", "progress-percent", "elapsed"])),
+    unique(fromIds(["description-plain", "progress-percent"])),
+    unique(fromIds(["description-compact", "progress-percent"])),
+    unique(fromIds(["description-compact"])),
+    unique(fromIds(["description-spinner"])),
   ].filter((columns) => columns.length > 0);
 };
 
-const requiredWidthForSet = (columns: ReadonlyArray<MeasuredColumn>): number =>
-  visibleWidth(
-    columns.map((column, index) => (index === 0 ? column.measure.min : column.preferredWidth)),
-    ROOT_GAP,
-  );
+const minimumWidthForSet = (columns: ReadonlyArray<MeasuredColumn>): number =>
+  visibleWidth(columns.map((column) => column.measure.min), ROOT_GAP);
 
 const selectColumnSet = (
   columnSets: ReadonlyArray<ReadonlyArray<MeasuredColumn>>,
@@ -144,10 +155,54 @@ const selectColumnSet = (
   }
 
   return (
-    columnSets.find((columns) => requiredWidthForSet(columns) <= terminalColumns) ??
+    columnSets.find((columns) => minimumWidthForSet(columns) <= terminalColumns) ??
     columnSets.at(-1) ??
     []
   );
+};
+
+const preferredWidthsForSet = (columns: ReadonlyArray<MeasuredColumn>): Array<number> =>
+  columns.map((column) => Math.max(column.measure.min, column.preferredWidth));
+
+const reduceOverflowRichStyle = (
+  widths: Array<number>,
+  minimums: ReadonlyArray<number>,
+  targetWidth: number,
+): Array<number> => {
+  let overflow = visibleWidth(widths, ROOT_GAP) - targetWidth;
+  while (overflow > 0) {
+    const widest = Math.max(
+      ...widths.filter((width, index) => width > (minimums[index] ?? width)),
+      -1,
+    );
+    if (widest < 0) {
+      break;
+    }
+
+    const widestIndexes = widths
+      .map((width, index) => ({ width, index }))
+      .filter(({ width, index }) => width === widest && width > (minimums[index] ?? width))
+      .map(({ index }) => index);
+    if (widestIndexes.length === 0) {
+      break;
+    }
+
+    for (const index of widestIndexes) {
+      if (overflow <= 0) {
+        break;
+      }
+
+      const minimum = minimums[index] ?? widths[index]!;
+      if (widths[index]! <= minimum) {
+        continue;
+      }
+
+      widths[index] = widths[index]! - 1;
+      overflow -= 1;
+    }
+  }
+
+  return widths;
 };
 
 const widthForSelectedSet = (
@@ -159,18 +214,16 @@ const widthForSelectedSet = (
   }
 
   if (targetWidth === undefined) {
-    return columns.map((column) => column.preferredWidth);
+    return preferredWidthsForSet(columns);
   }
 
-  const gapWidth = Math.max(0, columns.length - 1) * ROOT_GAP;
-  const utilityColumns = columns.slice(1);
-  const utilityWidth = utilityColumns.reduce((sum, column) => sum + column.preferredWidth, 0);
-  const description = columns[0]!;
-  const availableDescriptionWidth = Math.max(0, targetWidth - gapWidth - utilityWidth);
-  const descriptionMax = description.measure.max ?? availableDescriptionWidth;
-  const descriptionWidth = Math.min(availableDescriptionWidth, descriptionMax);
+  const minimums = columns.map((column) => column.measure.min);
+  const widths = preferredWidthsForSet(columns);
+  if (visibleWidth(widths, ROOT_GAP) <= targetWidth) {
+    return widths;
+  }
 
-  return [descriptionWidth, ...utilityColumns.map((column) => column.preferredWidth)];
+  return reduceOverflowRichStyle(widths, minimums, targetWidth);
 };
 
 const emptyRootColumn = (stickyWidths: Map<string, number>): RootColumnInstance => {
@@ -203,13 +256,11 @@ export const RootColumn = (
         )
       : terminalColumns;
   const columns = widthForSelectedSet(selectedColumns, targetWidth)
-    .map(
-      (width, index): FlatColumnLayout => ({
-        id: selectedColumns[index]!.id,
-        width,
-        render: selectedColumns[index]!.render,
-      }),
-    )
+    .map((width, index) => ({
+      id: selectedColumns[index]!.id,
+      width,
+      render: selectedColumns[index]!.render,
+    }))
     .filter((column) => column.width > 0);
 
   const taskIds = rows.map((row) => row.task.id);

@@ -3,6 +3,7 @@ import { renderToString } from "ink";
 import * as Progress from "../src";
 import { RootColumn } from "../src/ink-renderer/columns/root-column";
 import type { TaskRowModel } from "../src/ink-renderer/snapshot/types";
+import fastStringWidth from "fast-string-width";
 
 const task = new Progress.TaskSnapshot({
   id: Progress.TaskId(1),
@@ -33,12 +34,11 @@ const row: TaskRowModel = {
 
 const NOW = 9_000;
 const TICK = 0;
-const MIN_TERMINAL_WIDTH = 20;
-const detectedColumns = process.stdout.isTTY ? process.stdout.columns : undefined;
-const START_TERMINAL_WIDTH = Math.max(
-  MIN_TERMINAL_WIDTH,
-  detectedColumns !== undefined ? Math.floor(detectedColumns) : 200,
-);
+const MIN_TERMINAL_WIDTH = 1;
+const detectedColumns = process.stdout.columns;
+const START_TERMINAL_WIDTH = Math.max(MIN_TERMINAL_WIDTH, Math.min(detectedColumns, 170));
+const TERMINAL_WIDTH_LABEL_WIDTH = `${START_TERMINAL_WIDTH}`.length;
+const OUTPUT_WIDTH_LABEL_WIDTH = `${START_TERMINAL_WIDTH}`.length + 1;
 
 for (
   let terminalWidth = START_TERMINAL_WIDTH;
@@ -46,9 +46,13 @@ for (
   terminalWidth--
 ) {
   const rootColumn = RootColumn([row], NOW, TICK, terminalWidth, true, new Map());
-  const output = renderToString(
-    <Box flexDirection="row">{rootColumn.render()}</Box>,
-    { columns: terminalWidth },
+  const output = renderToString(rootColumn.render(), {
+    columns: terminalWidth,
+  });
+  const outputWidth = fastStringWidth(output);
+  const paddedOutput =
+    outputWidth < terminalWidth ? `${output}${" ".repeat(terminalWidth - outputWidth)}` : output;
+  console.log(
+    `${`${terminalWidth}`.padStart(TERMINAL_WIDTH_LABEL_WIDTH, " ")}:${`${outputWidth}${outputWidth > terminalWidth ? "!" : ""}`.padStart(OUTPUT_WIDTH_LABEL_WIDTH, " ")}:${paddedOutput}|`,
   );
-  console.log(output);
 }

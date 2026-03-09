@@ -304,11 +304,13 @@ describe("frame layout planning", () => {
 
     const wide = renderRoot(rows, 1_000, 0, 70, true, new Map());
     const narrow = renderRoot(rows, 1_000, 0, 50, true, new Map());
+    const percent = renderRoot(rows, 1_000, 0, 30, true, new Map());
 
     expect(wide.includes("ETA: ")).toBeTrue();
     expect(narrow.includes("ETA: ")).toBeTrue();
     expect(wide.includes("1/4")).toBeTrue();
-    expect(narrow.includes("25%")).toBeTrue();
+    expect(narrow.includes("1/4")).toBeTrue();
+    expect(percent.includes("25%")).toBeTrue();
   });
 
   test("switches to the percent progress set before shrinking utility columns further", () => {
@@ -329,11 +331,13 @@ describe("frame layout planning", () => {
     ];
 
     const medium = renderRoot(rows, 1_000, 0, 70, true, new Map());
-    const narrow = renderRoot(rows, 1_000, 0, 60, true, new Map());
+    const narrow = renderRoot(rows, 1_000, 0, 30, true, new Map());
+    const percent = renderRoot(rows, 1_000, 0, 20, true, new Map());
 
     expect(medium.includes("1/1234")).toBeTrue();
-    expect(narrow.includes("1/1234")).toBeFalse();
-    expect(narrow.includes("%")).toBeTrue();
+    expect(narrow.includes("1/1234")).toBeTrue();
+    expect(percent.includes("1/1234")).toBeFalse();
+    expect(percent.includes("%")).toBeTrue();
   });
 
   test("switches to percentage when progress width drops below ten columns", () => {
@@ -355,6 +359,28 @@ describe("frame layout planning", () => {
 
     expect(output.includes("75%")).toBeTrue();
     expect(output.includes("15/20")).toBeFalse();
+  });
+
+  test("stays within the terminal width for very narrow layouts", () => {
+    const rows = [
+      row(
+        makeTask(18, {
+          description: "verify",
+          units: {
+            succeeded: 12,
+            failed: 3,
+            processed: 15,
+            total: 20,
+          },
+        }),
+        1,
+      ),
+    ];
+
+    for (let columns = 1; columns <= 14; columns += 1) {
+      const output = renderView(rows, columns);
+      expect(maxLineWidth(output)).toBeLessThanOrEqual(columns);
+    }
   });
 
   test("keeps sticky description width until the frame empties", () => {
