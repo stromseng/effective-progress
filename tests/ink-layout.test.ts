@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { Box, renderToString } from "ink";
+import { createElement } from "react";
 import * as Progress from "../src";
-import { computeFrameLayout } from "../src/ink-renderer/columns/layout";
+import { RootColumn } from "../src/ink-renderer/columns/root-column";
 import type { TaskRowModel } from "../src/ink-renderer/snapshot/types";
 
 const makeTask = (
@@ -37,11 +39,26 @@ const row = (task: Progress.TaskSnapshot, depth = 0): TaskRowModel => ({
   },
 });
 
-const widthOf = (layout: ReturnType<typeof computeFrameLayout>, id: string): number =>
+const computeLayout = (
+  rows: ReadonlyArray<TaskRowModel>,
+  now: number,
+  tick: number,
+  terminalColumns: number | undefined,
+  isTTY: boolean,
+  stickyWidths?: Map<string, number>,
+) => RootColumn(rows, now, tick, terminalColumns, isTTY, stickyWidths);
+
+const widthOf = (layout: ReturnType<typeof computeLayout>, id: string): number =>
   layout.columns.find((column) => column.id === id)?.width ?? 0;
 
-const variantOf = (layout: ReturnType<typeof computeFrameLayout>, id: string): string =>
-  layout.columns.find((column) => column.id === id)?.variantId ?? "hidden";
+const renderView = (rows: ReadonlyArray<TaskRowModel>, terminalColumns: number): string =>
+  (() => {
+    const rootColumn = RootColumn(rows, 10_000, 0, terminalColumns, true, new Map());
+    return renderToString(
+      createElement(Box, { flexDirection: "row" }, rootColumn.render()),
+      { columns: terminalColumns },
+    );
+  })();
 
 describe("frame layout planning", () => {
   test("caps growth at shared max widths for utility columns", () => {
@@ -70,15 +87,14 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const layout = computeFrameLayout(rows, 10_000, 0, undefined, true);
+    const layout = computeLayout(rows, 10_000, 0, undefined, true);
 
     expect(layout.rowWidth).toBeLessThan(100);
     expect(widthOf(layout, "description")).toBeGreaterThan(0);
-    expect(widthOf(layout, "description")).toBe(20);
-    expect(widthOf(layout, "amount")).toBeGreaterThanOrEqual("999 0 999/1000".length);
+    expect(widthOf(layout, "progress")).toBeGreaterThanOrEqual(40);
     expect(widthOf(layout, "elapsed")).toBeGreaterThanOrEqual("59m 59s".length);
     expect(widthOf(layout, "eta")).toBeGreaterThanOrEqual("ETA: 1s".length);
-    expect(widthOf(layout, "bar")).toBe(30);
+    expect(widthOf(layout, "progress")).toBeLessThanOrEqual(50);
   });
 
   test("hides eta/bar/amount when no determinate tasks need utility columns", () => {
@@ -96,11 +112,10 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const layout = computeFrameLayout(rows, 2_000, 0, undefined, true);
+    const layout = computeLayout(rows, 2_000, 0, undefined, true);
 
-    expect(widthOf(layout, "bar")).toBe(0);
+    expect(widthOf(layout, "progress")).toBe(0);
     expect(widthOf(layout, "eta")).toBe(0);
-    expect(widthOf(layout, "amount")).toBe(0);
     expect(widthOf(layout, "elapsed")).toBeGreaterThanOrEqual("2s".length);
     expect(layout.rowWidth).toBeLessThan(100);
   });
@@ -121,10 +136,9 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const layout = computeFrameLayout(rows, 2_000, 0, undefined, true);
+    const layout = computeLayout(rows, 2_000, 0, undefined, true);
 
-    expect(widthOf(layout, "amount")).toBeGreaterThanOrEqual("3/?".length);
-    expect(widthOf(layout, "bar")).toBe(0);
+    expect(widthOf(layout, "progress")).toBeGreaterThanOrEqual("3/?".length);
     expect(widthOf(layout, "eta")).toBe(0);
   });
 
@@ -144,11 +158,11 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const layout = computeFrameLayout(rows, 2_000, 0, 12, true);
+    const layout = computeLayout(rows, 2_000, 0, 12, true);
 
     expect(layout.columns.map((column) => column.id)).toEqual(["description", "elapsed"]);
-    expect(widthOf(layout, "amount")).toBe(0);
-    expect(layout.rowWidth).toBe(12);
+    expect(widthOf(layout, "progress")).toBe(0);
+    expect(layout.rowWidth).toBeLessThanOrEqual(12);
   });
 
   test("expands beyond baseline when content requires more width", () => {
@@ -161,7 +175,7 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const layout = computeFrameLayout(rows, 1_000, 0, undefined, true);
+    const layout = computeLayout(rows, 1_000, 0, undefined, true);
 
     expect(layout.rowWidth).toBeGreaterThan(100);
     expect(widthOf(layout, "description")).toBeGreaterThan(8);
@@ -183,26 +197,26 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const layout = computeFrameLayout(rows, 5_000, 0, 60, true);
+    const layout = computeLayout(rows, 5_000, 0, 60, true);
 
     expect(layout.rowWidth).toBeLessThanOrEqual(60);
     expect(widthOf(layout, "elapsed")).toBeGreaterThan(0);
   });
 
-  test("demotes description from tree to plain when width is constrained", () => {
+  test("suppresses tree prefixes when description width is constrained", () => {
     const rows = [
       row(makeTask(6, { description: "parent-node" }), 0),
       row(makeTask(7, { description: "child-node" }), 1),
     ];
 
-    const wide = computeFrameLayout(rows, 5_000, 0, 90, true);
-    const narrow = computeFrameLayout(rows, 5_000, 0, 30, true);
+    const wide = renderView(rows, 90);
+    const narrow = renderView(rows, 22);
 
-    expect(variantOf(wide, "description")).toBe("tree");
-    expect(variantOf(narrow, "description")).toBe("plain");
+    expect(wide.includes("└─ ")).toBeTrue();
+    expect(narrow.includes("└─ ")).toBeFalse();
   });
 
-  test("demotes amount from detailed to processed variant on narrow terminals", () => {
+  test("uses less detailed amount text on narrow terminals", () => {
     const rows = [
       row(
         makeTask(8, {
@@ -217,15 +231,18 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const wide = computeFrameLayout(rows, 5_000, 0, 80, true);
-    const narrow = computeFrameLayout(rows, 5_000, 0, 22, true);
+    const wide = computeLayout(rows, 5_000, 0, 80, true);
+    const narrow = computeLayout(rows, 5_000, 0, 22, true);
+    const wideOutput = renderView(rows, 80);
+    const narrowOutput = renderView(rows, 22);
 
-    expect(variantOf(wide, "amount")).toBe("detailed");
-    expect(variantOf(narrow, "amount")).toBe("processed");
-    expect(widthOf(narrow, "amount")).toBeLessThan(widthOf(wide, "amount"));
+    expect(widthOf(narrow, "progress")).toBeLessThan(widthOf(wide, "progress"));
+    expect(wideOutput.includes("12  3 15/20")).toBeTrue();
+    expect(narrowOutput.includes("12  3 15/20")).toBeFalse();
+    expect(narrowOutput.includes("75%")).toBeTrue();
   });
 
-  test("demotes ETA from prefixed to duration to primary before hiding", () => {
+  test("drops ETA when the root switches to a tighter column set", () => {
     const rows = [
       row(
         makeTask(12, {
@@ -240,19 +257,17 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const prefixed = computeFrameLayout(rows, 10_000, 0, 55, true);
-    const duration = computeFrameLayout(rows, 10_000, 0, 43, true);
-    const primary = computeFrameLayout(rows, 10_000, 0, 38, true);
-    const hidden = computeFrameLayout(rows, 10_000, 0, 34, true);
+    const prefixed = renderView(rows, 55);
+    const noEta = renderView(rows, 32);
+    const noEtaOrElapsed = renderView(rows, 20);
 
-    expect(variantOf(prefixed, "eta")).toBe("prefixed");
-    expect(variantOf(duration, "eta")).toBe("duration");
-    expect(variantOf(primary, "eta")).toBe("primary");
-    expect(widthOf(primary, "eta")).toBeGreaterThan(0);
-    expect(widthOf(hidden, "eta")).toBe(0);
+    expect(prefixed.includes("ETA: ")).toBeTrue();
+    expect(noEta.includes("ETA: ")).toBeFalse();
+    expect(noEta.includes("2h 46m")).toBeFalse();
+    expect(noEtaOrElapsed.includes("10s")).toBeFalse();
   });
 
-  test("reclaims utility reserves under medium pressure", () => {
+  test("reclaims utility reserves under tighter widths", () => {
     const rows = [
       row(
         makeTask(9, {
@@ -268,15 +283,15 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const medium = computeFrameLayout(rows, 1_000, 0, 90, true);
-    const narrow = computeFrameLayout(rows, 1_000, 0, 70, true);
+    const medium = computeLayout(rows, 1_000, 0, 80, true);
+    const narrow = computeLayout(rows, 1_000, 0, 30, true);
 
-    expect(widthOf(narrow, "description")).toBeLessThanOrEqual(widthOf(medium, "description"));
-    expect(widthOf(narrow, "elapsed")).toBeLessThan(widthOf(medium, "elapsed"));
+    expect(widthOf(narrow, "description")).toBeLessThan(widthOf(medium, "description"));
+    expect(widthOf(narrow, "progress")).toBeLessThan(widthOf(medium, "progress"));
     expect(widthOf(narrow, "eta")).toBeLessThan(widthOf(medium, "eta"));
   });
 
-  test("shrinks bar before hiding ETA", () => {
+  test("shrinks progress before hiding ETA", () => {
     const rows = [
       row(
         makeTask(10, {
@@ -292,15 +307,15 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const wide = computeFrameLayout(rows, 1_000, 0, 70, true);
-    const narrow = computeFrameLayout(rows, 1_000, 0, 50, true);
+    const wide = computeLayout(rows, 1_000, 0, 70, true);
+    const narrow = computeLayout(rows, 1_000, 0, 50, true);
 
     expect(widthOf(wide, "eta")).toBeGreaterThan(0);
     expect(widthOf(narrow, "eta")).toBeGreaterThan(0);
-    expect(widthOf(narrow, "bar")).toBeLessThan(widthOf(wide, "bar"));
+    expect(widthOf(narrow, "progress")).toBeLessThan(widthOf(wide, "progress"));
   });
 
-  test("shrinks description before dropping processed amount", () => {
+  test("switches to the percent progress set before shrinking utility columns further", () => {
     const rows = [
       row(
         makeTask(11, {
@@ -317,10 +332,78 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const medium = computeFrameLayout(rows, 1_000, 0, 50, true);
-    const narrow = computeFrameLayout(rows, 1_000, 0, 40, true);
+    const medium = computeLayout(rows, 1_000, 0, 70, true);
+    const narrow = computeLayout(rows, 1_000, 0, 60, true);
 
-    expect(widthOf(narrow, "description")).toBeLessThan(widthOf(medium, "description"));
-    expect(widthOf(narrow, "amount")).toBe(widthOf(medium, "amount"));
+    expect(widthOf(medium, "progress")).toBeGreaterThan(widthOf(narrow, "progress"));
+    expect(widthOf(narrow, "description")).toBeGreaterThan(widthOf(medium, "description"));
+  });
+
+  test("switches to percentage when progress width drops below ten columns", () => {
+    const rows = [
+      row(
+        makeTask(17, {
+          description: "verify",
+          units: {
+            succeeded: 12,
+            failed: 3,
+            processed: 15,
+            total: 20,
+          },
+        }),
+      ),
+    ];
+
+    const layout = computeLayout(rows, 9_000, 0, 22, true);
+    const output = renderView(rows, 22);
+
+    expect(widthOf(layout, "progress")).toBeLessThan(10);
+    expect(output.includes("75%")).toBeTrue();
+    expect(output.includes("15/20")).toBeFalse();
+  });
+
+  test("keeps sticky description width until the frame empties", () => {
+    const stickyWidths = new Map<string, number>();
+    const longRows = [
+      row(
+        makeTask(13, {
+          description:
+            "very-long-description-that-expands-the-sticky-column-width-significantly-beyond-normal",
+        }),
+      ),
+    ];
+    const shortRows = [row(makeTask(14, { description: "short" }))];
+
+    computeLayout(longRows, 10_000, 0, undefined, true, stickyWidths);
+    const stickyLayout = computeLayout(shortRows, 10_000, 0, undefined, true, stickyWidths);
+    const freshLayout = computeLayout(shortRows, 10_000, 0, undefined, true, new Map());
+
+    expect(widthOf(stickyLayout, "description")).toBeGreaterThan(
+      widthOf(freshLayout, "description"),
+    );
+
+    computeLayout([], 10_000, 0, undefined, true, stickyWidths);
+    const resetLayout = computeLayout(shortRows, 10_000, 0, undefined, true, stickyWidths);
+
+    expect(widthOf(resetLayout, "description")).toBe(widthOf(freshLayout, "description"));
+  });
+
+  test("sticky width never exceeds terminal constraints", () => {
+    const stickyWidths = new Map<string, number>();
+    const longRows = [
+      row(
+        makeTask(15, {
+          description:
+            "very-long-description-that-expands-the-sticky-column-width-significantly-beyond-normal",
+        }),
+      ),
+    ];
+    const shortRows = [row(makeTask(16, { description: "short" }))];
+
+    computeLayout(longRows, 10_000, 0, 100, true, stickyWidths);
+    const constrained = computeLayout(shortRows, 10_000, 0, 30, true, stickyWidths);
+
+    expect(constrained.rowWidth).toBeLessThanOrEqual(30);
+    expect(widthOf(constrained, "description")).toBeLessThanOrEqual(30);
   });
 });

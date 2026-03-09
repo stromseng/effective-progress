@@ -279,7 +279,7 @@ describe("Ink renderer integration", () => {
     expect(output.includes("✗ failed-task")).toBeTrue();
   });
 
-  test("keeps indeterminate elapsed close to description when no determinate tasks exist", async () => {
+  test("renders only description and elapsed when no determinate tasks exist", async () => {
     const { output } = await captureStdioOutput(
       Progress.task(Effect.sleep("10 millis"), {
         description: "indeterminate-single",
@@ -290,8 +290,10 @@ describe("Ink renderer integration", () => {
 
     const line =
       output.split("\n").find((candidate) => candidate.includes("indeterminate-single")) ?? "";
-    const compactGap = /indeterminate-single {1,10}\d+s/.test(line);
-    expect(compactGap).toBeTrue();
+    expect(line.includes("indeterminate-single")).toBeTrue();
+    expect(/\d+s/.test(line)).toBeTrue();
+    expect(line.includes("%")).toBeFalse();
+    expect(line.includes("ETA:")).toBeFalse();
   });
 
   test("renders counted indeterminate amounts with unknown total", async () => {

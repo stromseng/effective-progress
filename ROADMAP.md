@@ -1,6 +1,6 @@
 # Roadmap
 
-`effective-progress` is now on the Ink-based renderer with nested tasks, mixed-outcome counters, responsive column variants, and wide-character-aware width measurement. This roadmap keeps the design notes for items that are still not implemented.
+`effective-progress` is now on the Ink-based renderer with nested tasks, mixed-outcome counters, column-tree width allocation, and wide-character-aware width measurement. This roadmap keeps the design notes for items that are still not implemented.
 
 ## Next up
 

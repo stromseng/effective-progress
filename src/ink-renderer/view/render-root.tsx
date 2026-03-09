@@ -1,6 +1,8 @@
+import { Box } from "ink";
+import { useRef } from "react";
 import { useSyncExternalStore } from "react";
+import { RootColumn } from "../columns/root-column";
 import type { ProgressRenderStore } from "../store";
-import { ProgressView } from "./progress-view";
 import { useNowClock } from "./hooks/use-now-clock";
 import { useSpinnerClock } from "./hooks/use-spinner-clock";
 
@@ -17,14 +19,15 @@ export const ProgressRoot = ({ store, isTTY, getTerminalColumns }: ProgressRootP
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const tick = useSpinnerClock(snapshot.hasRunningTasks, SPINNER_INTERVAL_MILLIS);
   const now = useNowClock(snapshot.hasRunningTasks, NOW_INTERVAL_MILLIS);
-
-  return (
-    <ProgressView
-      rows={snapshot.rows}
-      now={now}
-      tick={tick}
-      isTTY={isTTY}
-      terminalColumns={getTerminalColumns()}
-    />
+  const stickyWidths = useRef(new Map<string, number>());
+  const rootColumn = RootColumn(
+    snapshot.rows,
+    now,
+    tick,
+    getTerminalColumns(),
+    isTTY,
+    stickyWidths.current,
   );
+
+  return <Box flexDirection="row">{rootColumn.render()}</Box>;
 };

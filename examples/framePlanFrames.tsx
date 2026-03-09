@@ -1,7 +1,8 @@
+import { Box } from "ink";
 import { renderToString } from "ink";
 import * as Progress from "../src";
+import { RootColumn } from "../src/ink-renderer/columns/root-column";
 import type { TaskRowModel } from "../src/ink-renderer/snapshot/types";
-import { ProgressView } from "../src/ink-renderer/view/progress-view";
 
 const task = new Progress.TaskSnapshot({
   id: Progress.TaskId(1),
@@ -44,14 +45,9 @@ for (
   terminalWidth >= MIN_TERMINAL_WIDTH;
   terminalWidth--
 ) {
+  const rootColumn = RootColumn([row], NOW, TICK, terminalWidth, true, new Map());
   const output = renderToString(
-    <ProgressView
-      rows={[row]}
-      now={NOW}
-      tick={TICK}
-      isTTY={true}
-      terminalColumns={terminalWidth}
-    />,
+    <Box flexDirection="row">{rootColumn.render()}</Box>,
     { columns: terminalWidth },
   );
   console.log(output);
