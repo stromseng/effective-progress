@@ -3,6 +3,7 @@ import type { TaskId, TaskSnapshot } from "../../../types";
 import { formatAmount } from "../../format";
 import type { Column, RenderFrameContextValue, WidthMeasure } from "../node";
 import { isDeterminate } from "../determinate";
+import { applyStickyWidth } from "../sticky-width";
 import {
   blank,
   computeProgressMetrics,
@@ -13,21 +14,6 @@ import {
   shouldShowCountAmount,
   shouldShowDetailedCounts,
 } from "./shared";
-
-const stickyPreferred = (
-  key: string,
-  measure: WidthMeasure,
-  stickyWidths: ReadonlyMap<string, number>,
-): WidthMeasure => {
-  const remembered = stickyWidths.get(key);
-  if (remembered === undefined) {
-    return measure;
-  }
-
-  const preferred = Math.max(measure.preferred, remembered);
-  const max = measure.max === undefined ? undefined : Math.max(measure.max, preferred);
-  return { ...measure, preferred, max };
-};
 
 interface DetailedAmountLayout {
   readonly kind: "detailed";
@@ -132,7 +118,9 @@ export const AmountColumn = (
       ? detailedWidth
       : processedWidth
     : Math.max(1, metrics.simpleTextWidth);
-  const minWidth = metrics.hasStructuredCounts ? processedWidth : Math.max(1, metrics.simpleTextWidth);
+  const minWidth = metrics.hasStructuredCounts
+    ? processedWidth
+    : Math.max(1, metrics.simpleTextWidth);
   const summary = {
     hasDetailed: metrics.hasDetailed,
     countDigits: metrics.countDigits,
@@ -150,11 +138,12 @@ export const AmountColumn = (
   };
   const measure =
     config.stickyWidth === true
-      ? stickyPreferred(config.key, baseMeasure, frame.stickyWidths)
+      ? applyStickyWidth({
+          key: config.key,
+          measure: baseMeasure,
+          stickyWidths: frame.stickyWidths,
+        })
       : baseMeasure;
-  if (config.stickyWidth === true) {
-    frame.stickyWidths.set(config.key, measure.preferred);
-  }
 
   return {
     measure,

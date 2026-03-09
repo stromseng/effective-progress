@@ -20,7 +20,6 @@ const makeDefaultInkRenderer = (): InkRendererService => ({
       render(
         <ProgressRoot
           store={store}
-          isTTY={isTTY}
           getTerminalColumns={() => (isTTY ? stdio.stderr.columns : undefined)}
         />,
         {

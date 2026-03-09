@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { Box, renderToString } from "ink";
 import { createElement } from "react";
 import * as Progress from "../src";
+import { createRenderFrame } from "../src/ink-renderer/columns/frame";
+import { ProgressMetricsColumn } from "../src/ink-renderer/columns/progress-metrics-column";
 import { RootColumn } from "../src/ink-renderer/columns/root-column";
+import { ROOT_LAYOUTS } from "../src/ink-renderer/columns/root-column";
+import { applyStickyWidth } from "../src/ink-renderer/columns/sticky-width";
 import type { TaskRowModel } from "../src/ink-renderer/snapshot/types";
 
 const makeTask = (
@@ -44,25 +48,111 @@ const renderRoot = (
   now: number,
   tick: number,
   terminalColumns: number | undefined,
-  isTTY: boolean,
   stickyWidths?: Map<string, number>,
 ) =>
   renderToString(
     createElement(
       Box,
       { flexDirection: "row" },
-      RootColumn(rows, now, tick, terminalColumns, isTTY, stickyWidths).render(),
+      RootColumn(rows, now, tick, terminalColumns, stickyWidths).render(),
     ),
     { columns: terminalColumns ?? 200 },
   );
 
 const renderView = (rows: ReadonlyArray<TaskRowModel>, terminalColumns: number): string =>
-  renderRoot(rows, 10_000, 0, terminalColumns, true, new Map());
+  renderRoot(rows, 10_000, 0, terminalColumns, new Map());
 
 const maxLineWidth = (output: string): number =>
   output.split("\n").reduce((max, line) => Math.max(max, line.length), 0);
 
 describe("frame layout planning", () => {
+  test("keeps root layouts declarative and ordered", () => {
+    expect(ROOT_LAYOUTS).toEqual([
+      ["description-tree", "progress", "elapsed", "eta"],
+      ["description-plain", "progress", "elapsed", "eta"],
+      ["description-plain", "progress-percent", "elapsed", "eta"],
+      ["description-plain", "progress-percent", "elapsed"],
+      ["description-plain", "progress-percent"],
+      ["description-compact", "progress-percent"],
+      ["description-compact"],
+      ["description-spinner"],
+    ]);
+  });
+
+  test("applies sticky widths consistently for fixed and flexible measures", () => {
+    const stickyWidths = new Map<string, number>([
+      ["fixed", 8],
+      ["flex", 10],
+    ]);
+
+    const fixed = applyStickyWidth({
+      key: "fixed",
+      measure: {
+        min: 4,
+        preferred: 4,
+        max: 4,
+      },
+      stickyWidths,
+    });
+    const flexible = applyStickyWidth({
+      key: "flex",
+      measure: {
+        min: 4,
+        preferred: 6,
+      },
+      stickyWidths,
+    });
+
+    expect(fixed).toEqual({
+      min: 4,
+      preferred: 8,
+      max: 8,
+    });
+    expect(flexible).toEqual({
+      min: 4,
+      preferred: 10,
+      max: undefined,
+    });
+    expect(stickyWidths.get("fixed")).toBe(8);
+    expect(stickyWidths.get("flex")).toBe(10);
+  });
+
+  test("renders percent mode as a fixed-width percent column", () => {
+    const task = makeTask(40, {
+      countDisplay: "processedOnly",
+      units: {
+        succeeded: 12,
+        failed: 3,
+        processed: 15,
+        total: 20,
+      },
+    });
+    const frame = createRenderFrame([row(task)], 1_000, 0, new Map());
+    const column = ProgressMetricsColumn(frame, { mode: "percent" });
+
+    expect(column).toBeDefined();
+    if (column === undefined) {
+      throw new Error("Expected progress column.");
+    }
+
+    const output = renderToString(
+      createElement(
+        Box,
+        { flexDirection: "row", width: column.measure.preferred },
+        column.render(task.id, 4),
+      ),
+      { columns: 4 },
+    );
+
+    expect(column.measure).toEqual({
+      min: 4,
+      preferred: 4,
+      max: 4,
+    });
+    expect(output.includes("75%")).toBeTrue();
+    expect(output.includes("15/20")).toBeFalse();
+  });
+
   test("caps growth at shared max widths for utility columns", () => {
     const rows = [
       row(
@@ -89,7 +179,7 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const output = renderRoot(rows, 10_000, 0, undefined, true, new Map());
+    const output = renderRoot(rows, 10_000, 0, undefined, new Map());
 
     expect(maxLineWidth(output)).toBeLessThan(100);
     expect(output.includes("999/1000")).toBeTrue();
@@ -111,7 +201,7 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const output = renderRoot(rows, 2_000, 0, undefined, true, new Map());
+    const output = renderRoot(rows, 2_000, 0, undefined, new Map());
 
     expect(output.includes("ETA: ")).toBeFalse();
     expect(output.includes("%")).toBeFalse();
@@ -135,7 +225,7 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const output = renderRoot(rows, 2_000, 0, undefined, true, new Map());
+    const output = renderRoot(rows, 2_000, 0, undefined, new Map());
 
     expect(output.includes("3/?")).toBeTrue();
     expect(output.includes("ETA: ")).toBeFalse();
@@ -157,7 +247,7 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const output = renderRoot(rows, 2_000, 0, 12, true, new Map());
+    const output = renderRoot(rows, 2_000, 0, 12, new Map());
 
     expect(output.includes("ETA: ")).toBeFalse();
     expect(output.includes("%")).toBeFalse();
@@ -174,7 +264,7 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const output = renderRoot(rows, 1_000, 0, undefined, true, new Map());
+    const output = renderRoot(rows, 1_000, 0, undefined, new Map());
 
     expect(maxLineWidth(output)).toBeGreaterThan(100);
   });
@@ -195,7 +285,7 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const output = renderRoot(rows, 5_000, 0, 60, true, new Map());
+    const output = renderRoot(rows, 5_000, 0, 60, new Map());
 
     expect(maxLineWidth(output)).toBeLessThanOrEqual(60);
     expect(output.includes("5s")).toBeTrue();
@@ -278,8 +368,8 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const medium = renderRoot(rows, 1_000, 0, 80, true, new Map());
-    const narrow = renderRoot(rows, 1_000, 0, 28, true, new Map());
+    const medium = renderRoot(rows, 1_000, 0, 80, new Map());
+    const narrow = renderRoot(rows, 1_000, 0, 28, new Map());
 
     expect(maxLineWidth(narrow)).toBeLessThan(maxLineWidth(medium));
     expect(medium.includes("ETA: ")).toBeTrue();
@@ -302,9 +392,9 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const wide = renderRoot(rows, 1_000, 0, 70, true, new Map());
-    const narrow = renderRoot(rows, 1_000, 0, 50, true, new Map());
-    const percent = renderRoot(rows, 1_000, 0, 30, true, new Map());
+    const wide = renderRoot(rows, 1_000, 0, 70, new Map());
+    const narrow = renderRoot(rows, 1_000, 0, 50, new Map());
+    const percent = renderRoot(rows, 1_000, 0, 30, new Map());
 
     expect(wide.includes("ETA: ")).toBeTrue();
     expect(narrow.includes("ETA: ")).toBeTrue();
@@ -330,9 +420,9 @@ describe("frame layout planning", () => {
       ),
     ];
 
-    const medium = renderRoot(rows, 1_000, 0, 70, true, new Map());
-    const narrow = renderRoot(rows, 1_000, 0, 30, true, new Map());
-    const percent = renderRoot(rows, 1_000, 0, 20, true, new Map());
+    const medium = renderRoot(rows, 1_000, 0, 70, new Map());
+    const narrow = renderRoot(rows, 1_000, 0, 30, new Map());
+    const percent = renderRoot(rows, 1_000, 0, 20, new Map());
 
     expect(medium.includes("1/1234")).toBeTrue();
     expect(narrow.includes("1/1234")).toBeTrue();
@@ -395,14 +485,14 @@ describe("frame layout planning", () => {
     ];
     const shortRows = [row(makeTask(14, { description: "short" }))];
 
-    renderRoot(longRows, 10_000, 0, undefined, true, stickyWidths);
-    const stickyOutput = renderRoot(shortRows, 10_000, 0, undefined, true, stickyWidths);
-    const freshOutput = renderRoot(shortRows, 10_000, 0, undefined, true, new Map());
+    renderRoot(longRows, 10_000, 0, undefined, stickyWidths);
+    const stickyOutput = renderRoot(shortRows, 10_000, 0, undefined, stickyWidths);
+    const freshOutput = renderRoot(shortRows, 10_000, 0, undefined, new Map());
 
     expect(maxLineWidth(stickyOutput)).toBeGreaterThan(maxLineWidth(freshOutput));
 
-    renderRoot([], 10_000, 0, undefined, true, stickyWidths);
-    const resetOutput = renderRoot(shortRows, 10_000, 0, undefined, true, stickyWidths);
+    renderRoot([], 10_000, 0, undefined, stickyWidths);
+    const resetOutput = renderRoot(shortRows, 10_000, 0, undefined, stickyWidths);
 
     expect(maxLineWidth(resetOutput)).toBe(maxLineWidth(freshOutput));
   });
@@ -419,8 +509,8 @@ describe("frame layout planning", () => {
     ];
     const shortRows = [row(makeTask(16, { description: "short" }))];
 
-    renderRoot(longRows, 10_000, 0, 100, true, stickyWidths);
-    const constrained = renderRoot(shortRows, 10_000, 0, 30, true, stickyWidths);
+    renderRoot(longRows, 10_000, 0, 100, stickyWidths);
+    const constrained = renderRoot(shortRows, 10_000, 0, 30, stickyWidths);
 
     expect(maxLineWidth(constrained)).toBeLessThanOrEqual(30);
   });

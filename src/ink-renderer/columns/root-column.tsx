@@ -1,13 +1,13 @@
 import { Box } from "ink";
 import type { ReactNode } from "react";
 import type { TaskId } from "../../types";
+import { createRenderFrame } from "./frame";
 import { DescriptionColumn } from "./description-column";
 import { ElapsedColumn } from "./elapsed-column";
 import { EtaColumn } from "./eta-column";
 import type { Column, RenderFrameContextValue, WidthMeasure } from "./node";
 import { ProgressMetricsColumn } from "./progress-metrics-column";
 import type { TaskRowModel } from "../snapshot/types";
-import { createRenderFrameContextValue } from "../view/frame-context";
 
 const ROOT_GAP = 1;
 
@@ -17,7 +17,7 @@ const visibleWidth = (widths: ReadonlyArray<number>, gap: number): number => {
 };
 
 interface MeasuredColumn {
-  readonly id: string;
+  readonly id: RootColumnId;
   readonly measure: WidthMeasure;
   readonly preferredWidth: number;
   readonly render: (taskId: TaskId, width: number) => ReactNode;
@@ -28,14 +28,32 @@ export interface RootColumnInstance {
 }
 
 interface StickyAwareColumn {
-  readonly id: string;
+  readonly id: RootColumnId;
   readonly column: Column;
 }
 
-const buildColumns = (
-  frame: RenderFrameContextValue,
-  _stickyWidths: Map<string, number>,
-): Map<string, StickyAwareColumn> => {
+export type RootColumnId =
+  | "description-tree"
+  | "description-plain"
+  | "description-compact"
+  | "description-spinner"
+  | "progress"
+  | "progress-percent"
+  | "elapsed"
+  | "eta";
+
+export const ROOT_LAYOUTS = [
+  ["description-tree", "progress", "elapsed", "eta"],
+  ["description-plain", "progress", "elapsed", "eta"],
+  ["description-plain", "progress-percent", "elapsed", "eta"],
+  ["description-plain", "progress-percent", "elapsed"],
+  ["description-plain", "progress-percent"],
+  ["description-compact", "progress-percent"],
+  ["description-compact"],
+  ["description-spinner"],
+] as const satisfies ReadonlyArray<ReadonlyArray<RootColumnId>>;
+
+const buildColumns = (frame: RenderFrameContextValue): Array<StickyAwareColumn | undefined> => {
   const descriptionTree = DescriptionColumn(frame, { variant: "tree" });
   const descriptionPlain = DescriptionColumn(frame, { variant: "plain" });
   const descriptionCompact = DescriptionColumn(frame, { variant: "compact" });
@@ -43,7 +61,7 @@ const buildColumns = (
   const progress = ProgressMetricsColumn(frame, { mode: "full" });
   const progressPercent = ProgressMetricsColumn(frame, { mode: "percent" });
   const eta = EtaColumn(frame);
-  const columns: Array<StickyAwareColumn | undefined> = [
+  return [
     {
       id: "description-tree",
       column: descriptionTree,
@@ -83,37 +101,36 @@ const buildColumns = (
           column: eta,
         },
   ];
-
-  return new Map(
-    columns
-      .filter((column): column is StickyAwareColumn => column !== undefined)
-      .map((column) => [column.id, column] as const),
-  );
 };
 
 const measureColumns = (
-  columns: ReadonlyMap<string, StickyAwareColumn>,
-): Map<string, MeasuredColumn> =>
+  columns: ReadonlyArray<StickyAwareColumn | undefined>,
+): ReadonlyMap<RootColumnId, MeasuredColumn> =>
   new Map(
-    [...columns.values()].map((column) => {
+    columns.flatMap((column) => {
+      if (column === undefined) {
+        return [];
+      }
       const measure = column.column.measure;
       return [
-        column.id,
-        {
-          id: column.id,
-          measure,
-          preferredWidth: measure.preferred,
-          render: column.column.render,
-        } satisfies MeasuredColumn,
-      ] as const;
+        [
+          column.id,
+          {
+            id: column.id,
+            measure,
+            preferredWidth: measure.preferred,
+            render: column.column.render,
+          } satisfies MeasuredColumn,
+        ] as const,
+      ];
     }),
   );
 
-const rootColumnSets = (
-  columnsById: ReadonlyMap<string, MeasuredColumn>,
+const resolveRootLayouts = (
+  columnsById: ReadonlyMap<RootColumnId, MeasuredColumn>,
 ): Array<Array<MeasuredColumn>> => {
-  const fromIds = (ids: ReadonlyArray<string>): Array<MeasuredColumn> =>
-    ids
+  const resolveLayout = (ids: ReadonlyArray<RootColumnId>): Array<MeasuredColumn> =>
+    [...ids]
       .map((id) => columnsById.get(id))
       .filter((column): column is MeasuredColumn => column !== undefined);
 
@@ -127,20 +144,16 @@ const rootColumnSets = (
     return columns;
   };
 
-  return [
-    unique(fromIds(["description-tree", "progress", "elapsed", "eta"])),
-    unique(fromIds(["description-plain", "progress", "elapsed", "eta"])),
-    unique(fromIds(["description-plain", "progress-percent", "elapsed", "eta"])),
-    unique(fromIds(["description-plain", "progress-percent", "elapsed"])),
-    unique(fromIds(["description-plain", "progress-percent"])),
-    unique(fromIds(["description-compact", "progress-percent"])),
-    unique(fromIds(["description-compact"])),
-    unique(fromIds(["description-spinner"])),
-  ].filter((columns) => columns.length > 0);
+  return ROOT_LAYOUTS.map((layout) => unique(resolveLayout(layout))).filter(
+    (columns) => columns.length > 0,
+  );
 };
 
 const minimumWidthForSet = (columns: ReadonlyArray<MeasuredColumn>): number =>
-  visibleWidth(columns.map((column) => column.measure.min), ROOT_GAP);
+  visibleWidth(
+    columns.map((column) => column.measure.min),
+    ROOT_GAP,
+  );
 
 const selectColumnSet = (
   columnSets: ReadonlyArray<ReadonlyArray<MeasuredColumn>>,
@@ -238,16 +251,15 @@ export const RootColumn = (
   now: number,
   tick: number,
   terminalColumns: number | undefined,
-  isTTY: boolean,
   stickyWidths: Map<string, number> = new Map(),
 ): RootColumnInstance => {
   if (rows.length === 0) {
     return emptyRootColumn(stickyWidths);
   }
 
-  const frame = createRenderFrameContextValue(rows, now, tick, isTTY, stickyWidths);
-  const columnsById = measureColumns(buildColumns(frame, stickyWidths));
-  const selectedColumns = selectColumnSet(rootColumnSets(columnsById), terminalColumns);
+  const frame = createRenderFrame(rows, now, tick, stickyWidths);
+  const columnsById = measureColumns(buildColumns(frame));
+  const selectedColumns = selectColumnSet(resolveRootLayouts(columnsById), terminalColumns);
   const targetWidth =
     terminalColumns === undefined
       ? visibleWidth(

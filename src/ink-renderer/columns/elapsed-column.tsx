@@ -1,6 +1,7 @@
 import { Box, Text } from "ink";
 import { formatElapsed } from "../format";
 import type { Column, RenderFrameContextValue } from "./node";
+import { applyStickyWidth } from "./sticky-width";
 import { textWidth } from "./text-width";
 
 const MIN_ELAPSED_WIDTH = Array.from("10s").length;
@@ -13,16 +14,18 @@ const maxElapsedWidth = (frame: RenderFrameContextValue): number =>
 
 export const ElapsedColumn = (frame: RenderFrameContextValue): Column => {
   const elapsedContentWidth = maxElapsedWidth(frame);
-  const stickyKey = "elapsed";
-  const preferred = Math.max(elapsedContentWidth, frame.stickyWidths.get(stickyKey) ?? 0);
-  frame.stickyWidths.set(stickyKey, preferred);
-
-  return {
+  const measure = applyStickyWidth({
+    key: "elapsed",
     measure: {
       min: MIN_ELAPSED_WIDTH,
-      preferred,
-      max: preferred,
+      preferred: elapsedContentWidth,
+      max: elapsedContentWidth,
     },
+    stickyWidths: frame.stickyWidths,
+  });
+
+  return {
+    measure,
     render: (taskId, width) => {
       const formatted = formatElapsed(frame.getTask(taskId), frame.now);
       const visible = textWidth(formatted) <= width ? formatted : formatted.slice(0, width);

@@ -1,25 +1,11 @@
-import { createContext, useContext } from "react";
-import type { RenderFrameContextValue } from "../columns/node";
 import type { TaskId, TaskSnapshot } from "../../types";
 import type { TaskRowModel, TaskTreeInfo } from "../snapshot/types";
+import type { RenderFrameContextValue } from "./node";
 
-const RenderFrameContext = createContext<RenderFrameContextValue | null>(null);
-
-export const RenderFrameProvider = RenderFrameContext.Provider;
-
-export const useRenderFrameContext = (): RenderFrameContextValue => {
-  const context = useContext(RenderFrameContext);
-  if (context === null) {
-    throw new Error("RenderFrameContext is not available.");
-  }
-  return context;
-};
-
-export const createRenderFrameContextValue = (
+export const createRenderFrame = (
   rows: ReadonlyArray<TaskRowModel>,
   now: number,
   tick: number,
-  isTTY: boolean,
   stickyWidths: Map<string, number>,
 ): RenderFrameContextValue => {
   const tasks = new Map<TaskId, TaskSnapshot>();
@@ -34,7 +20,6 @@ export const createRenderFrameContextValue = (
     taskIds: rows.map((row) => row.task.id),
     now,
     tick,
-    isTTY,
     stickyWidths,
     getTask: (taskId) => {
       const task = tasks.get(taskId);

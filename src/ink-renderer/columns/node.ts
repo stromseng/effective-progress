@@ -12,7 +12,6 @@ export interface RenderFrameContextValue {
   readonly taskIds: ReadonlyArray<TaskId>;
   readonly now: number;
   readonly tick: number;
-  readonly isTTY: boolean;
   readonly stickyWidths: Map<string, number>;
   readonly getTask: (taskId: TaskId) => TaskSnapshot;
   readonly getTree: (taskId: TaskId) => TaskTreeInfo;

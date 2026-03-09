@@ -1,4 +1,3 @@
-import { Box } from "ink";
 import { renderToString } from "ink";
 import * as Progress from "../src";
 import { RootColumn } from "../src/ink-renderer/columns/root-column";
@@ -45,7 +44,7 @@ for (
   terminalWidth >= MIN_TERMINAL_WIDTH;
   terminalWidth--
 ) {
-  const rootColumn = RootColumn([row], NOW, TICK, terminalWidth, true, new Map());
+  const rootColumn = RootColumn([row], NOW, TICK, terminalWidth, new Map());
   const output = renderToString(rootColumn.render(), {
     columns: terminalWidth,
   });

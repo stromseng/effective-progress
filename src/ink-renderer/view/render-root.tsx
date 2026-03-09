@@ -10,11 +10,10 @@ const NOW_INTERVAL_MILLIS = 1_000;
 
 export interface ProgressRootProps {
   readonly store: ProgressRenderStore;
-  readonly isTTY: boolean;
   readonly getTerminalColumns: () => number | undefined;
 }
 
-export const ProgressRoot = ({ store, isTTY, getTerminalColumns }: ProgressRootProps) => {
+export const ProgressRoot = ({ store, getTerminalColumns }: ProgressRootProps) => {
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const tick = useSpinnerClock(snapshot.hasRunningTasks, SPINNER_INTERVAL_MILLIS);
   const now = useNowClock(snapshot.hasRunningTasks, NOW_INTERVAL_MILLIS);
@@ -24,7 +23,6 @@ export const ProgressRoot = ({ store, isTTY, getTerminalColumns }: ProgressRootP
     now,
     tick,
     getTerminalColumns(),
-    isTTY,
     stickyWidths.current,
   );
 

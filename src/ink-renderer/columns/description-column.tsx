@@ -2,6 +2,7 @@ import { Text } from "ink";
 import type { TaskTreeInfo } from "../snapshot/types";
 import { getTaskIndicator } from "../format";
 import type { Column, RenderFrameContextValue } from "./node";
+import { applyStickyWidth } from "./sticky-width";
 import { textWidth } from "./text-width";
 
 const MIN_PLAIN_DESCRIPTION_WIDTH = 8;
@@ -47,7 +48,11 @@ export const DescriptionColumn = (
   const variant = config.variant ?? "plain";
   const showTree = variant === "tree";
   const stickyKey =
-    variant === "compact" ? "description.compact" : variant === "spinner" ? "description.spinner" : "description";
+    variant === "compact"
+      ? "description.compact"
+      : variant === "spinner"
+        ? "description.spinner"
+        : "description";
   const min =
     variant === "spinner"
       ? MIN_SPINNER_WIDTH
@@ -55,23 +60,28 @@ export const DescriptionColumn = (
         ? MIN_COMPACT_DESCRIPTION_WIDTH
         : variant === "tree"
           ? minTreeDescriptionWidth(frame)
-        : MIN_PLAIN_DESCRIPTION_WIDTH;
+          : MIN_PLAIN_DESCRIPTION_WIDTH;
   const preferred =
     variant === "spinner" ? MIN_SPINNER_WIDTH : Math.max(min, maxDescriptionWidth(frame, showTree));
-  const stickyPreferred =
+  const measure =
     variant === "spinner"
-      ? preferred
-      : Math.max(preferred, frame.stickyWidths.get(stickyKey) ?? 0);
-  if (variant !== "spinner") {
-    frame.stickyWidths.set(stickyKey, stickyPreferred);
-  }
+      ? {
+          min,
+          preferred,
+          max: preferred,
+        }
+      : applyStickyWidth({
+          key: stickyKey,
+          measure: {
+            min,
+            preferred,
+            max: preferred,
+          },
+          stickyWidths: frame.stickyWidths,
+        });
 
   return {
-    measure: {
-      min,
-      preferred: stickyPreferred,
-      max: stickyPreferred,
-    },
+    measure,
     render: (taskId) => {
       const task = frame.getTask(taskId);
       const tree = frame.getTree(taskId);
