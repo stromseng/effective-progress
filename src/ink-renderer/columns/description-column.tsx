@@ -1,7 +1,7 @@
 import { Text } from "ink";
 import type { TaskTreeInfo } from "../snapshot/types";
 import { getTaskIndicator } from "../format";
-import type { Column, RenderFrameContextValue } from "./node";
+import type { Column, RenderFrameContextValue, RootColumnSpec } from "./node";
 import { applyStickyWidth } from "./sticky-width";
 import { textWidth } from "./text-width";
 
@@ -101,3 +101,25 @@ export const DescriptionColumn = (
     },
   };
 };
+
+const createDescriptionRootColumn = (
+  key: string,
+  variant: NonNullable<DescriptionColumnConfig["variant"]>,
+): RootColumnSpec => ({
+  key,
+  create: (frame) => DescriptionColumn(frame, { variant }),
+});
+
+export const DescriptionTreeRootColumn = createDescriptionRootColumn("description-tree", "tree");
+
+export const DescriptionPlainRootColumn = createDescriptionRootColumn("description-plain", "plain");
+
+export const DescriptionCompactRootColumn = createDescriptionRootColumn(
+  "description-compact",
+  "compact",
+);
+
+export const DescriptionSpinnerRootColumn = createDescriptionRootColumn(
+  "description-spinner",
+  "spinner",
+);

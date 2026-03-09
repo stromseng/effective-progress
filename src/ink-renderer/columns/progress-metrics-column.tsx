@@ -1,5 +1,5 @@
 import { Box } from "ink";
-import type { Column, RenderFrameContextValue } from "./node";
+import type { Column, RenderFrameContextValue, RootColumnSpec } from "./node";
 import { AmountColumn } from "./progress/amount-column";
 import { BarColumn } from "./progress/bar-column";
 import { PercentColumn } from "./progress/percent-column";
@@ -158,3 +158,12 @@ export const ProgressMetricsColumn = (
     },
   };
 };
+
+const createProgressRootColumn = (key: string, mode: ProgressColumnMode): RootColumnSpec => ({
+  key,
+  create: (frame) => ProgressMetricsColumn(frame, { mode }),
+});
+
+export const ProgressRootColumn = createProgressRootColumn("progress", "full");
+
+export const ProgressPercentRootColumn = createProgressRootColumn("progress-percent", "percent");

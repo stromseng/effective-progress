@@ -2,7 +2,7 @@ import { Text } from "ink";
 import type { TaskSnapshot } from "../../types";
 import { formatEta } from "../format";
 import { isDeterminate } from "./determinate";
-import type { Column, RenderFrameContextValue } from "./node";
+import type { Column, RenderFrameContextValue, RootColumnSpec } from "./node";
 import { applyStickyWidth } from "./sticky-width";
 import { textWidth } from "./text-width";
 
@@ -86,4 +86,9 @@ export const EtaColumn = (frame: RenderFrameContextValue): Column | undefined =>
       </Text>
     ),
   };
+};
+
+export const EtaRootColumn: RootColumnSpec = {
+  key: "eta",
+  create: EtaColumn,
 };

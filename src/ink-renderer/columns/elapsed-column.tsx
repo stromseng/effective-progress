@@ -1,6 +1,6 @@
 import { Box, Text } from "ink";
 import { formatElapsed } from "../format";
-import type { Column, RenderFrameContextValue } from "./node";
+import type { Column, RenderFrameContextValue, RootColumnSpec } from "./node";
 import { applyStickyWidth } from "./sticky-width";
 import { textWidth } from "./text-width";
 
@@ -37,4 +37,9 @@ export const ElapsedColumn = (frame: RenderFrameContextValue): Column => {
       );
     },
   };
+};
+
+export const ElapsedRootColumn: RootColumnSpec = {
+  key: "elapsed",
+  create: ElapsedColumn,
 };

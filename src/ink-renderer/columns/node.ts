@@ -21,3 +21,8 @@ export interface Column {
   readonly measure: WidthMeasure;
   render: (taskId: TaskId, width: number) => ReactNode;
 }
+
+export interface RootColumnSpec {
+  readonly key: string;
+  create: (frame: RenderFrameContextValue) => Column | undefined;
+}

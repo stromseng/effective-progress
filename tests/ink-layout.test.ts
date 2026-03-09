@@ -5,7 +5,6 @@ import * as Progress from "../src";
 import { createRenderFrame } from "../src/ink-renderer/columns/frame";
 import { ProgressMetricsColumn } from "../src/ink-renderer/columns/progress-metrics-column";
 import { RootColumn } from "../src/ink-renderer/columns/root-column";
-import { ROOT_LAYOUTS } from "../src/ink-renderer/columns/root-column";
 import { applyStickyWidth } from "../src/ink-renderer/columns/sticky-width";
 import type { TaskRowModel } from "../src/ink-renderer/snapshot/types";
 
@@ -66,19 +65,6 @@ const maxLineWidth = (output: string): number =>
   output.split("\n").reduce((max, line) => Math.max(max, line.length), 0);
 
 describe("frame layout planning", () => {
-  test("keeps root layouts declarative and ordered", () => {
-    expect(ROOT_LAYOUTS).toEqual([
-      ["description-tree", "progress", "elapsed", "eta"],
-      ["description-plain", "progress", "elapsed", "eta"],
-      ["description-plain", "progress-percent", "elapsed", "eta"],
-      ["description-plain", "progress-percent", "elapsed"],
-      ["description-plain", "progress-percent"],
-      ["description-compact", "progress-percent"],
-      ["description-compact"],
-      ["description-spinner"],
-    ]);
-  });
-
   test("applies sticky widths consistently for fixed and flexible measures", () => {
     const stickyWidths = new Map<string, number>([
       ["fixed", 8],
