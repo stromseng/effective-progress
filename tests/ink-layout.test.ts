@@ -208,7 +208,7 @@ describe("frame layout planning", () => {
     ];
 
     const wide = renderView(rows, 90);
-    const narrow = renderView(rows, 22);
+    const narrow = renderView(rows, 18);
 
     expect(wide.includes("└─ ")).toBeTrue();
     expect(narrow.includes("└─ ")).toBeFalse();
@@ -253,8 +253,8 @@ describe("frame layout planning", () => {
     ];
 
     const prefixed = renderView(rows, 55);
-    const noEta = renderView(rows, 32);
-    const noEtaOrElapsed = renderView(rows, 20);
+    const noEta = renderView(rows, 28);
+    const noEtaOrElapsed = renderView(rows, 16);
 
     expect(prefixed.includes("ETA: ")).toBeTrue();
     expect(noEta.includes("ETA: ")).toBeFalse();
@@ -279,7 +279,7 @@ describe("frame layout planning", () => {
     ];
 
     const medium = renderRoot(rows, 1_000, 0, 80, true, new Map());
-    const narrow = renderRoot(rows, 1_000, 0, 30, true, new Map());
+    const narrow = renderRoot(rows, 1_000, 0, 28, true, new Map());
 
     expect(maxLineWidth(narrow)).toBeLessThan(maxLineWidth(medium));
     expect(medium.includes("ETA: ")).toBeTrue();

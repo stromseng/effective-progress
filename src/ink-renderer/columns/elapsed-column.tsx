@@ -1,11 +1,9 @@
 import { Box, Text } from "ink";
 import { formatElapsed } from "../format";
-import { hasDeterminateRows } from "./determinate";
 import type { Column, RenderFrameContextValue } from "./node";
 import { textWidth } from "./text-width";
 
-const MIN_ELAPSED_WIDTH = 3;
-const RESERVED_ELAPSED_WIDTH_UP_TO_ONE_HOUR = Array.from("59m 59s").length;
+const MIN_ELAPSED_WIDTH = Array.from("10s").length;
 
 const maxElapsedWidth = (frame: RenderFrameContextValue): number =>
   frame.taskIds.reduce(
@@ -15,17 +13,8 @@ const maxElapsedWidth = (frame: RenderFrameContextValue): number =>
 
 export const ElapsedColumn = (frame: RenderFrameContextValue): Column => {
   const elapsedContentWidth = maxElapsedWidth(frame);
-  const rows = frame.taskIds.map((taskId) => ({
-    task: frame.getTask(taskId),
-    tree: frame.getTree(taskId),
-  }));
-  const hasDeterminate = hasDeterminateRows(rows);
-
   const stickyKey = "elapsed";
-  const basePreferred = hasDeterminate
-    ? Math.max(elapsedContentWidth, RESERVED_ELAPSED_WIDTH_UP_TO_ONE_HOUR)
-    : elapsedContentWidth;
-  const preferred = Math.max(basePreferred, frame.stickyWidths.get(stickyKey) ?? 0);
+  const preferred = Math.max(elapsedContentWidth, frame.stickyWidths.get(stickyKey) ?? 0);
   frame.stickyWidths.set(stickyKey, preferred);
 
   return {
