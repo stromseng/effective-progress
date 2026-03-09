@@ -90,7 +90,7 @@ Support for `either`/`validate` modes of `Effect.all` and render the amount of s
 - `examples/simpleExample.ts` - low-boilerplate real-world flow
 - `examples/advancedExample.ts` - full API usage and manual task control
 - `examples/mixedOutcomes.ts` - fail-fast vs `either`/`validate` with mixed success/failure counters
-- `examples/cliProgressSemantics.ts` - zero totals, negative totals, overflow counts, and empty `all` / `forEach`
+- `examples/cliProgressSemantics.ts` - zero totals, negative totals clearing to unknown totals, overflow counts, and empty `all` / `forEach`
 - `examples/unknownTotalCounting.ts` - count successes/failures without a known total and render `processed/?`
 - `examples/showcase.ts` - nested concurrent tasks, spinner workloads, and mixed Effect/Console logging
 - `examples/performance.ts` - stress-style run with high log volume and deeply nested progress updates
@@ -136,10 +136,10 @@ const program = Progress.task(
 );
 ```
 
-Manual total behavior follows cli-progress-style semantics:
+Manual total behavior:
 
-- negative totals on task creation fall back to `100`
-- negative totals on later `updateTask` calls are ignored
+- negative totals on task creation clear the total and switch to indeterminate rendering
+- negative totals on later `updateTask` calls also clear the total
 - explicit `total: undefined` on `updateTask` clears the total and switches back to indeterminate rendering
 
 ## Column customization

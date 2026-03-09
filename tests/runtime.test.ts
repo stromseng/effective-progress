@@ -440,7 +440,7 @@ describe("determinate task counters", () => {
     expect(task.units.processed).toBe(0);
   });
 
-  test("negative totals fall back to 100 on addTask", async () => {
+  test("negative totals clear the total on addTask", async () => {
     const task = await Effect.runPromise(
       withStdio(
         withProgress(
@@ -453,11 +453,11 @@ describe("determinate task counters", () => {
       ),
     );
 
-    expect(task.units.total).toBe(100);
+    expect(task.units.total).toBeUndefined();
     expect(task.units.processed).toBe(0);
   });
 
-  test("negative totals are ignored on updateTask", async () => {
+  test("negative totals clear the total on updateTask", async () => {
     const task = await Effect.runPromise(
       withStdio(
         withProgress(
@@ -471,6 +471,7 @@ describe("determinate task counters", () => {
       ),
     );
 
-    expect(task.units.total).toBe(5);
+    expect(task.units.total).toBeUndefined();
+    expect(task.units.processed).toBe(0);
   });
 });

@@ -26,24 +26,22 @@ export interface ProgressRenderStore {
 const hasExplicitTotal = (options: Pick<AddTaskOptions | UpdateTaskOptions, "total">) =>
   Object.prototype.hasOwnProperty.call(options, "total");
 
-const DEFAULT_TOTAL = 100;
-
 const sanitizeTotalOnAdd = (total: number | undefined) => {
   if (total === undefined) {
     return undefined;
   }
 
-  // Match cli-progress start(): negative totals fall back to the default total.
-  return total < 0 ? DEFAULT_TOTAL : total;
+  // Negative totals are treated as "unknown total" from the start.
+  return total < 0 ? undefined : total;
 };
 
-const sanitizeTotalOnUpdate = (currentTotal: number | undefined, nextTotal: number | undefined) => {
+const sanitizeTotalOnUpdate = (nextTotal: number | undefined) => {
   if (nextTotal === undefined) {
     return undefined;
   }
 
-  // Match cli-progress setTotal(): negative totals are ignored on update.
-  return nextTotal < 0 ? currentTotal : nextTotal;
+  // A negative update also clears the total back to indeterminate.
+  return nextTotal < 0 ? undefined : nextTotal;
 };
 
 const normalizeUnits = (counts: TaskCounts) => {
@@ -77,7 +75,7 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => 
           succeeded: options.succeeded ?? currentUnits.succeeded,
           failed: options.failed ?? currentUnits.failed,
           total: hasExplicitTotal(options)
-            ? sanitizeTotalOnUpdate(currentUnits.total, options.total)
+            ? sanitizeTotalOnUpdate(options.total)
             : currentUnits.total,
         });
 

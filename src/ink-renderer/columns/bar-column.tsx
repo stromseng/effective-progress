@@ -15,7 +15,7 @@ const MIN_BAR_WIDTH = 8;
 
 const segmentLengths = (width: number, total: number, succeeded: number, failed: number) => {
   if (total === 0) {
-    // Match cli-progress: zero-total bars render as visually complete by default.
+    // Zero-total bars render as visually complete by default.
     return { succeeded: width, failed: 0, remaining: 0 };
   }
 

@@ -16,7 +16,7 @@ const showcaseProgram = Effect.gen(function* () {
   yield* progress.completeTask(zeroTotalId);
 
   const negativeOnAddId = yield* progress.addTask({
-    description: "negative total on add (falls back to 100)",
+    description: "negative total on add (clears total)",
     total: -5,
     transient: false,
     countDisplay: "processedOnly",
@@ -27,7 +27,7 @@ const showcaseProgram = Effect.gen(function* () {
   yield* progress.completeTask(negativeOnAddId);
 
   const negativeOnUpdateId = yield* progress.addTask({
-    description: "negative total on update (ignored)",
+    description: "negative total on update (clears total)",
     total: 5,
     transient: false,
     countDisplay: "processedOnly",
@@ -65,7 +65,7 @@ const showcaseProgram = Effect.gen(function* () {
 });
 
 const program = Progress.task(showcaseProgram, {
-  description: "cli-progress semantics showcase",
+  description: "progress semantics showcase",
   transient: false,
 });
 
