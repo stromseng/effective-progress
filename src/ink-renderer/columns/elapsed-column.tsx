@@ -1,10 +1,10 @@
-import { Text } from "ink";
+import { Box, Text } from "ink";
 import { formatElapsed } from "../format";
 import { hasDeterminateRows } from "./determinate";
 import type { Column, RenderFrameContextValue } from "./node";
 import { textWidth } from "./text-width";
 
-const MIN_ELAPSED_WIDTH = 2;
+const MIN_ELAPSED_WIDTH = 3;
 const RESERVED_ELAPSED_WIDTH_UP_TO_ONE_HOUR = Array.from("59m 59s").length;
 
 const maxElapsedWidth = (frame: RenderFrameContextValue): number =>
@@ -34,10 +34,15 @@ export const ElapsedColumn = (frame: RenderFrameContextValue): Column => {
       preferred,
       max: preferred,
     },
-    render: (taskId) => (
-      <Text wrap="truncate-end" color="gray">
-        {formatElapsed(frame.getTask(taskId), frame.now)}
-      </Text>
-    ),
+    render: (taskId, width) => {
+      const formatted = formatElapsed(frame.getTask(taskId), frame.now);
+      const visible = textWidth(formatted) <= width ? formatted : formatted.slice(0, width);
+
+      return (
+        <Box width={width} justifyContent="flex-end">
+          <Text color="gray">{visible}</Text>
+        </Box>
+      );
+    },
   };
 };
