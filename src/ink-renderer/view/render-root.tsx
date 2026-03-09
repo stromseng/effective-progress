@@ -1,4 +1,3 @@
-import { Box } from "ink";
 import { useRef } from "react";
 import { useSyncExternalStore } from "react";
 import { RootColumn } from "../columns/root-column";
@@ -29,5 +28,5 @@ export const ProgressRoot = ({ store, isTTY, getTerminalColumns }: ProgressRootP
     stickyWidths.current,
   );
 
-  return <Box flexDirection="row">{rootColumn.render()}</Box>;
+  return rootColumn.render();
 };

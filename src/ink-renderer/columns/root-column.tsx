@@ -30,9 +30,6 @@ export interface FlatColumnLayout {
 }
 
 export interface RootColumnInstance {
-  readonly taskIds: ReadonlyArray<TaskId>;
-  readonly rowWidth: number;
-  readonly columns: ReadonlyArray<FlatColumnLayout>;
   render: () => ReactNode;
 }
 
@@ -168,7 +165,10 @@ const widthForSelectedSet = (
   const gapWidth = Math.max(0, columns.length - 1) * ROOT_GAP;
   const utilityColumns = columns.slice(1);
   const utilityWidth = utilityColumns.reduce((sum, column) => sum + column.preferredWidth, 0);
-  const descriptionWidth = Math.max(0, targetWidth - gapWidth - utilityWidth);
+  const description = columns[0]!;
+  const availableDescriptionWidth = Math.max(0, targetWidth - gapWidth - utilityWidth);
+  const descriptionMax = description.measure.max ?? availableDescriptionWidth;
+  const descriptionWidth = Math.min(availableDescriptionWidth, descriptionMax);
 
   return [descriptionWidth, ...utilityColumns.map((column) => column.preferredWidth)];
 };
@@ -176,20 +176,17 @@ const widthForSelectedSet = (
 const emptyRootColumn = (stickyWidths: Map<string, number>): RootColumnInstance => {
   stickyWidths.clear();
   return {
-    taskIds: [],
-    rowWidth: 0,
-    columns: [],
     render: () => null,
   };
 };
 
-const computeRootColumn = (
+export const RootColumn = (
   rows: ReadonlyArray<TaskRowModel>,
   now: number,
   tick: number,
   terminalColumns: number | undefined,
   isTTY: boolean,
-  stickyWidths: Map<string, number>,
+  stickyWidths: Map<string, number> = new Map(),
 ): RootColumnInstance => {
   if (rows.length === 0) {
     return emptyRootColumn(stickyWidths);
@@ -205,14 +202,12 @@ const computeRootColumn = (
           ROOT_GAP,
         )
       : terminalColumns;
-  const widths = widthForSelectedSet(selectedColumns, targetWidth);
-
-  const columns = selectedColumns
+  const columns = widthForSelectedSet(selectedColumns, targetWidth)
     .map(
-      (column, index): FlatColumnLayout => ({
-        id: column.id,
-        width: widths[index] ?? 0,
-        render: column.render,
+      (width, index): FlatColumnLayout => ({
+        id: selectedColumns[index]!.id,
+        width,
+        render: selectedColumns[index]!.render,
       }),
     )
     .filter((column) => column.width > 0);
@@ -224,9 +219,6 @@ const computeRootColumn = (
   );
 
   return {
-    taskIds,
-    rowWidth,
-    columns,
     render: () => (
       <Box flexDirection="row" minWidth={rowWidth}>
         {columns.map((column, index) => (
@@ -246,15 +238,4 @@ const computeRootColumn = (
       </Box>
     ),
   };
-};
-
-export const RootColumn = (
-  rows: ReadonlyArray<TaskRowModel>,
-  now: number,
-  tick: number,
-  terminalColumns: number | undefined,
-  isTTY: boolean,
-  stickyWidths: Map<string, number> = new Map(),
-): RootColumnInstance => {
-  return computeRootColumn(rows, now, tick, terminalColumns, isTTY, stickyWidths);
 };
