@@ -79,7 +79,7 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => 
             : currentUnits.total,
         });
 
-  return new TaskSnapshot({
+  return TaskSnapshot({
     id: snapshot.id,
     parentId: snapshot.parentId,
     description: options.description ?? snapshot.description,
@@ -93,7 +93,7 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => 
 };
 
 const withTransient = (snapshot: TaskSnapshot, transient: boolean) =>
-  new TaskSnapshot({
+  TaskSnapshot({
     id: snapshot.id,
     parentId: snapshot.parentId,
     description: snapshot.description,
@@ -147,7 +147,7 @@ const removeFromRenderOrder = (
   return next;
 };
 
-const SNAPSHOT_PUBLISH_INTERVAL_MILLIS = 50;
+const SNAPSHOT_PUBLISH_INTERVAL_MILLIS = 100;
 
 export const makeProgressRenderStore = () => {
   let nextTaskId = 0;
@@ -251,7 +251,7 @@ export const makeProgressRenderStore = () => {
         const now = yield* Clock.currentTimeMillis;
         const parentId = options.parentId ?? null;
         const countDisplay = options.countDisplay ?? parentSnapshot?.countDisplay ?? "detailed";
-        const task = new TaskSnapshot({
+        const task = TaskSnapshot({
           id: taskId,
           parentId,
           description: options.description,
@@ -329,7 +329,7 @@ export const makeProgressRenderStore = () => {
           const nextTasks = new Map(current.tasks);
           nextTasks.set(
             taskId,
-            new TaskSnapshot({
+            TaskSnapshot({
               id: currentTask.id,
               parentId: currentTask.parentId,
               description: currentTask.description,
@@ -360,7 +360,7 @@ export const makeProgressRenderStore = () => {
           const nextTasks = new Map(current.tasks);
           nextTasks.set(
             taskId,
-            new TaskSnapshot({
+            TaskSnapshot({
               id: currentTask.id,
               parentId: currentTask.parentId,
               description: currentTask.description,
@@ -401,7 +401,7 @@ export const makeProgressRenderStore = () => {
 
           nextTasks.set(
             taskId,
-            new TaskSnapshot({
+            TaskSnapshot({
               id: currentTask.id,
               parentId: currentTask.parentId,
               description: currentTask.description,
@@ -456,7 +456,7 @@ export const makeProgressRenderStore = () => {
 
           nextTasks.set(
             taskId,
-            new TaskSnapshot({
+            TaskSnapshot({
               id: currentTask.id,
               parentId: currentTask.parentId,
               description: currentTask.description,

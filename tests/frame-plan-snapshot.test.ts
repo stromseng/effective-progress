@@ -6,7 +6,7 @@ import * as Progress from "../src";
 import { RootColumn } from "../src/ink-renderer/columns/root-column";
 import type { TaskRowModel } from "../src/ink-renderer/store/types";
 
-const task = new Progress.TaskSnapshot({
+const task = Progress.TaskSnapshot({
   id: Progress.TaskId(1),
   parentId: null,
   description: "verify",
@@ -39,7 +39,7 @@ const TICK = 0;
 const renderFramePlan = (startWidth: number): string =>
   Array.from({ length: startWidth }, (_, index) => startWidth - index)
     .map((terminalWidth) => {
-      const rootColumn = RootColumn([row], NOW, TICK, terminalWidth, new Map());
+      const rootColumn = RootColumn([row], terminalWidth, new Map(), TICK, NOW);
       const output = stripAnsi(renderToString(rootColumn.render(), { columns: terminalWidth }));
       const outputWidth = fastStringWidth(output);
       const paddedOutput =

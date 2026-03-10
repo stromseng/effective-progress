@@ -1,10 +1,12 @@
 import { Box, Text, type DOMElement } from "ink";
-import { useMemo, useRef } from "react";
+import { memo, useMemo, useRef } from "react";
 import type { TaskTreeInfo } from "../store/types";
+import type { TaskSnapshot } from "../../types";
 import { useBoxMetrics } from "../hooks/use-box-metrics";
 import { useStickyWidth } from "../hooks/use-sticky-width";
 import { useRenderFrame } from "../render-frame-context";
-import { getTaskIndicator } from "../shared/format";
+import { useSpinnerTick } from "../spinner-context";
+import { getSpinnerIndicator, getTaskIndicator } from "../shared/format";
 import { textWidth } from "../shared/text-width";
 
 const MIN_DESCRIPTION_WIDTH = 1;
@@ -125,6 +127,22 @@ const resolveDescriptionVariant = (
     : "plain";
 };
 
+const RunningTaskIndicator = memo(() => {
+  const tick = useSpinnerTick();
+  const indicator = getSpinnerIndicator(tick);
+
+  return <Text color={indicator.color}>{indicator.symbol}</Text>;
+});
+
+const TaskIndicatorGlyph = ({ task }: { readonly task: TaskSnapshot }) => {
+  if (task.status === "running") {
+    return <RunningTaskIndicator />;
+  }
+
+  const indicator = getTaskIndicator(task, 0);
+  return <Text color={indicator.color}>{indicator.symbol}</Text>;
+};
+
 export const DescriptionColumn = ({
   cap,
   assignedWidth,
@@ -163,17 +181,16 @@ export const DescriptionColumn = ({
       marginRight={marginRight}
     >
       {frame.rows.map((row) => {
-        const indicator = getTaskIndicator(row.task, frame.tick);
         const treePrefix = variant === "tree" ? renderTreePrefix(row.tree) : "";
 
         return (
           <Box key={row.task.id as number} height={1}>
             {variant === "spinner" ? (
-              <Text color={indicator.color}>{indicator.symbol}</Text>
+              <TaskIndicatorGlyph task={row.task} />
             ) : (
               <Text wrap="truncate-end">
                 {treePrefix}
-                <Text color={indicator.color}>{indicator.symbol}</Text>
+                <TaskIndicatorGlyph task={row.task} />
                 {` ${row.task.description}`}
               </Text>
             )}

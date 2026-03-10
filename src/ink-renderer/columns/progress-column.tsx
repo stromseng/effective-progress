@@ -14,8 +14,6 @@ const PROGRESS_PERCENT_THRESHOLD = 10;
 
 export type ProgressPolicyMode = "full" | "percent";
 
-const processedAmountText = (task: TaskSnapshot): string => formatAmount(task, 0);
-
 export const preferredPercentWidth = (
   rows: ReturnType<typeof useRenderFrame>["rows"],
 ): number =>
@@ -60,7 +58,6 @@ const progressAmountMetrics = (rows: ReturnType<typeof useRenderFrame>["rows"]) 
 
 export const preferredProgressWidth = (
   rows: ReturnType<typeof useRenderFrame>["rows"],
-  _tick: number,
 ): number => {
   const amountWidth = progressAmountMetrics(rows).preferredWidth;
   const hasDeterminate = rows.some((row) => isDeterminate(row.task));
@@ -149,7 +146,6 @@ const renderProgressAmount = (
   task: TaskSnapshot,
   width: number,
   metrics: ReturnType<typeof progressAmountMetrics>,
-  tick: number,
 ): ReactNode => {
   const processed = `${task.units.processed}`.padStart(metrics.countDigits, " ");
   const total = `${task.units.total ?? "?"}`.padEnd(metrics.totalWidth, " ");
@@ -188,7 +184,6 @@ const renderProgressAmount = (
 
 const renderProgressCell = (
   task: TaskSnapshot,
-  tick: number,
   width: number,
   variant: ProgressVariant,
   amountMetrics: ReturnType<typeof progressAmountMetrics>,
@@ -198,7 +193,7 @@ const renderProgressCell = (
   }
 
   if (variant === "amount") {
-    return renderProgressAmount(task, width, amountMetrics, tick);
+    return renderProgressAmount(task, width, amountMetrics);
   }
 
   const combinedMin = 4 + 1 + amountMetrics.minWidth;
@@ -217,7 +212,7 @@ const renderProgressCell = (
     <Box flexDirection="row" width={width}>
       <Box width={barWidth}>{renderBar(task, barWidth)}</Box>
       <Box marginRight={1} />
-      <Box width={amountWidth}>{renderProgressAmount(task, amountWidth, amountMetrics, tick)}</Box>
+      <Box width={amountWidth}>{renderProgressAmount(task, amountWidth, amountMetrics)}</Box>
     </Box>
   );
 };
@@ -235,8 +230,8 @@ export const ProgressColumn = ({
   const ref = useRef<DOMElement>(null);
   const metrics = useBoxMetrics(ref);
   const preferredWidth = useMemo(
-    () => preferredProgressWidth(frame.rows, frame.tick),
-    [frame.rows, frame.tick],
+    () => preferredProgressWidth(frame.rows),
+    [frame.rows],
   );
   const percentWidth = useMemo(() => preferredPercentWidth(frame.rows), [frame.rows]);
   const amountMetrics = useMemo(() => progressAmountMetrics(frame.rows), [frame.rows]);
@@ -267,7 +262,7 @@ export const ProgressColumn = ({
     >
       {frame.rows.map((row) => (
         <Box key={row.task.id as number} height={1}>
-          {renderProgressCell(row.task, frame.tick, width, variant, amountMetrics)}
+          {renderProgressCell(row.task, width, variant, amountMetrics)}
         </Box>
       ))}
     </Box>

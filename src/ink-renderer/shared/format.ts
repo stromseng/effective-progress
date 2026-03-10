@@ -62,13 +62,17 @@ interface TaskIndicator {
   readonly color: TaskIndicatorColor;
 }
 
+export const getSpinnerIndicator = (tick: number): TaskIndicator => {
+  const frameIndex = tick % SPINNER_FRAMES.length;
+  return {
+    symbol: SPINNER_FRAMES[frameIndex] ?? SPINNER_FRAMES[0]!,
+    color: "yellow",
+  };
+};
+
 export const getTaskIndicator = (task: TaskSnapshot, tick: number): TaskIndicator => {
   if (task.status === "running") {
-    const frameIndex = tick % SPINNER_FRAMES.length;
-    return {
-      symbol: SPINNER_FRAMES[frameIndex] ?? SPINNER_FRAMES[0]!,
-      color: "yellow",
-    };
+    return getSpinnerIndicator(tick);
   }
 
   if (task.status === "failed") {

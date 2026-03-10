@@ -4,7 +4,7 @@ import * as Progress from "../src";
 
 describe("types and schemas", () => {
   test("TaskSnapshot validates without renderer/progressbar fields", () => {
-    const snapshot = new Progress.TaskSnapshot({
+    const snapshot = Schema.decodeUnknownSync(Progress.TaskSnapshotSchema)({
       id: Progress.TaskId(1),
       parentId: null,
       description: "task",

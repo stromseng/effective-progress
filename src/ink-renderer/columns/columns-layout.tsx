@@ -1,6 +1,7 @@
 import { Box, type DOMElement } from "ink";
 import { useMemo, useRef } from "react";
 import { useBoxMetrics } from "../hooks/use-box-metrics";
+import { useNow } from "../now-context";
 import { useRenderFrame } from "../render-frame-context";
 import {
   DescriptionColumn,
@@ -29,26 +30,18 @@ interface ColumnsLayoutProps {
 
 export const ColumnsLayout = ({ terminalColumns }: ColumnsLayoutProps) => {
   const frame = useRenderFrame();
+  const now = useNow();
   const rootRef = useRef<DOMElement>(null);
   const rootMetrics = useBoxMetrics(rootRef);
   const rootWidth = terminalColumns ?? (rootMetrics.hasMeasured ? rootMetrics.width : undefined);
   const showProgress = useMemo(() => hasRenderableProgress(frame.rows), [frame.rows]);
-  const showEtaColumn = useMemo(() => hasEta(frame.rows, frame.now), [frame.now, frame.rows]);
+  const showEtaColumn = useMemo(() => hasEta(frame.rows, now), [frame.rows, now]);
   const percentPreferredWidth = useMemo(() => preferredPercentWidth(frame.rows), [frame.rows]);
-  const elapsedPreferredWidth = useMemo(
-    () => preferredElapsedWidth(frame.rows, frame.now),
-    [frame.now, frame.rows],
-  );
-  const etaMinWidth = useMemo(() => etaMinimumWidth(frame.rows, frame.now), [frame.now, frame.rows]);
-  const etaPreferredWidth = useMemo(
-    () => preferredEtaWidth(frame.rows, frame.now),
-    [frame.now, frame.rows],
-  );
+  const elapsedPreferredWidth = useMemo(() => preferredElapsedWidth(frame.rows, now), [frame.rows, now]);
+  const etaMinWidth = useMemo(() => etaMinimumWidth(frame.rows, now), [frame.rows, now]);
+  const etaPreferredWidth = useMemo(() => preferredEtaWidth(frame.rows, now), [frame.rows, now]);
   const descriptionTreeMinWidth = useMemo(() => minTreeDescriptionWidth(frame.rows), [frame.rows]);
-  const progressPreferred = useMemo(
-    () => preferredProgressWidth(frame.rows, frame.tick),
-    [frame.rows, frame.tick],
-  );
+  const progressPreferred = useMemo(() => preferredProgressWidth(frame.rows), [frame.rows]);
   const progressFullMinWidth = useMemo(() => progressMinimumWidth(frame.rows), [frame.rows]);
   const layoutPolicy = useMemo(
     () =>

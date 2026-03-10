@@ -4,7 +4,7 @@ import { RootColumn } from "../src/ink-renderer/columns/root-column";
 import type { TaskRowModel } from "../src/ink-renderer/store/types";
 import fastStringWidth from "fast-string-width";
 
-const task = new Progress.TaskSnapshot({
+const task = Progress.TaskSnapshot({
   id: Progress.TaskId(1),
   parentId: null,
   description: "verify",
@@ -53,7 +53,7 @@ for (
   terminalWidth >= MIN_TERMINAL_WIDTH;
   terminalWidth--
 ) {
-  const rootColumn = RootColumn([row], NOW, TICK, terminalWidth, new Map());
+  const rootColumn = RootColumn([row], terminalWidth, new Map(), TICK, NOW);
   const output = renderToString(rootColumn.render(), {
     columns: terminalWidth,
   });

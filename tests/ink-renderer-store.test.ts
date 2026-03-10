@@ -7,6 +7,20 @@ const sleep = (millis: number) =>
     setTimeout(resolve, millis);
   });
 
+const waitFor = async (
+  predicate: () => boolean,
+  timeoutMillis: number,
+  pollMillis = 10,
+): Promise<void> => {
+  const deadline = Date.now() + timeoutMillis;
+  while (!predicate()) {
+    if (Date.now() >= deadline) {
+      throw new Error(`Condition not met within ${timeoutMillis}ms`);
+    }
+    await sleep(pollMillis);
+  }
+};
+
 describe("progress render store", () => {
   test("coalesces rapid task updates into a single published snapshot", async () => {
     const store = makeProgressRenderStore();
@@ -32,7 +46,7 @@ describe("progress render store", () => {
 
     expect(notifications).toBe(1);
 
-    await sleep(70);
+    await waitFor(() => notifications === 2, 250);
 
     expect(notifications).toBe(2);
 

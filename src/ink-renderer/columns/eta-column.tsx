@@ -2,6 +2,7 @@ import { Box, Text, type DOMElement } from "ink";
 import { useMemo, useRef } from "react";
 import type { TaskSnapshot } from "../../types";
 import { useBoxMetrics } from "../hooks/use-box-metrics";
+import { useNow } from "../now-context";
 import { useStickyWidth } from "../hooks/use-sticky-width";
 import { useRenderFrame } from "../render-frame-context";
 import { formatEta } from "../shared/format";
@@ -71,12 +72,10 @@ export const EtaColumn = ({
   readonly marginRight?: number;
 }) => {
   const frame = useRenderFrame();
+  const now = useNow();
   const ref = useRef<DOMElement>(null);
   const metrics = useBoxMetrics(ref);
-  const preferredWidth = useMemo(
-    () => preferredEtaWidth(frame.rows, frame.now),
-    [frame.now, frame.rows],
-  );
+  const preferredWidth = useMemo(() => preferredEtaWidth(frame.rows, now), [frame.rows, now]);
   const stickyWidth = useStickyWidth(preferredWidth);
   const width = assignedWidth ?? stickyWidth;
 
@@ -90,13 +89,13 @@ export const EtaColumn = ({
       marginRight={marginRight}
     >
       {frame.rows.map((row) => {
-        if (etaDurationText(row.task, frame.now) === undefined) {
+        if (etaDurationText(row.task, now) === undefined) {
           return <Box key={row.task.id as number} height={1} />;
         }
 
         const rendered = renderEtaText(
           row.task,
-          frame.now,
+          now,
           metrics.hasMeasured ? (metrics.width || width) : width,
         );
 

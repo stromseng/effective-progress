@@ -13,7 +13,7 @@ const makeTask = (
     units?: Progress.TaskSnapshot["units"];
   } = {},
 ): Progress.TaskSnapshot =>
-  new Progress.TaskSnapshot({
+  Progress.TaskSnapshot({
     id: Progress.TaskId(id),
     parentId: null,
     description: `task-${id}`,
@@ -53,7 +53,7 @@ const renderRoot = (
       createElement(
         Box,
         { flexDirection: "row" },
-        RootColumn(rows, now, tick, terminalColumns, stickyWidths).render(),
+        RootColumn(rows, terminalColumns, stickyWidths, tick, now).render(),
       ),
       { columns: terminalColumns ?? 200 },
     ),

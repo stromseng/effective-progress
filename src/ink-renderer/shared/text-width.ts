@@ -1,6 +1,6 @@
 import stringWidth from "fast-string-width";
 
-const WIDTH_CACHE_LIMIT = 4_096;
+const WIDTH_CACHE_LIMIT = 8192;
 const widthCache = new Map<string, number>();
 
 export const textWidth = (text: string): number => {

@@ -1,6 +1,7 @@
 import { Box, Text, type DOMElement } from "ink";
 import { useMemo, useRef } from "react";
 import { useBoxMetrics } from "../hooks/use-box-metrics";
+import { useNow } from "../now-context";
 import { useStickyWidth } from "../hooks/use-sticky-width";
 import { useRenderFrame } from "../render-frame-context";
 import { formatElapsed } from "../shared/format";
@@ -22,12 +23,10 @@ export const ElapsedColumn = ({
   readonly marginRight?: number;
 }) => {
   const frame = useRenderFrame();
+  const now = useNow();
   const ref = useRef<DOMElement>(null);
   const metrics = useBoxMetrics(ref);
-  const preferredWidth = useMemo(
-    () => preferredElapsedWidth(frame.rows, frame.now),
-    [frame.now, frame.rows],
-  );
+  const preferredWidth = useMemo(() => preferredElapsedWidth(frame.rows, now), [frame.rows, now]);
   const stickyWidth = useStickyWidth(preferredWidth);
   const width = assignedWidth ?? stickyWidth;
 
@@ -41,7 +40,7 @@ export const ElapsedColumn = ({
       marginRight={marginRight}
     >
       {frame.rows.map((row) => {
-        const elapsed = formatElapsed(row.task, frame.now);
+        const elapsed = formatElapsed(row.task, now);
         const visible = metrics.hasMeasured
           ? elapsed.slice(0, metrics.width || width || elapsed.length)
           : elapsed;
