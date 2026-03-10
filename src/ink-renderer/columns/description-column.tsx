@@ -1,14 +1,18 @@
 import { Text } from "ink";
 import type { TaskTreeInfo } from "../snapshot/types";
 import { getTaskIndicator } from "../format";
-import type { Column, RenderFrameContextValue, RootColumnSpec } from "./node";
-import { applyStickyWidth } from "./sticky-width";
+import { createColumnDefinition, type Column, type RenderFrameContextValue } from "./node";
+import { createStickyColumn, type StickyWidthKey } from "./sticky-width";
 import { textWidth } from "./text-width";
 
 const MIN_PLAIN_DESCRIPTION_WIDTH = 8;
 const MIN_COMPACT_DESCRIPTION_WIDTH = 3;
 const MIN_SPINNER_WIDTH = 1;
 const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
+
+export const DESCRIPTION_TREE_STICKY_KEY = Symbol("description.tree");
+export const DESCRIPTION_PLAIN_STICKY_KEY = Symbol("description.plain");
+export const DESCRIPTION_COMPACT_STICKY_KEY = Symbol("description.compact");
 
 const treeAncestorPrefix = (tree: TaskTreeInfo): string =>
   tree.ancestorHasNextSibling
@@ -47,12 +51,14 @@ export const DescriptionColumn = (
 ): Column => {
   const variant = config.variant ?? "plain";
   const showTree = variant === "tree";
-  const stickyKey =
-    variant === "compact"
-      ? "description.compact"
-      : variant === "spinner"
-        ? "description.spinner"
-        : "description";
+  const stickyKey: StickyWidthKey | undefined =
+    variant === "tree"
+      ? DESCRIPTION_TREE_STICKY_KEY
+      : variant === "plain"
+        ? DESCRIPTION_PLAIN_STICKY_KEY
+        : variant === "compact"
+          ? DESCRIPTION_COMPACT_STICKY_KEY
+          : undefined;
   const min =
     variant === "spinner"
       ? MIN_SPINNER_WIDTH
@@ -63,25 +69,14 @@ export const DescriptionColumn = (
           : MIN_PLAIN_DESCRIPTION_WIDTH;
   const preferred =
     variant === "spinner" ? MIN_SPINNER_WIDTH : Math.max(min, maxDescriptionWidth(frame, showTree));
-  const measure =
-    variant === "spinner"
-      ? {
-          min,
-          preferred,
-          max: preferred,
-        }
-      : applyStickyWidth({
-          key: stickyKey,
-          measure: {
-            min,
-            preferred,
-            max: preferred,
-          },
-          stickyWidths: frame.stickyWidths,
-        });
-
-  return {
-    measure,
+  return createStickyColumn({
+    frame,
+    measure: {
+      min,
+      preferred,
+      max: preferred,
+    },
+    stickyKey,
     render: (taskId) => {
       const task = frame.getTask(taskId);
       const tree = frame.getTree(taskId);
@@ -99,27 +94,18 @@ export const DescriptionColumn = (
         </Text>
       );
     },
-  };
+  });
 };
 
-const createDescriptionRootColumn = (
-  key: string,
-  variant: NonNullable<DescriptionColumnConfig["variant"]>,
-): RootColumnSpec => ({
-  key,
-  create: (frame) => DescriptionColumn(frame, { variant }),
-});
+const createDescriptionRootColumn = (variant: NonNullable<DescriptionColumnConfig["variant"]>) =>
+  createColumnDefinition({ _tag: "description", variant } as const, (frame, config) =>
+    DescriptionColumn(frame, config),
+  );
 
-export const DescriptionTreeRootColumn = createDescriptionRootColumn("description-tree", "tree");
+export const DescriptionTreeRootColumn = createDescriptionRootColumn("tree");
 
-export const DescriptionPlainRootColumn = createDescriptionRootColumn("description-plain", "plain");
+export const DescriptionPlainRootColumn = createDescriptionRootColumn("plain");
 
-export const DescriptionCompactRootColumn = createDescriptionRootColumn(
-  "description-compact",
-  "compact",
-);
+export const DescriptionCompactRootColumn = createDescriptionRootColumn("compact");
 
-export const DescriptionSpinnerRootColumn = createDescriptionRootColumn(
-  "description-spinner",
-  "spinner",
-);
+export const DescriptionSpinnerRootColumn = createDescriptionRootColumn("spinner");

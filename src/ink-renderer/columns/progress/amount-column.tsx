@@ -3,7 +3,7 @@ import type { TaskId, TaskSnapshot } from "../../../types";
 import { formatAmount } from "../../format";
 import type { Column, RenderFrameContextValue, WidthMeasure } from "../node";
 import { isDeterminate } from "../determinate";
-import { applyStickyWidth } from "../sticky-width";
+import { createStickyColumn, type StickyWidthKey } from "../sticky-width";
 import {
   blank,
   computeProgressMetrics,
@@ -32,7 +32,8 @@ interface ProcessedAmountLayout {
 type StructuredAmountLayout = DetailedAmountLayout | ProcessedAmountLayout;
 
 export interface AmountColumnConfig {
-  readonly key: string;
+  readonly key: StickyWidthKey;
+  readonly metrics?: ReturnType<typeof computeProgressMetrics>;
   readonly stickyWidth?: boolean;
 }
 
@@ -110,7 +111,7 @@ export const AmountColumn = (
   frame: RenderFrameContextValue,
   config: AmountColumnConfig,
 ): Column => {
-  const metrics = computeProgressMetrics(frame);
+  const metrics = config.metrics ?? computeProgressMetrics(frame);
   const detailedWidth = detailedAmountWidth(metrics);
   const processedWidth = processedAmountWidth(metrics);
   const preferredWidth = metrics.hasStructuredCounts
@@ -136,17 +137,10 @@ export const AmountColumn = (
     preferred: summary.preferredWidth,
     max: summary.preferredWidth,
   };
-  const measure =
-    config.stickyWidth === true
-      ? applyStickyWidth({
-          key: config.key,
-          measure: baseMeasure,
-          stickyWidths: frame.stickyWidths,
-        })
-      : baseMeasure;
-
-  return {
-    measure,
+  return createStickyColumn({
+    frame,
+    measure: baseMeasure,
+    stickyKey: config.stickyWidth === true ? config.key : undefined,
     render: (taskId: TaskId, width: number) => {
       const task = frame.getTask(taskId);
 
@@ -170,5 +164,5 @@ export const AmountColumn = (
         totalWidth: summary.totalWidth,
       });
     },
-  };
+  });
 };

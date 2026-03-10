@@ -1,12 +1,12 @@
 import { Box } from "ink";
-import type { Column, RenderFrameContextValue, RootColumnSpec } from "./node";
+import { createColumnDefinition, type Column, type RenderFrameContextValue } from "./node";
 import { AmountColumn } from "./progress/amount-column";
 import { BarColumn } from "./progress/bar-column";
 import { PercentColumn } from "./progress/percent-column";
 import { PERCENT_FALLBACK_WIDTH, computeProgressMetrics } from "./progress/shared";
 
-const PROGRESS_BAR_KEY = "progress.bar";
-const PROGRESS_AMOUNT_KEY = "progress.amount";
+export const PROGRESS_BAR_STICKY_KEY = Symbol("progress.bar");
+export const PROGRESS_AMOUNT_STICKY_KEY = Symbol("progress.amount");
 
 type ProgressColumnMode = "full" | "percent";
 
@@ -24,6 +24,7 @@ interface PercentLayout {
 
 interface BarAmountLayout {
   readonly kind: "bar-amount";
+  readonly bar: Column;
   readonly barWidth: number;
   readonly amountWidth: number;
 }
@@ -56,12 +57,13 @@ const createProgressColumnModel = (
     metrics,
     percent,
     amount: AmountColumn(frame, {
-      key: PROGRESS_AMOUNT_KEY,
+      key: PROGRESS_AMOUNT_STICKY_KEY,
+      metrics,
       stickyWidth: true,
     }),
     bar: metrics.hasDeterminate
       ? BarColumn(frame, {
-          key: PROGRESS_BAR_KEY,
+          key: PROGRESS_BAR_STICKY_KEY,
           fullWidth: false,
           stickyWidth: true,
         })
@@ -94,6 +96,7 @@ const layoutForWidth = (
   );
   return {
     kind: "bar-amount",
+    bar,
     barWidth: Math.max(bar.measure.min, available - amountWidth),
     amountWidth,
   };
@@ -137,6 +140,10 @@ export const ProgressMetricsColumn = (
       preferred,
       max,
     },
+    commitStickyWidth: () => {
+      model.bar?.commitStickyWidth?.();
+      amount.commitStickyWidth?.();
+    },
     render: (taskId, width) => {
       const layout = layoutForWidth(width, model);
 
@@ -150,7 +157,7 @@ export const ProgressMetricsColumn = (
 
       return (
         <Box flexDirection="row" width={width}>
-          <Box width={layout.barWidth}>{model.bar!.render(taskId, layout.barWidth)}</Box>
+          <Box width={layout.barWidth}>{layout.bar.render(taskId, layout.barWidth)}</Box>
           <Box marginRight={1} />
           <Box width={layout.amountWidth}>{amount.render(taskId, layout.amountWidth)}</Box>
         </Box>
@@ -159,11 +166,11 @@ export const ProgressMetricsColumn = (
   };
 };
 
-const createProgressRootColumn = (key: string, mode: ProgressColumnMode): RootColumnSpec => ({
-  key,
-  create: (frame) => ProgressMetricsColumn(frame, { mode }),
-});
+const createProgressRootColumn = (mode: ProgressColumnMode) =>
+  createColumnDefinition({ _tag: "progress", mode } as const, (frame, config) =>
+    ProgressMetricsColumn(frame, config),
+  );
 
-export const ProgressRootColumn = createProgressRootColumn("progress", "full");
+export const ProgressRootColumn = createProgressRootColumn("full");
 
-export const ProgressPercentRootColumn = createProgressRootColumn("progress-percent", "percent");
+export const ProgressPercentRootColumn = createProgressRootColumn("percent");

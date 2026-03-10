@@ -1,10 +1,11 @@
 import { Box, Text } from "ink";
 import { formatElapsed } from "../format";
-import type { Column, RenderFrameContextValue, RootColumnSpec } from "./node";
-import { applyStickyWidth } from "./sticky-width";
+import { createColumnDefinition, type Column, type RenderFrameContextValue } from "./node";
+import { createStickyColumn } from "./sticky-width";
 import { textWidth } from "./text-width";
 
 const MIN_ELAPSED_WIDTH = Array.from("10s").length;
+export const ELAPSED_STICKY_KEY = Symbol("elapsed");
 
 const maxElapsedWidth = (frame: RenderFrameContextValue): number =>
   frame.taskIds.reduce(
@@ -14,18 +15,14 @@ const maxElapsedWidth = (frame: RenderFrameContextValue): number =>
 
 export const ElapsedColumn = (frame: RenderFrameContextValue): Column => {
   const elapsedContentWidth = maxElapsedWidth(frame);
-  const measure = applyStickyWidth({
-    key: "elapsed",
+  return createStickyColumn({
+    frame,
+    stickyKey: ELAPSED_STICKY_KEY,
     measure: {
       min: MIN_ELAPSED_WIDTH,
       preferred: elapsedContentWidth,
       max: elapsedContentWidth,
     },
-    stickyWidths: frame.stickyWidths,
-  });
-
-  return {
-    measure,
     render: (taskId, width) => {
       const formatted = formatElapsed(frame.getTask(taskId), frame.now);
       const visible = textWidth(formatted) <= width ? formatted : formatted.slice(0, width);
@@ -36,10 +33,9 @@ export const ElapsedColumn = (frame: RenderFrameContextValue): Column => {
         </Box>
       );
     },
-  };
+  });
 };
 
-export const ElapsedRootColumn: RootColumnSpec = {
-  key: "elapsed",
-  create: ElapsedColumn,
-};
+export const ElapsedRootColumn = createColumnDefinition({ _tag: "elapsed" } as const, (frame) =>
+  ElapsedColumn(frame),
+);

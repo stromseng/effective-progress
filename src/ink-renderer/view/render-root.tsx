@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { useSyncExternalStore } from "react";
 import { RootColumn } from "../columns/root-column";
 import type { ProgressRenderStore } from "../store";
+import type { StickyWidthKey } from "../columns/sticky-width";
 import { useNowClock } from "./hooks/use-now-clock";
 import { useSpinnerClock } from "./hooks/use-spinner-clock";
 
@@ -17,7 +18,7 @@ export const ProgressRoot = ({ store, getTerminalColumns }: ProgressRootProps) =
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const tick = useSpinnerClock(snapshot.hasRunningTasks, SPINNER_INTERVAL_MILLIS);
   const now = useNowClock(snapshot.hasRunningTasks, NOW_INTERVAL_MILLIS);
-  const stickyWidths = useRef(new Map<string, number>());
+  const stickyWidths = useRef(new Map<StickyWidthKey, number>());
   const rootColumn = RootColumn(
     snapshot.rows,
     now,

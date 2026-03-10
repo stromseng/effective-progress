@@ -2,11 +2,12 @@ import { Text } from "ink";
 import type { TaskSnapshot } from "../../types";
 import { formatEta } from "../format";
 import { isDeterminate } from "./determinate";
-import type { Column, RenderFrameContextValue, RootColumnSpec } from "./node";
-import { applyStickyWidth } from "./sticky-width";
+import { createColumnDefinition, type Column, type RenderFrameContextValue } from "./node";
+import { createStickyColumn } from "./sticky-width";
 import { textWidth } from "./text-width";
 
 const primaryUnit = (duration: string): string => duration.split(" ")[0] ?? duration;
+export const ETA_STICKY_KEY = Symbol("eta");
 
 const etaDurationText = (task: TaskSnapshot, now: number): string | undefined => {
   if (task.status !== "running" || !isDeterminate(task)) {
@@ -68,27 +69,22 @@ export const EtaColumn = (frame: RenderFrameContextValue): Column | undefined =>
     return undefined;
   }
 
-  const measure = applyStickyWidth({
-    key: "eta",
+  return createStickyColumn({
+    frame,
+    stickyKey: ETA_STICKY_KEY,
     measure: {
       min: metrics.primaryUnitWidth,
       preferred: Math.max(metrics.prefixedWidth, RESERVED_ETA_WIDTH_UP_TO_ONE_HOUR),
       max: Math.max(metrics.prefixedWidth, RESERVED_ETA_WIDTH_UP_TO_ONE_HOUR),
     },
-    stickyWidths: frame.stickyWidths,
-  });
-
-  return {
-    measure,
     render: (taskId, width) => (
       <Text wrap="truncate-end" color="gray">
         {renderEtaText(frame.getTask(taskId), frame.now, width)}
       </Text>
     ),
-  };
+  });
 };
 
-export const EtaRootColumn: RootColumnSpec = {
-  key: "eta",
-  create: EtaColumn,
-};
+export const EtaRootColumn = createColumnDefinition({ _tag: "eta" } as const, (frame) =>
+  EtaColumn(frame),
+);

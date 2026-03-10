@@ -2,7 +2,7 @@ import { Text } from "ink";
 import type { TaskId } from "../../../types";
 import type { Column, RenderFrameContextValue, WidthMeasure } from "../node";
 import { isDeterminate } from "../determinate";
-import { applyStickyWidth } from "../sticky-width";
+import { createStickyColumn, type StickyWidthKey } from "../sticky-width";
 import { DEFAULT_BAR_WIDTH, blank } from "./shared";
 
 const segmentLengths = (width: number, total: number, succeeded: number, failed: number) => {
@@ -26,7 +26,7 @@ const segmentLengths = (width: number, total: number, succeeded: number, failed:
 };
 
 export interface BarColumnConfig {
-  readonly key: string;
+  readonly key: StickyWidthKey;
   readonly fullWidth?: boolean;
   readonly stickyWidth?: boolean;
 }
@@ -37,17 +37,10 @@ export const BarColumn = (frame: RenderFrameContextValue, config: BarColumnConfi
     preferred: DEFAULT_BAR_WIDTH,
     max: config.fullWidth ? undefined : DEFAULT_BAR_WIDTH,
   };
-  const measure =
-    config.stickyWidth === true
-      ? applyStickyWidth({
-          key: config.key,
-          measure: baseMeasure,
-          stickyWidths: frame.stickyWidths,
-        })
-      : baseMeasure;
-
-  return {
-    measure,
+  return createStickyColumn({
+    frame,
+    measure: baseMeasure,
+    stickyKey: config.stickyWidth === true ? config.key : undefined,
     render: (taskId: TaskId, width: number) => {
       const task = frame.getTask(taskId);
       if (!isDeterminate(task)) {
@@ -69,5 +62,5 @@ export const BarColumn = (frame: RenderFrameContextValue, config: BarColumnConfi
         </Text>
       );
     },
-  };
+  });
 };

@@ -2,10 +2,24 @@ import { describe, expect, test } from "bun:test";
 import { Box, renderToString } from "ink";
 import { createElement } from "react";
 import * as Progress from "../src";
+import {
+  DESCRIPTION_PLAIN_STICKY_KEY,
+  DESCRIPTION_TREE_STICKY_KEY,
+} from "../src/ink-renderer/columns/description-column";
+import { ELAPSED_STICKY_KEY } from "../src/ink-renderer/columns/elapsed-column";
+import { ETA_STICKY_KEY } from "../src/ink-renderer/columns/eta-column";
 import { createRenderFrame } from "../src/ink-renderer/columns/frame";
-import { ProgressMetricsColumn } from "../src/ink-renderer/columns/progress-metrics-column";
+import {
+  ProgressMetricsColumn,
+  PROGRESS_AMOUNT_STICKY_KEY,
+  PROGRESS_BAR_STICKY_KEY,
+} from "../src/ink-renderer/columns/progress-metrics-column";
 import { RootColumn } from "../src/ink-renderer/columns/root-column";
-import { applyStickyWidth } from "../src/ink-renderer/columns/sticky-width";
+import {
+  applyStickyWidth,
+  commitStickyWidth,
+  type StickyWidthKey,
+} from "../src/ink-renderer/columns/sticky-width";
 import type { TaskRowModel } from "../src/ink-renderer/snapshot/types";
 
 const makeTask = (
@@ -47,7 +61,7 @@ const renderRoot = (
   now: number,
   tick: number,
   terminalColumns: number | undefined,
-  stickyWidths?: Map<string, number>,
+  stickyWidths?: Map<StickyWidthKey, number>,
 ) =>
   renderToString(
     createElement(
@@ -66,13 +80,15 @@ const maxLineWidth = (output: string): number =>
 
 describe("frame layout planning", () => {
   test("applies sticky widths consistently for fixed and flexible measures", () => {
-    const stickyWidths = new Map<string, number>([
-      ["fixed", 8],
-      ["flex", 10],
+    const fixedKey = Symbol("fixed");
+    const flexKey = Symbol("flex");
+    const stickyWidths = new Map<StickyWidthKey, number>([
+      [fixedKey, 8],
+      [flexKey, 10],
     ]);
 
     const fixed = applyStickyWidth({
-      key: "fixed",
+      key: fixedKey,
       measure: {
         min: 4,
         preferred: 4,
@@ -81,7 +97,7 @@ describe("frame layout planning", () => {
       stickyWidths,
     });
     const flexible = applyStickyWidth({
-      key: "flex",
+      key: flexKey,
       measure: {
         min: 4,
         preferred: 6,
@@ -99,8 +115,50 @@ describe("frame layout planning", () => {
       preferred: 10,
       max: undefined,
     });
-    expect(stickyWidths.get("fixed")).toBe(8);
-    expect(stickyWidths.get("flex")).toBe(10);
+    expect(stickyWidths.get(fixedKey)).toBe(8);
+    expect(stickyWidths.get(flexKey)).toBe(10);
+
+    commitStickyWidth({
+      key: fixedKey,
+      measure: fixed,
+      stickyWidths,
+    });
+    commitStickyWidth({
+      key: flexKey,
+      measure: flexible,
+      stickyWidths,
+    });
+
+    expect(stickyWidths.get(fixedKey)).toBe(8);
+    expect(stickyWidths.get(flexKey)).toBe(10);
+  });
+
+  test("commits sticky widths only for the selected layout", () => {
+    const stickyWidths = new Map<StickyWidthKey, number>();
+    const rows = [
+      row(
+        makeTask(41, {
+          description: "selected-layout-only",
+          startedAt: 0,
+          units: {
+            succeeded: 25,
+            failed: 0,
+            processed: 25,
+            total: 100,
+          },
+        }),
+      ),
+    ];
+
+    renderRoot(rows, 10_000, 0, undefined, stickyWidths);
+
+    expect([...stickyWidths.keys()]).toEqual([
+      DESCRIPTION_TREE_STICKY_KEY,
+      PROGRESS_BAR_STICKY_KEY,
+      PROGRESS_AMOUNT_STICKY_KEY,
+      ELAPSED_STICKY_KEY,
+      ETA_STICKY_KEY,
+    ]);
   });
 
   test("renders percent mode as a fixed-width percent column", () => {
@@ -214,6 +272,29 @@ describe("frame layout planning", () => {
     const output = renderRoot(rows, 2_000, 0, undefined, new Map());
 
     expect(output.includes("3/?")).toBeTrue();
+    expect(output.includes("ETA: ")).toBeFalse();
+  });
+
+  test("uses the full progress fallback when eta is unavailable", () => {
+    const rows = [
+      row(
+        makeTask(42, {
+          status: "done",
+          completedAt: 10_000,
+          units: {
+            succeeded: 999,
+            failed: 0,
+            processed: 999,
+            total: 1000,
+          },
+        }),
+      ),
+    ];
+
+    const output = renderRoot(rows, 10_000, 0, undefined, new Map());
+
+    expect(output.includes("999/1000")).toBeTrue();
+    expect(output.includes("%")).toBeFalse();
     expect(output.includes("ETA: ")).toBeFalse();
   });
 
@@ -460,7 +541,7 @@ describe("frame layout planning", () => {
   });
 
   test("keeps sticky description width until the frame empties", () => {
-    const stickyWidths = new Map<string, number>();
+    const stickyWidths = new Map<StickyWidthKey, number>();
     const longRows = [
       row(
         makeTask(13, {
@@ -483,8 +564,23 @@ describe("frame layout planning", () => {
     expect(maxLineWidth(resetOutput)).toBe(maxLineWidth(freshOutput));
   });
 
+  test("keeps tree and plain sticky widths independent across layout changes", () => {
+    const stickyWidths = new Map<StickyWidthKey, number>();
+    const rows = [
+      row(makeTask(43, { description: "parent-node" }), 0),
+      row(makeTask(44, { description: "child-node-with-extra-width" }), 1),
+    ];
+
+    renderRoot(rows, 10_000, 0, undefined, stickyWidths);
+    renderRoot(rows, 10_000, 0, 22, stickyWidths);
+
+    expect(stickyWidths.get(DESCRIPTION_TREE_STICKY_KEY)).toBeGreaterThan(
+      stickyWidths.get(DESCRIPTION_PLAIN_STICKY_KEY) ?? 0,
+    );
+  });
+
   test("sticky width never exceeds terminal constraints", () => {
-    const stickyWidths = new Map<string, number>();
+    const stickyWidths = new Map<StickyWidthKey, number>();
     const longRows = [
       row(
         makeTask(15, {
@@ -499,5 +595,33 @@ describe("frame layout planning", () => {
     const constrained = renderRoot(shortRows, 10_000, 0, 30, stickyWidths);
 
     expect(maxLineWidth(constrained)).toBeLessThanOrEqual(30);
+  });
+
+  test("handles large sticky overflow without exceeding the terminal width", () => {
+    const stickyWidths = new Map<StickyWidthKey, number>([
+      [DESCRIPTION_PLAIN_STICKY_KEY, 200],
+      [PROGRESS_AMOUNT_STICKY_KEY, 40],
+      [PROGRESS_BAR_STICKY_KEY, 30],
+      [ELAPSED_STICKY_KEY, 10],
+      [ETA_STICKY_KEY, 14],
+    ]);
+    const rows = [
+      row(
+        makeTask(45, {
+          description: "overflow-check",
+          startedAt: 0,
+          units: {
+            succeeded: 12,
+            failed: 3,
+            processed: 15,
+            total: 20,
+          },
+        }),
+      ),
+    ];
+
+    const output = renderRoot(rows, 10_000, 0, 80, stickyWidths);
+
+    expect(maxLineWidth(output)).toBeLessThanOrEqual(80);
   });
 });

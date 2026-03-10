@@ -10,9 +10,10 @@ import {
 } from "./description-column";
 import { ElapsedRootColumn } from "./elapsed-column";
 import { EtaRootColumn } from "./eta-column";
-import type { RenderFrameContextValue, RootColumnSpec, WidthMeasure } from "./node";
+import type { ColumnDefinition, RenderFrameContextValue, WidthMeasure } from "./node";
 import { ProgressPercentRootColumn, ProgressRootColumn } from "./progress-metrics-column";
 import type { TaskRowModel } from "../snapshot/types";
+import type { StickyWidthKey } from "./sticky-width";
 
 const ROOT_GAP = 1;
 
@@ -22,19 +23,16 @@ const visibleWidth = (widths: ReadonlyArray<number>, gap: number): number => {
 };
 
 interface MeasuredColumn {
-  readonly spec: RootColumnSpec;
+  readonly definition: ColumnDefinition;
+  readonly id: string;
   readonly measure: WidthMeasure;
   readonly preferredWidth: number;
+  readonly commitStickyWidth?: () => void;
   readonly render: (taskId: TaskId, width: number) => ReactNode;
 }
 
 export interface RootColumnInstance {
   render: () => ReactNode;
-}
-
-interface StickyAwareColumn {
-  readonly spec: RootColumnSpec;
-  readonly column: NonNullable<ReturnType<RootColumnSpec["create"]>>;
 }
 
 export const ROOT_LAYOUTS = [
@@ -46,64 +44,102 @@ export const ROOT_LAYOUTS = [
   [DescriptionCompactRootColumn, ProgressPercentRootColumn],
   [DescriptionCompactRootColumn],
   [DescriptionSpinnerRootColumn],
-] as const satisfies ReadonlyArray<ReadonlyArray<RootColumnSpec>>;
+] as const satisfies ReadonlyArray<ReadonlyArray<ColumnDefinition>>;
 
 const ROOT_COLUMNS = [
-  DescriptionTreeRootColumn,
-  DescriptionPlainRootColumn,
-  DescriptionCompactRootColumn,
-  DescriptionSpinnerRootColumn,
-  ProgressRootColumn,
-  ProgressPercentRootColumn,
-  ElapsedRootColumn,
-  EtaRootColumn,
-] as const satisfies ReadonlyArray<RootColumnSpec>;
+  ...new Map(ROOT_LAYOUTS.flat().map((column) => [column.id, column])).values(),
+] satisfies ReadonlyArray<ColumnDefinition>;
 
-const buildColumns = (frame: RenderFrameContextValue): Array<StickyAwareColumn> =>
-  ROOT_COLUMNS.flatMap((spec) => {
-    const column = spec.create(frame);
-    return column === undefined ? [] : [{ spec, column }];
-  });
-
-const measureColumns = (
-  columns: ReadonlyArray<StickyAwareColumn>,
-): ReadonlyMap<RootColumnSpec, MeasuredColumn> =>
+const measureColumns = (frame: RenderFrameContextValue): ReadonlyMap<string, MeasuredColumn> =>
   new Map(
-    columns.map(({ spec, column }) => {
+    ROOT_COLUMNS.flatMap((definition) => {
+      const column = definition.build(frame);
+      if (column === undefined) {
+        return [];
+      }
+
       const measure = column.measure;
       return [
-        spec,
-        {
-          spec,
-          measure,
-          preferredWidth: measure.preferred,
-          render: column.render,
-        } satisfies MeasuredColumn,
-      ] as const;
+        [
+          definition.id,
+          {
+            definition,
+            id: definition.id,
+            measure,
+            preferredWidth: measure.preferred,
+            commitStickyWidth: column.commitStickyWidth,
+            render: column.render,
+          } satisfies MeasuredColumn,
+        ] as const,
+      ];
     }),
   );
 
-const resolveRootLayouts = (
-  columnsBySpec: ReadonlyMap<RootColumnSpec, MeasuredColumn>,
-): Array<Array<MeasuredColumn>> => {
-  const resolveLayout = (specs: ReadonlyArray<RootColumnSpec>): Array<MeasuredColumn> =>
-    [...specs]
-      .map((spec) => columnsBySpec.get(spec))
-      .filter((column): column is MeasuredColumn => column !== undefined);
+const candidateRootLayouts = (
+  columnsById: ReadonlyMap<string, MeasuredColumn>,
+): Array<ReadonlyArray<ColumnDefinition>> => {
+  const hasProgress = columnsById.has(ProgressRootColumn.id);
+  const hasPercentProgress = columnsById.has(ProgressPercentRootColumn.id);
+  const hasEta = columnsById.has(EtaRootColumn.id);
 
-  const seen = new Set<string>();
-  const unique = (columns: Array<MeasuredColumn>): Array<MeasuredColumn> => {
-    const key = columns.map((column) => column.spec.key).join(",");
-    if (key.length === 0 || seen.has(key)) {
-      return [];
+  return [
+    ...(hasProgress && hasEta
+      ? [
+          [DescriptionTreeRootColumn, ProgressRootColumn, ElapsedRootColumn, EtaRootColumn],
+          [DescriptionPlainRootColumn, ProgressRootColumn, ElapsedRootColumn, EtaRootColumn],
+        ]
+      : []),
+    ...(hasProgress && !hasEta
+      ? [
+          [DescriptionTreeRootColumn, ProgressRootColumn, ElapsedRootColumn],
+          [DescriptionPlainRootColumn, ProgressRootColumn, ElapsedRootColumn],
+        ]
+      : []),
+    ...(hasPercentProgress && hasEta
+      ? [[DescriptionPlainRootColumn, ProgressPercentRootColumn, ElapsedRootColumn, EtaRootColumn]]
+      : []),
+    ...(hasPercentProgress
+      ? [
+          [DescriptionPlainRootColumn, ProgressPercentRootColumn, ElapsedRootColumn],
+          [DescriptionPlainRootColumn, ProgressPercentRootColumn],
+          [DescriptionCompactRootColumn, ProgressPercentRootColumn],
+        ]
+      : []),
+    ...(!hasProgress && !hasPercentProgress
+      ? [
+          [DescriptionTreeRootColumn, ElapsedRootColumn],
+          [DescriptionPlainRootColumn, ElapsedRootColumn],
+          [DescriptionPlainRootColumn],
+        ]
+      : []),
+    [DescriptionCompactRootColumn],
+    [DescriptionSpinnerRootColumn],
+  ];
+};
+
+const resolveRootLayouts = (
+  columnsById: ReadonlyMap<string, MeasuredColumn>,
+): Array<Array<MeasuredColumn>> => {
+  const resolveLayout = (
+    definitions: ReadonlyArray<ColumnDefinition>,
+  ): Array<MeasuredColumn> | undefined => {
+    const columns: Array<MeasuredColumn> = [];
+
+    for (const definition of definitions) {
+      const column = columnsById.get(definition.id);
+      if (column === undefined) {
+        return undefined;
+      }
+
+      columns.push(column);
     }
-    seen.add(key);
+
     return columns;
   };
 
-  return ROOT_LAYOUTS.map((layout) => unique(resolveLayout(layout))).filter(
-    (columns) => columns.length > 0,
-  );
+  return candidateRootLayouts(columnsById)
+    .map(resolveLayout)
+    .filter((columns): columns is Array<MeasuredColumn> => columns !== undefined);
 };
 
 const minimumWidthForSet = (columns: ReadonlyArray<MeasuredColumn>): number =>
@@ -134,6 +170,11 @@ const selectColumnSet = (
 const preferredWidthsForSet = (columns: ReadonlyArray<MeasuredColumn>): Array<number> =>
   columns.map((column) => Math.max(column.measure.min, column.preferredWidth));
 
+const nextDistinctWidth = (
+  entries: ReadonlyArray<{ readonly width: number }>,
+  widest: number,
+): number | undefined => entries.find((entry) => entry.width < widest)?.width;
+
 const reduceOverflowRichStyle = (
   widths: Array<number>,
   minimums: ReadonlyArray<number>,
@@ -141,34 +182,49 @@ const reduceOverflowRichStyle = (
 ): Array<number> => {
   let overflow = visibleWidth(widths, ROOT_GAP) - targetWidth;
   while (overflow > 0) {
-    const widest = Math.max(
-      ...widths.filter((width, index) => width > (minimums[index] ?? width)),
-      -1,
-    );
-    if (widest < 0) {
+    const shrinkable = widths
+      .map((width, index) => ({
+        width,
+        index,
+        minimum: minimums[index] ?? width,
+      }))
+      .filter(({ width, minimum }) => width > minimum)
+      .sort((left, right) => right.width - left.width || left.index - right.index);
+    if (shrinkable.length === 0) {
       break;
     }
 
-    const widestIndexes = widths
-      .map((width, index) => ({ width, index }))
-      .filter(({ width, index }) => width === widest && width > (minimums[index] ?? width))
-      .map(({ index }) => index);
-    if (widestIndexes.length === 0) {
-      break;
+    const widest = shrinkable[0]!.width;
+    const cohort = shrinkable.filter(({ width }) => width === widest);
+    const nextWidth = nextDistinctWidth(shrinkable, widest);
+    const floor = Math.max(nextWidth ?? 0, ...cohort.map(({ minimum }) => minimum));
+    const maxUniformDrop = widest - floor;
+    const uniformDrop = Math.min(maxUniformDrop, Math.floor(overflow / cohort.length));
+
+    if (uniformDrop > 0) {
+      for (const { index } of cohort) {
+        widths[index] = widths[index]! - uniformDrop;
+      }
+      overflow -= uniformDrop * cohort.length;
+      continue;
     }
 
-    for (const index of widestIndexes) {
+    let changed = false;
+    for (const { index, minimum } of cohort) {
       if (overflow <= 0) {
         break;
       }
-
-      const minimum = minimums[index] ?? widths[index]!;
       if (widths[index]! <= minimum) {
         continue;
       }
 
       widths[index] = widths[index]! - 1;
       overflow -= 1;
+      changed = true;
+    }
+
+    if (!changed) {
+      break;
     }
   }
 
@@ -196,7 +252,7 @@ const widthForSelectedSet = (
   return reduceOverflowRichStyle(widths, minimums, targetWidth);
 };
 
-const emptyRootColumn = (stickyWidths: Map<string, number>): RootColumnInstance => {
+const emptyRootColumn = (stickyWidths: Map<StickyWidthKey, number>): RootColumnInstance => {
   stickyWidths.clear();
   return {
     render: () => null,
@@ -208,15 +264,18 @@ export const RootColumn = (
   now: number,
   tick: number,
   terminalColumns: number | undefined,
-  stickyWidths: Map<string, number> = new Map(),
+  stickyWidths: Map<StickyWidthKey, number> = new Map(),
 ): RootColumnInstance => {
   if (rows.length === 0) {
     return emptyRootColumn(stickyWidths);
   }
 
   const frame = createRenderFrame(rows, now, tick, stickyWidths);
-  const columnsById = measureColumns(buildColumns(frame));
+  const columnsById = measureColumns(frame);
   const selectedColumns = selectColumnSet(resolveRootLayouts(columnsById), terminalColumns);
+  for (const column of selectedColumns) {
+    column.commitStickyWidth?.();
+  }
   const targetWidth =
     terminalColumns === undefined
       ? visibleWidth(
@@ -226,7 +285,7 @@ export const RootColumn = (
       : terminalColumns;
   const columns = widthForSelectedSet(selectedColumns, targetWidth)
     .map((width, index) => ({
-      spec: selectedColumns[index]!.spec,
+      id: selectedColumns[index]!.id,
       width,
       render: selectedColumns[index]!.render,
     }))
@@ -243,7 +302,7 @@ export const RootColumn = (
       <Box flexDirection="row" minWidth={rowWidth}>
         {columns.map((column, index) => (
           <Box
-            key={column.spec.key}
+            key={column.id}
             flexDirection="column"
             width={column.width}
             marginRight={index < columns.length - 1 ? ROOT_GAP : 0}
