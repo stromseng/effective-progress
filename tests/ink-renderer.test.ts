@@ -1,11 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { Console, Effect } from "effect";
+import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
 import { createMockStdio } from "./helpers/mock-stdio";
-
-const ANSI_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`, "g");
-
-const stripAnsi = (value: string): string => value.replace(ANSI_PATTERN, "");
 
 const captureStdioOutput = async <A, E, R>(
   effect: Effect.Effect<A, E, R>,

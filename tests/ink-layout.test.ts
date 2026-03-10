@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import stringWidth from "fast-string-width";
 import { Box, renderToString } from "ink";
 import { createElement } from "react";
+import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
 import {
   DESCRIPTION_PLAIN_STICKY_KEY,
@@ -63,20 +65,22 @@ const renderRoot = (
   terminalColumns: number | undefined,
   stickyWidths?: Map<StickyWidthKey, number>,
 ) =>
-  renderToString(
-    createElement(
-      Box,
-      { flexDirection: "row" },
-      RootColumn(rows, now, tick, terminalColumns, stickyWidths).render(),
+  stripAnsi(
+    renderToString(
+      createElement(
+        Box,
+        { flexDirection: "row" },
+        RootColumn(rows, now, tick, terminalColumns, stickyWidths).render(),
+      ),
+      { columns: terminalColumns ?? 200 },
     ),
-    { columns: terminalColumns ?? 200 },
   );
 
 const renderView = (rows: ReadonlyArray<TaskRowModel>, terminalColumns: number): string =>
   renderRoot(rows, 10_000, 0, terminalColumns, new Map());
 
 const maxLineWidth = (output: string): number =>
-  output.split("\n").reduce((max, line) => Math.max(max, line.length), 0);
+  output.split("\n").reduce((max, line) => Math.max(max, stringWidth(line)), 0);
 
 describe("frame layout planning", () => {
   test("applies sticky widths consistently for fixed and flexible measures", () => {
