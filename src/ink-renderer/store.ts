@@ -1,7 +1,7 @@
 import { Clock, Effect, Option } from "effect";
 import type { AddTaskOptions, TaskId, TaskStore, UpdateTaskOptions } from "../types";
 import { TaskId as makeTaskId, TaskSnapshot } from "../types";
-import { toRenderSnapshot, type RenderSnapshot } from "./snapshot/render-snapshot";
+import { toRenderSnapshot, type RenderSnapshot } from "./store/render-snapshot";
 
 interface TaskCounts {
   readonly succeeded: number;

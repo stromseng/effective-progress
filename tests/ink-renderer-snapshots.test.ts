@@ -4,7 +4,7 @@ import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
 import { RootColumn } from "../src/ink-renderer/columns/root-column";
-import { toRenderSnapshot } from "../src/ink-renderer/snapshot/render-snapshot";
+import { toRenderSnapshot } from "../src/ink-renderer/store/render-snapshot";
 
 const makeTask = (
   id: number,

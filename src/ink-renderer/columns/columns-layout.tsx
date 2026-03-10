@@ -1,0 +1,148 @@
+import { Box, type DOMElement } from "ink";
+import { useMemo, useRef } from "react";
+import { useBoxMetrics } from "../hooks/use-box-metrics";
+import { useRenderFrame } from "../render-frame-context";
+import { DescriptionColumn } from "./description-column";
+import { ElapsedColumn } from "./elapsed-column";
+import { EtaColumn } from "./eta-column";
+import { assignedWidthsForMeasures, rootLayoutMeasures, selectRootLayoutPolicy } from "./layout-policy";
+import { ProgressColumn } from "./progress-column";
+import {
+  COLUMN_GAP,
+  MIN_ELAPSED_WIDTH,
+  etaMinimumWidth,
+  hasEta,
+  hasRenderableProgress,
+  minTreeDescriptionWidth,
+  preferredDescriptionWidthForCap,
+  preferredElapsedWidth,
+  preferredEtaWidth,
+  preferredPercentWidth,
+  preferredProgressWidth,
+  progressMinimumWidth,
+} from "./shared";
+
+export interface ColumnsLayoutProps {
+  readonly terminalColumns: number | undefined;
+}
+
+export const ColumnsLayout = ({ terminalColumns }: ColumnsLayoutProps) => {
+  const frame = useRenderFrame();
+  const rootRef = useRef<DOMElement>(null);
+  const rootMetrics = useBoxMetrics(rootRef);
+  const rootWidth = terminalColumns ?? (rootMetrics.hasMeasured ? rootMetrics.width : undefined);
+  const showProgress = useMemo(() => hasRenderableProgress(frame.rows), [frame.rows]);
+  const showEtaColumn = useMemo(() => hasEta(frame.rows, frame.now), [frame.now, frame.rows]);
+  const percentPreferredWidth = useMemo(() => preferredPercentWidth(frame.rows), [frame.rows]);
+  const elapsedPreferredWidth = useMemo(
+    () => preferredElapsedWidth(frame.rows, frame.now),
+    [frame.now, frame.rows],
+  );
+  const etaMinWidth = useMemo(() => etaMinimumWidth(frame.rows, frame.now), [frame.now, frame.rows]);
+  const etaPreferredWidth = useMemo(
+    () => preferredEtaWidth(frame.rows, frame.now),
+    [frame.now, frame.rows],
+  );
+  const descriptionTreeMinWidth = useMemo(() => minTreeDescriptionWidth(frame.rows), [frame.rows]);
+  const progressPreferred = useMemo(
+    () => preferredProgressWidth(frame.rows, frame.tick),
+    [frame.rows, frame.tick],
+  );
+  const progressFullMinWidth = useMemo(() => progressMinimumWidth(frame.rows), [frame.rows]);
+  const layoutPolicy = useMemo(
+    () =>
+      selectRootLayoutPolicy({
+        terminalColumns: rootWidth,
+        hasProgress: showProgress,
+        hasEta: showEtaColumn,
+        descriptionPreferredWidth: preferredDescriptionWidthForCap(frame.rows, "tree"),
+        descriptionTreeMinWidth,
+        elapsedMinWidth: MIN_ELAPSED_WIDTH,
+        elapsedPreferredWidth,
+        etaMinWidth,
+        etaPreferredWidth,
+        percentWidth: percentPreferredWidth,
+        progressPreferredWidth: progressPreferred,
+        progressFullMinWidth,
+      }),
+    [
+      descriptionTreeMinWidth,
+      elapsedPreferredWidth,
+      etaMinWidth,
+      etaPreferredWidth,
+      frame.rows,
+      percentPreferredWidth,
+      progressPreferred,
+      progressFullMinWidth,
+      rootWidth,
+      showEtaColumn,
+      showProgress,
+    ],
+  );
+  const measures = useMemo(
+    () =>
+      rootLayoutMeasures(layoutPolicy, {
+        hasProgress: showProgress,
+        hasEta: showEtaColumn,
+        descriptionPreferredWidth: preferredDescriptionWidthForCap(
+          frame.rows,
+          layoutPolicy.descriptionCap,
+        ),
+        descriptionTreeMinWidth,
+        elapsedMinWidth: MIN_ELAPSED_WIDTH,
+        elapsedPreferredWidth,
+        etaMinWidth,
+        etaPreferredWidth,
+        percentWidth: percentPreferredWidth,
+        progressPreferredWidth: progressPreferred,
+        progressFullMinWidth,
+      }),
+    [
+      descriptionTreeMinWidth,
+      elapsedPreferredWidth,
+      etaMinWidth,
+      etaPreferredWidth,
+      frame.rows,
+      layoutPolicy,
+      percentPreferredWidth,
+      progressPreferred,
+      progressFullMinWidth,
+      showEtaColumn,
+      showProgress,
+    ],
+  );
+  const assignedWidths = useMemo(
+    () => assignedWidthsForMeasures(measures, rootWidth),
+    [measures, rootWidth],
+  );
+
+  return (
+    <Box ref={rootRef} flexDirection="row" width={terminalColumns}>
+      <DescriptionColumn
+        cap={layoutPolicy.descriptionCap}
+        assignedWidth={assignedWidths.get("description")}
+        marginRight={
+          layoutPolicy.progressMode !== undefined || layoutPolicy.showElapsed || layoutPolicy.showEta
+            ? COLUMN_GAP
+            : 0
+        }
+      />
+      {showProgress && layoutPolicy.progressMode !== undefined ? (
+        <ProgressColumn
+          mode={layoutPolicy.progressMode}
+          assignedWidth={assignedWidths.get("progress")}
+          marginRight={layoutPolicy.showElapsed || layoutPolicy.showEta ? COLUMN_GAP : 0}
+        />
+      ) : null}
+      {layoutPolicy.showElapsed ? (
+        <ElapsedColumn
+          assignedWidth={assignedWidths.get("elapsed")}
+          marginRight={layoutPolicy.showEta && showEtaColumn ? COLUMN_GAP : 0}
+        />
+      ) : null}
+      {layoutPolicy.showEta && showEtaColumn ? (
+        <EtaColumn assignedWidth={assignedWidths.get("eta")} />
+      ) : null}
+    </Box>
+  );
+};

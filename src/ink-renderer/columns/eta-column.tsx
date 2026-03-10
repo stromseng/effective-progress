@@ -1,22 +1,10 @@
-import { Text } from "ink";
+import { Box, Text, type DOMElement } from "ink";
+import { useMemo, useRef } from "react";
 import type { TaskSnapshot } from "../../types";
-import { formatEta } from "../format";
-import { isDeterminate } from "./determinate";
-import { createColumnDefinition, type Column, type RenderFrameContextValue } from "./node";
-import { createStickyColumn } from "./sticky-width";
-import { textWidth } from "./text-width";
-
-const primaryUnit = (duration: string): string => duration.split(" ")[0] ?? duration;
-export const ETA_STICKY_KEY = Symbol("eta");
-
-const etaDurationText = (task: TaskSnapshot, now: number): string | undefined => {
-  if (task.status !== "running" || !isDeterminate(task)) {
-    return undefined;
-  }
-
-  const eta = formatEta(task, now);
-  return eta.length > 0 ? eta : "--";
-};
+import { useBoxMetrics } from "../hooks/use-box-metrics";
+import { useStickyWidth } from "../hooks/use-sticky-width";
+import { useRenderFrame } from "../render-frame-context";
+import { etaDurationText, preferredEtaWidth, primaryUnit, textWidth } from "./shared";
 
 const renderEtaText = (task: TaskSnapshot, now: number, width: number): string => {
   const duration = etaDurationText(task, now);
@@ -28,63 +16,59 @@ const renderEtaText = (task: TaskSnapshot, now: number, width: number): string =
   if (width >= textWidth(prefixed)) {
     return prefixed;
   }
+
   if (width >= textWidth(duration)) {
     return duration;
   }
+
   return primaryUnit(duration);
 };
 
-const RESERVED_ETA_WIDTH_UP_TO_ONE_HOUR = Array.from("ETA: 59m 59s").length;
+export const EtaColumn = ({
+  assignedWidth,
+  marginRight = 0,
+}: {
+  readonly assignedWidth?: number;
+  readonly marginRight?: number;
+}) => {
+  const frame = useRenderFrame();
+  const ref = useRef<DOMElement>(null);
+  const metrics = useBoxMetrics(ref);
+  const preferredWidth = useMemo(
+    () => preferredEtaWidth(frame.rows, frame.now),
+    [frame.now, frame.rows],
+  );
+  const stickyWidth = useStickyWidth(preferredWidth);
+  const width = assignedWidth ?? stickyWidth;
 
-const computeEtaMetrics = (frame: RenderFrameContextValue) => {
-  let hasEta = false;
-  let prefixedWidth = 0;
-  let durationWidth = 0;
-  let primaryUnitWidth = 0;
+  return (
+    <Box
+      ref={ref}
+      flexDirection="column"
+      flexShrink={0}
+      width={width}
+      flexBasis={width}
+      marginRight={marginRight}
+    >
+      {frame.rows.map((row) => {
+        if (etaDurationText(row.task, frame.now) === undefined) {
+          return <Box key={row.task.id as number} height={1} />;
+        }
 
-  for (const taskId of frame.taskIds) {
-    const duration = etaDurationText(frame.getTask(taskId), frame.now);
-    if (duration === undefined) {
-      continue;
-    }
+        const rendered = renderEtaText(
+          row.task,
+          frame.now,
+          metrics.hasMeasured ? (metrics.width || width) : width,
+        );
 
-    hasEta = true;
-    const prefixed = `ETA: ${duration}`;
-    prefixedWidth = Math.max(prefixedWidth, textWidth(prefixed));
-    durationWidth = Math.max(durationWidth, textWidth(duration));
-    primaryUnitWidth = Math.max(primaryUnitWidth, textWidth(primaryUnit(duration)));
-  }
-
-  return {
-    hasEta,
-    prefixedWidth,
-    durationWidth: Math.max(2, durationWidth),
-    primaryUnitWidth: Math.max(2, primaryUnitWidth),
-  };
+        return (
+          <Box key={row.task.id as number} height={1}>
+            <Text color="gray" wrap="truncate-end">
+              {rendered}
+            </Text>
+          </Box>
+        );
+      })}
+    </Box>
+  );
 };
-
-export const EtaColumn = (frame: RenderFrameContextValue): Column | undefined => {
-  const metrics = computeEtaMetrics(frame);
-  if (!metrics.hasEta) {
-    return undefined;
-  }
-
-  return createStickyColumn({
-    frame,
-    stickyKey: ETA_STICKY_KEY,
-    measure: {
-      min: metrics.primaryUnitWidth,
-      preferred: Math.max(metrics.prefixedWidth, RESERVED_ETA_WIDTH_UP_TO_ONE_HOUR),
-      max: Math.max(metrics.prefixedWidth, RESERVED_ETA_WIDTH_UP_TO_ONE_HOUR),
-    },
-    render: (taskId, width) => (
-      <Text wrap="truncate-end" color="gray">
-        {renderEtaText(frame.getTask(taskId), frame.now, width)}
-      </Text>
-    ),
-  });
-};
-
-export const EtaRootColumn = createColumnDefinition({ _tag: "eta" } as const, (frame) =>
-  EtaColumn(frame),
-);

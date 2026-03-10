@@ -1,5 +1,5 @@
 import type { TaskSnapshot } from "../../types";
-import type { TaskRowModel } from "../snapshot/types";
+import type { TaskRowModel } from "../store/types";
 
 export const isDeterminate = (
   task: TaskSnapshot,

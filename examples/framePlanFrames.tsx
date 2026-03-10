@@ -1,7 +1,7 @@
 import { renderToString } from "ink";
 import * as Progress from "../src";
 import { RootColumn } from "../src/ink-renderer/columns/root-column";
-import type { TaskRowModel } from "../src/ink-renderer/snapshot/types";
+import type { TaskRowModel } from "../src/ink-renderer/store/types";
 import fastStringWidth from "fast-string-width";
 
 const task = new Progress.TaskSnapshot({
@@ -34,7 +34,7 @@ const row: TaskRowModel = {
 const NOW = 9_000;
 const TICK = 0;
 const MIN_TERMINAL_WIDTH = 1;
-const MAX_TERMINAL_WIDTH = 170;
+const MAX_TERMINAL_WIDTH = 80;
 const FALLBACK_TERMINAL_WIDTH = 80;
 const detectedColumns = process.stdout.isTTY ? process.stdout.columns : FALLBACK_TERMINAL_WIDTH;
 const normalizedColumns =

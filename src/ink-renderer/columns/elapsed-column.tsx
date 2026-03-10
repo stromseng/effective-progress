@@ -1,41 +1,48 @@
-import { Box, Text } from "ink";
-import { formatElapsed } from "../format";
-import { createColumnDefinition, type Column, type RenderFrameContextValue } from "./node";
-import { createStickyColumn } from "./sticky-width";
-import { textWidth } from "./text-width";
+import { Box, Text, type DOMElement } from "ink";
+import { useMemo, useRef } from "react";
+import { useBoxMetrics } from "../hooks/use-box-metrics";
+import { useStickyWidth } from "../hooks/use-sticky-width";
+import { useRenderFrame } from "../render-frame-context";
+import { formatElapsed, preferredElapsedWidth } from "./shared";
 
-const MIN_ELAPSED_WIDTH = Array.from("10s").length;
-export const ELAPSED_STICKY_KEY = Symbol("elapsed");
-
-const maxElapsedWidth = (frame: RenderFrameContextValue): number =>
-  frame.taskIds.reduce(
-    (max, taskId) => Math.max(max, textWidth(formatElapsed(frame.getTask(taskId), frame.now))),
-    MIN_ELAPSED_WIDTH,
+export const ElapsedColumn = ({
+  assignedWidth,
+  marginRight = 0,
+}: {
+  readonly assignedWidth?: number;
+  readonly marginRight?: number;
+}) => {
+  const frame = useRenderFrame();
+  const ref = useRef<DOMElement>(null);
+  const metrics = useBoxMetrics(ref);
+  const preferredWidth = useMemo(
+    () => preferredElapsedWidth(frame.rows, frame.now),
+    [frame.now, frame.rows],
   );
+  const stickyWidth = useStickyWidth(preferredWidth);
+  const width = assignedWidth ?? stickyWidth;
 
-export const ElapsedColumn = (frame: RenderFrameContextValue): Column => {
-  const elapsedContentWidth = maxElapsedWidth(frame);
-  return createStickyColumn({
-    frame,
-    stickyKey: ELAPSED_STICKY_KEY,
-    measure: {
-      min: MIN_ELAPSED_WIDTH,
-      preferred: elapsedContentWidth,
-      max: elapsedContentWidth,
-    },
-    render: (taskId, width) => {
-      const formatted = formatElapsed(frame.getTask(taskId), frame.now);
-      const visible = textWidth(formatted) <= width ? formatted : formatted.slice(0, width);
+  return (
+    <Box
+      ref={ref}
+      flexDirection="column"
+      flexShrink={0}
+      width={width}
+      flexBasis={width}
+      marginRight={marginRight}
+    >
+      {frame.rows.map((row) => {
+        const elapsed = formatElapsed(row.task, frame.now);
+        const visible = metrics.hasMeasured
+          ? elapsed.slice(0, metrics.width || width || elapsed.length)
+          : elapsed;
 
-      return (
-        <Box width={width} justifyContent="flex-end">
-          <Text color="gray">{visible}</Text>
-        </Box>
-      );
-    },
-  });
+        return (
+          <Box key={row.task.id as number} height={1} justifyContent="flex-end">
+            <Text color="gray">{visible}</Text>
+          </Box>
+        );
+      })}
+    </Box>
+  );
 };
-
-export const ElapsedRootColumn = createColumnDefinition({ _tag: "elapsed" } as const, (frame) =>
-  ElapsedColumn(frame),
-);
