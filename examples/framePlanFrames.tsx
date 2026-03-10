@@ -1,7 +1,8 @@
 import { renderToString } from "ink";
 import * as Progress from "../src";
+import { RootColumn } from "../src/ink-renderer/columns/root-column";
 import type { TaskRowModel } from "../src/ink-renderer/snapshot/types";
-import { ProgressView } from "../src/ink-renderer/view/progress-view";
+import fastStringWidth from "fast-string-width";
 
 const task = new Progress.TaskSnapshot({
   id: Progress.TaskId(1),
@@ -32,27 +33,34 @@ const row: TaskRowModel = {
 
 const NOW = 9_000;
 const TICK = 0;
-const MIN_TERMINAL_WIDTH = 20;
-const detectedColumns = process.stdout.isTTY ? process.stdout.columns : undefined;
+const MIN_TERMINAL_WIDTH = 1;
+const MAX_TERMINAL_WIDTH = 170;
+const FALLBACK_TERMINAL_WIDTH = 80;
+const detectedColumns = process.stdout.isTTY ? process.stdout.columns : FALLBACK_TERMINAL_WIDTH;
+const normalizedColumns =
+  typeof detectedColumns === "number" && Number.isFinite(detectedColumns)
+    ? Math.floor(detectedColumns)
+    : FALLBACK_TERMINAL_WIDTH;
 const START_TERMINAL_WIDTH = Math.max(
   MIN_TERMINAL_WIDTH,
-  detectedColumns !== undefined ? Math.floor(detectedColumns) : 200,
+  Math.min(normalizedColumns, MAX_TERMINAL_WIDTH),
 );
+const TERMINAL_WIDTH_LABEL_WIDTH = `${START_TERMINAL_WIDTH}`.length;
+const OUTPUT_WIDTH_LABEL_WIDTH = `${START_TERMINAL_WIDTH}`.length + 1;
 
 for (
   let terminalWidth = START_TERMINAL_WIDTH;
   terminalWidth >= MIN_TERMINAL_WIDTH;
   terminalWidth--
 ) {
-  const output = renderToString(
-    <ProgressView
-      rows={[row]}
-      now={NOW}
-      tick={TICK}
-      isTTY={true}
-      terminalColumns={terminalWidth}
-    />,
-    { columns: terminalWidth },
+  const rootColumn = RootColumn([row], NOW, TICK, terminalWidth, new Map());
+  const output = renderToString(rootColumn.render(), {
+    columns: terminalWidth,
+  });
+  const outputWidth = fastStringWidth(output);
+  const paddedOutput =
+    outputWidth < terminalWidth ? `${output}${" ".repeat(terminalWidth - outputWidth)}` : output;
+  console.log(
+    `${`${terminalWidth}`.padStart(TERMINAL_WIDTH_LABEL_WIDTH, " ")}:${`${outputWidth}${outputWidth > terminalWidth ? "!" : ""}`.padStart(OUTPUT_WIDTH_LABEL_WIDTH, " ")}:${paddedOutput}|`,
   );
-  console.log(output);
 }

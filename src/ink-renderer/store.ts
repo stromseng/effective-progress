@@ -1,5 +1,5 @@
 import { Clock, Effect, Option } from "effect";
-import type { AddTaskOptions, TaskId, TaskStore, TaskUnits, UpdateTaskOptions } from "../types";
+import type { AddTaskOptions, TaskId, TaskStore, UpdateTaskOptions } from "../types";
 import { TaskId as makeTaskId, TaskSnapshot } from "../types";
 import { toRenderSnapshot, type RenderSnapshot } from "./snapshot/render-snapshot";
 

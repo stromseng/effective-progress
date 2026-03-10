@@ -1,6 +1,6 @@
 # Roadmap
 
-`effective-progress` is now on the Ink-based renderer with nested tasks, mixed-outcome counters, responsive column variants, and wide-character-aware width measurement. This roadmap keeps the design notes for items that are still not implemented.
+`effective-progress` is now on the Ink-based renderer with nested tasks, mixed-outcome counters, column-tree width allocation, and wide-character-aware width measurement. This roadmap keeps the design notes for items that are still not implemented.
 
 ## Next up
 
@@ -12,8 +12,6 @@
 - make preallocated task description space configurable
 - look into making composable components like shadcn for the progress bar columns.
 - update task api to have methods on the tasks instead of having to pass the ids to functions. i.e `task.incrementSuccess`
-
-- show percent instead of amount on tiny screens, hide progressbar completely
 
 ## Customization
 
@@ -36,8 +34,6 @@
 
 ## Rendering
 
-- [ ] Add a richer default preset (Rich-inspired compact single-line format).
-- [ ] Full-width safety and line-wrap protection options.
 - [ ] Optional title-above-bar layout preset for determinate tasks.
 - [ ] Half-character bar precision using `╸`/`╺` Unicode blocks for 2x visual resolution (Rich-inspired).
   - Currently `BarColumn` computes `filled = Math.round(ratio * innerWidth)` - whole-character precision. On a 40-char bar each jump is 2.5%, visibly choppy for slow tasks.

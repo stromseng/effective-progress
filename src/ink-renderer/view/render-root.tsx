@@ -1,6 +1,8 @@
+import { useRef } from "react";
 import { useSyncExternalStore } from "react";
+import { RootColumn } from "../columns/root-column";
 import type { ProgressRenderStore } from "../store";
-import { ProgressView } from "./progress-view";
+import type { StickyWidthKey } from "../columns/sticky-width";
 import { useNowClock } from "./hooks/use-now-clock";
 import { useSpinnerClock } from "./hooks/use-spinner-clock";
 
@@ -9,22 +11,21 @@ const NOW_INTERVAL_MILLIS = 1_000;
 
 export interface ProgressRootProps {
   readonly store: ProgressRenderStore;
-  readonly isTTY: boolean;
   readonly getTerminalColumns: () => number | undefined;
 }
 
-export const ProgressRoot = ({ store, isTTY, getTerminalColumns }: ProgressRootProps) => {
+export const ProgressRoot = ({ store, getTerminalColumns }: ProgressRootProps) => {
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const tick = useSpinnerClock(snapshot.hasRunningTasks, SPINNER_INTERVAL_MILLIS);
   const now = useNowClock(snapshot.hasRunningTasks, NOW_INTERVAL_MILLIS);
-
-  return (
-    <ProgressView
-      rows={snapshot.rows}
-      now={now}
-      tick={tick}
-      isTTY={isTTY}
-      terminalColumns={getTerminalColumns()}
-    />
+  const stickyWidths = useRef(new Map<StickyWidthKey, number>());
+  const rootColumn = RootColumn(
+    snapshot.rows,
+    now,
+    tick,
+    getTerminalColumns(),
+    stickyWidths.current,
   );
+
+  return rootColumn.render();
 };

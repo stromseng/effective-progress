@@ -1,85 +1,111 @@
 import { Text } from "ink";
+import type { TaskTreeInfo } from "../snapshot/types";
 import { getTaskIndicator } from "../format";
-import type { TaskRowModel } from "../snapshot/types";
-import { renderTreePrefix } from "../view/tree-prefix";
-import type { ColumnPlanningContext } from "./planner";
-import type { ColumnSpec } from "./spec";
-import { textWidth } from "./spec";
-import type { ColumnProps } from "./types";
+import { createColumnDefinition, type Column, type RenderFrameContextValue } from "./node";
+import { createStickyColumn, type StickyWidthKey } from "./sticky-width";
+import { textWidth } from "./text-width";
 
-interface DescriptionColumnProps extends ColumnProps {
-  readonly showTree: boolean;
+const MIN_PLAIN_DESCRIPTION_WIDTH = 8;
+const MIN_COMPACT_DESCRIPTION_WIDTH = 3;
+const MIN_SPINNER_WIDTH = 1;
+const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
+
+export const DESCRIPTION_TREE_STICKY_KEY = Symbol("description.tree");
+export const DESCRIPTION_PLAIN_STICKY_KEY = Symbol("description.plain");
+export const DESCRIPTION_COMPACT_STICKY_KEY = Symbol("description.compact");
+
+const treeAncestorPrefix = (tree: TaskTreeInfo): string =>
+  tree.ancestorHasNextSibling
+    .slice(1)
+    .map((hasNext) => (hasNext ? "│  " : "   "))
+    .join("");
+
+const renderTreePrefix = (tree: TaskTreeInfo): string => {
+  if (tree.depth <= 0) {
+    return "";
+  }
+
+  const ancestor = treeAncestorPrefix(tree);
+  return `${ancestor}${tree.hasNextSibling ? "├─ " : "└─ "}`;
+};
+
+const maxDescriptionWidth = (frame: RenderFrameContextValue, showTree: boolean): number =>
+  frame.taskIds.reduce((max, taskId) => {
+    const treePrefix = showTree ? renderTreePrefix(frame.getTree(taskId)) : "";
+    return Math.max(max, textWidth(`${treePrefix}${frame.getTask(taskId).description}`) + 2);
+  }, MIN_PLAIN_DESCRIPTION_WIDTH);
+
+const minTreeDescriptionWidth = (frame: RenderFrameContextValue): number =>
+  frame.taskIds.reduce((max, taskId) => {
+    const treePrefixWidth = textWidth(renderTreePrefix(frame.getTree(taskId)));
+    return Math.max(max, treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH);
+  }, MIN_PLAIN_DESCRIPTION_WIDTH);
+
+export interface DescriptionColumnConfig {
+  readonly variant?: "tree" | "plain" | "compact" | "spinner";
 }
 
-const DescriptionColumn = ({ task, tree, showTree, tick }: DescriptionColumnProps) => {
-  const treePrefix = showTree ? renderTreePrefix(tree) : "";
-  const indicator = getTaskIndicator(task, tick);
+export const DescriptionColumn = (
+  frame: RenderFrameContextValue,
+  config: DescriptionColumnConfig = {},
+): Column => {
+  const variant = config.variant ?? "plain";
+  const showTree = variant === "tree";
+  const stickyKey: StickyWidthKey | undefined =
+    variant === "tree"
+      ? DESCRIPTION_TREE_STICKY_KEY
+      : variant === "plain"
+        ? DESCRIPTION_PLAIN_STICKY_KEY
+        : variant === "compact"
+          ? DESCRIPTION_COMPACT_STICKY_KEY
+          : undefined;
+  const min =
+    variant === "spinner"
+      ? MIN_SPINNER_WIDTH
+      : variant === "compact"
+        ? MIN_COMPACT_DESCRIPTION_WIDTH
+        : variant === "tree"
+          ? minTreeDescriptionWidth(frame)
+          : MIN_PLAIN_DESCRIPTION_WIDTH;
+  const preferred =
+    variant === "spinner" ? MIN_SPINNER_WIDTH : Math.max(min, maxDescriptionWidth(frame, showTree));
+  return createStickyColumn({
+    frame,
+    measure: {
+      min,
+      preferred,
+      max: preferred,
+    },
+    stickyKey,
+    render: (taskId) => {
+      const task = frame.getTask(taskId);
+      const tree = frame.getTree(taskId);
+      const treePrefix = showTree ? renderTreePrefix(tree) : "";
+      const indicator = getTaskIndicator(task, frame.tick);
+      if (variant === "spinner") {
+        return <Text color={indicator.color}>{indicator.symbol}</Text>;
+      }
 
-  return (
-    <Text wrap="truncate-end">
-      {treePrefix}
-      <Text color={indicator.color}>{indicator.symbol}</Text>
-      {` ${task.description}`}
-    </Text>
+      return (
+        <Text wrap="truncate-end">
+          {treePrefix}
+          <Text color={indicator.color}>{indicator.symbol}</Text>
+          {` ${task.description}`}
+        </Text>
+      );
+    },
+  });
+};
+
+const createDescriptionRootColumn = (variant: NonNullable<DescriptionColumnConfig["variant"]>) =>
+  createColumnDefinition({ _tag: "description", variant } as const, (frame, config) =>
+    DescriptionColumn(frame, config),
   );
-};
 
-const MIN_DESCRIPTION_WIDTH = 8;
-const MIN_DESCRIPTION_WITH_TREE_WIDTH = 20;
-const DESCRIPTION_PADDING_GROWTH_LIMIT = 20;
+export const DescriptionTreeRootColumn = createDescriptionRootColumn("tree");
 
-const maxDescriptionWidth = (rows: ReadonlyArray<TaskRowModel>, showTree: boolean): number =>
-  rows.reduce((max, row) => {
-    const treePrefix = showTree ? renderTreePrefix(row.tree) : "";
-    return Math.max(max, textWidth(`${treePrefix}${row.task.description}`) + 2);
-  }, MIN_DESCRIPTION_WIDTH);
+export const DescriptionPlainRootColumn = createDescriptionRootColumn("plain");
 
-export const createDescriptionColumnSpec = (
-  context: ColumnPlanningContext<TaskRowModel>,
-  isTTY: boolean,
-): ColumnSpec<TaskRowModel> => {
-  const treeIdeal = maxDescriptionWidth(context.rows, true);
-  const plainIdeal = maxDescriptionWidth(context.rows, false);
-  const treeVariantIdeal = Math.max(MIN_DESCRIPTION_WITH_TREE_WIDTH, treeIdeal);
-  const plainVariantIdeal = Math.max(MIN_DESCRIPTION_WIDTH, plainIdeal);
+export const DescriptionCompactRootColumn = createDescriptionRootColumn("compact");
 
-  return {
-    id: "description",
-    grow: 1,
-    canHide: false,
-    variants: [
-      {
-        id: "tree",
-        minWidth: MIN_DESCRIPTION_WITH_TREE_WIDTH,
-        idealWidth: treeVariantIdeal,
-        maxWidth: Math.max(DESCRIPTION_PADDING_GROWTH_LIMIT, treeVariantIdeal),
-        renderCell: (row) => (
-          <DescriptionColumn
-            task={row.task}
-            tree={row.tree}
-            now={context.now}
-            tick={context.tick}
-            isTTY={isTTY}
-            showTree={true}
-          />
-        ),
-      },
-      {
-        id: "plain",
-        minWidth: MIN_DESCRIPTION_WIDTH,
-        idealWidth: plainVariantIdeal,
-        maxWidth: Math.max(DESCRIPTION_PADDING_GROWTH_LIMIT, plainVariantIdeal),
-        renderCell: (row) => (
-          <DescriptionColumn
-            task={row.task}
-            tree={row.tree}
-            now={context.now}
-            tick={context.tick}
-            isTTY={isTTY}
-            showTree={false}
-          />
-        ),
-      },
-    ],
-  };
-};
+export const DescriptionSpinnerRootColumn = createDescriptionRootColumn("spinner");

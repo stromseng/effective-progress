@@ -1,69 +1,41 @@
-import { Text } from "ink";
+import { Box, Text } from "ink";
 import { formatElapsed } from "../format";
-import type { TaskRowModel } from "../snapshot/types";
-import { hasDeterminateRows } from "./determinate";
-import type { ColumnPlanningContext } from "./planner";
-import type { ColumnSpec } from "./spec";
-import { textWidth } from "./spec";
-import type { ColumnProps } from "./types";
+import { createColumnDefinition, type Column, type RenderFrameContextValue } from "./node";
+import { createStickyColumn } from "./sticky-width";
+import { textWidth } from "./text-width";
 
-const ElapsedColumn = ({ task, now }: ColumnProps) => (
-  <Text wrap="truncate-end" color="gray">
-    {formatElapsed(task, now)}
-  </Text>
-);
+const MIN_ELAPSED_WIDTH = Array.from("10s").length;
+export const ELAPSED_STICKY_KEY = Symbol("elapsed");
 
-const MIN_ELAPSED_WIDTH = 2;
-const RESERVED_ELAPSED_WIDTH_UP_TO_ONE_HOUR = Array.from("59m 59s").length;
-
-const maxElapsedWidth = (rows: ReadonlyArray<TaskRowModel>, now: number): number =>
-  rows.reduce(
-    (max, row) => Math.max(max, textWidth(formatElapsed(row.task, now))),
+const maxElapsedWidth = (frame: RenderFrameContextValue): number =>
+  frame.taskIds.reduce(
+    (max, taskId) => Math.max(max, textWidth(formatElapsed(frame.getTask(taskId), frame.now))),
     MIN_ELAPSED_WIDTH,
   );
 
-export const createElapsedColumnSpec = (
-  context: ColumnPlanningContext<TaskRowModel>,
-  isTTY: boolean,
-): ColumnSpec<TaskRowModel> => {
-  const elapsedContentWidth = maxElapsedWidth(context.rows, context.now);
-  const hasDeterminate = hasDeterminateRows(context.rows);
+export const ElapsedColumn = (frame: RenderFrameContextValue): Column => {
+  const elapsedContentWidth = maxElapsedWidth(frame);
+  return createStickyColumn({
+    frame,
+    stickyKey: ELAPSED_STICKY_KEY,
+    measure: {
+      min: MIN_ELAPSED_WIDTH,
+      preferred: elapsedContentWidth,
+      max: elapsedContentWidth,
+    },
+    render: (taskId, width) => {
+      const formatted = formatElapsed(frame.getTask(taskId), frame.now);
+      const visible = textWidth(formatted) <= width ? formatted : formatted.slice(0, width);
 
-  return {
-    id: "elapsed",
-    grow: 0,
-    canHide: false,
-    variants: [
-      {
-        id: "stable",
-        minWidth: elapsedContentWidth,
-        idealWidth: hasDeterminate
-          ? Math.max(elapsedContentWidth, RESERVED_ELAPSED_WIDTH_UP_TO_ONE_HOUR)
-          : elapsedContentWidth,
-        renderCell: (row) => (
-          <ElapsedColumn
-            task={row.task}
-            tree={row.tree}
-            now={context.now}
-            tick={context.tick}
-            isTTY={isTTY}
-          />
-        ),
-      },
-      {
-        id: "compact",
-        minWidth: MIN_ELAPSED_WIDTH,
-        idealWidth: elapsedContentWidth,
-        renderCell: (row) => (
-          <ElapsedColumn
-            task={row.task}
-            tree={row.tree}
-            now={context.now}
-            tick={context.tick}
-            isTTY={isTTY}
-          />
-        ),
-      },
-    ],
-  };
+      return (
+        <Box width={width} justifyContent="flex-end">
+          <Text color="gray">{visible}</Text>
+        </Box>
+      );
+    },
+  });
 };
+
+export const ElapsedRootColumn = createColumnDefinition({ _tag: "elapsed" } as const, (frame) =>
+  ElapsedColumn(frame),
+);

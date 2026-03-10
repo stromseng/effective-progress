@@ -111,9 +111,9 @@ Support for `either`/`validate` modes of `Effect.all` and render the amount of s
 - Determinate amount text shows counters without prefixes: `<succeeded> <failed> <processed>/<total>`.
 - Counts can exceed `total`; the amount text keeps those raw values (for example `12/10`) while the bar stays visually clamped at full.
 - `total: 0` is valid for determinate tasks and renders as a full bar by default.
-- Column widths are shared per frame (widest visible cell wins), so rows stay aligned.
+- Column widths are measured and allocated per frame from a shared column tree, so rows stay aligned.
 - Elapsed and ETA reserve stable widths to reduce jitter while tasks transition states.
-- Layout uses a 100-column baseline and grows when content requires more space.
+- Sticky width can keep selected columns stable until the frame empties.
 - On narrow terminals, layout compacts to fit available width and tree prefixes are suppressed when description space is too tight.
 
 ## Manual task control
