@@ -53,10 +53,17 @@ for (
   terminalWidth >= MIN_TERMINAL_WIDTH;
   terminalWidth--
 ) {
-  const rootColumn = RootColumn([row], terminalWidth, new Map(), TICK, NOW);
-  const output = renderToString(rootColumn.render(), {
-    columns: terminalWidth,
-  });
+  const output = renderToString(
+    <RootColumn
+      rows={[row]}
+      terminalColumns={terminalWidth}
+      spinnerTick={TICK}
+      nowOverride={NOW}
+    />,
+    {
+      columns: terminalWidth,
+    },
+  );
   const outputWidth = fastStringWidth(output);
   const paddedOutput =
     outputWidth < terminalWidth ? `${output}${" ".repeat(terminalWidth - outputWidth)}` : output;
