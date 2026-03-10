@@ -4,7 +4,7 @@ import {
   formatAmount,
   getDeterminateProcessedColor,
   getTaskIndicator,
-} from "../src/ink-renderer/format";
+} from "../src/ink-renderer/shared/format";
 
 const makeTask = (
   units: Progress.TaskSnapshot["units"],

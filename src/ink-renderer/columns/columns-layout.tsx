@@ -2,25 +2,26 @@ import { Box, type DOMElement } from "ink";
 import { useMemo, useRef } from "react";
 import { useBoxMetrics } from "../hooks/use-box-metrics";
 import { useRenderFrame } from "../render-frame-context";
-import { DescriptionColumn } from "./description-column";
-import { ElapsedColumn } from "./elapsed-column";
-import { EtaColumn } from "./eta-column";
-import { assignedWidthsForMeasures, rootLayoutMeasures, selectRootLayoutPolicy } from "./layout-policy";
-import { ProgressColumn } from "./progress-column";
 import {
-  COLUMN_GAP,
-  MIN_ELAPSED_WIDTH,
-  etaMinimumWidth,
-  hasEta,
+  DescriptionColumn,
   hasRenderableProgress,
   minTreeDescriptionWidth,
   preferredDescriptionWidthForCap,
-  preferredElapsedWidth,
-  preferredEtaWidth,
+} from "./description-column";
+import { ElapsedColumn, MIN_ELAPSED_WIDTH, preferredElapsedWidth } from "./elapsed-column";
+import { EtaColumn, etaMinimumWidth, hasEta, preferredEtaWidth } from "./eta-column";
+import {
+  COLUMN_GAP,
+  assignedWidthsForMeasures,
+  rootLayoutMeasures,
+  selectRootLayoutPolicy,
+} from "./layout-policy";
+import {
   preferredPercentWidth,
   preferredProgressWidth,
   progressMinimumWidth,
-} from "./shared";
+} from "./progress-column";
+import { ProgressColumn } from "./progress-column";
 
 export interface ColumnsLayoutProps {
   readonly terminalColumns: number | undefined;
@@ -55,6 +56,7 @@ export const ColumnsLayout = ({ terminalColumns }: ColumnsLayoutProps) => {
         terminalColumns: rootWidth,
         hasProgress: showProgress,
         hasEta: showEtaColumn,
+        preferDroppingEtaBeforePercent: etaMinWidth > 3,
         descriptionPreferredWidth: preferredDescriptionWidthForCap(frame.rows, "tree"),
         descriptionTreeMinWidth,
         elapsedMinWidth: MIN_ELAPSED_WIDTH,

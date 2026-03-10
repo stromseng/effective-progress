@@ -4,7 +4,46 @@ import type { TaskSnapshot } from "../../types";
 import { useBoxMetrics } from "../hooks/use-box-metrics";
 import { useStickyWidth } from "../hooks/use-sticky-width";
 import { useRenderFrame } from "../render-frame-context";
-import { etaDurationText, preferredEtaWidth, primaryUnit, textWidth } from "./shared";
+import { formatEta } from "../shared/format";
+import { textWidth } from "../shared/text-width";
+
+const RESERVED_ETA_WIDTH_UP_TO_ONE_HOUR = Array.from("ETA: 59m 59s").length;
+
+const primaryUnit = (duration: string): string => duration.split(" ")[0] ?? duration;
+
+const etaDurationText = (task: TaskSnapshot, now: number): string | undefined => {
+  const eta = formatEta(task, now);
+  return eta === "" ? undefined : eta;
+};
+
+export const hasEta = (rows: ReturnType<typeof useRenderFrame>["rows"], now: number): boolean =>
+  rows.some((row) => etaDurationText(row.task, now) !== undefined);
+
+export const etaMinimumWidth = (
+  rows: ReturnType<typeof useRenderFrame>["rows"],
+  now: number,
+): number =>
+  rows.reduce((max, row) => {
+    const duration = etaDurationText(row.task, now);
+    return duration === undefined ? max : Math.max(max, textWidth(duration));
+  }, 0);
+
+export const preferredEtaWidth = (
+  rows: ReturnType<typeof useRenderFrame>["rows"],
+  now: number,
+): number =>
+  rows.reduce((max, row) => {
+    const duration = etaDurationText(row.task, now);
+    if (duration === undefined) {
+      return max;
+    }
+
+    return Math.max(
+      max,
+      textWidth(`ETA: ${duration}`),
+      RESERVED_ETA_WIDTH_UP_TO_ONE_HOUR,
+    );
+  }, 0);
 
 const renderEtaText = (task: TaskSnapshot, now: number, width: number): string => {
   const duration = etaDurationText(task, now);

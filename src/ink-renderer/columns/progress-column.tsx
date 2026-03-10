@@ -4,18 +4,97 @@ import type { TaskSnapshot } from "../../types";
 import { useBoxMetrics } from "../hooks/use-box-metrics";
 import { useStickyWidth } from "../hooks/use-sticky-width";
 import { useRenderFrame } from "../render-frame-context";
-import {
-  DEFAULT_BAR_WIDTH,
-  MIN_PROGRESS_WIDTH,
-  PROGRESS_PERCENT_THRESHOLD,
-  type ProgressPolicyMode,
-  isDeterminate,
-  percentText,
-  preferredPercentWidth,
-  preferredProgressWidth,
-  processedAmountText,
-  progressAmountMetrics,
-} from "./shared";
+import { isDeterminate } from "../shared/determinate";
+import { formatAmount } from "../shared/format";
+import { DEFAULT_BAR_WIDTH, percentText } from "../shared/progress";
+import { textWidth } from "../shared/text-width";
+
+export const MIN_PROGRESS_WIDTH = 4;
+export const PROGRESS_PERCENT_THRESHOLD = 10;
+
+export type ProgressPolicyMode = "full" | "percent";
+
+const processedAmountText = (task: TaskSnapshot): string => formatAmount(task, 0);
+
+export const preferredPercentWidth = (
+  rows: ReturnType<typeof useRenderFrame>["rows"],
+): number =>
+  rows.reduce((max, row) => Math.max(max, textWidth(percentText(row.task))), MIN_PROGRESS_WIDTH);
+
+export const progressAmountMetrics = (rows: ReturnType<typeof useRenderFrame>["rows"]) => {
+  let countDigits = 1;
+  let totalWidth = 1;
+  let hasDetailed = false;
+
+  for (const row of rows) {
+    countDigits = Math.max(
+      countDigits,
+      textWidth(`${row.task.units.succeeded}`),
+      textWidth(`${row.task.units.failed}`),
+      textWidth(`${row.task.units.processed}`),
+    );
+
+    totalWidth = Math.max(
+      totalWidth,
+      textWidth(row.task.units.total === undefined ? "?" : `${row.task.units.total}`),
+    );
+
+    hasDetailed ||= row.task.units.total !== undefined && row.task.countDisplay === "detailed";
+  }
+
+  const processedWidth = countDigits + 1 + totalWidth;
+  const detailedWidth = hasDetailed
+    ? countDigits + 1 + countDigits + 1 + processedWidth
+    : processedWidth;
+
+  return {
+    hasDetailed,
+    countDigits,
+    totalWidth,
+    processedWidth,
+    detailedWidth,
+    preferredWidth: hasDetailed ? detailedWidth : processedWidth,
+    minWidth: processedWidth,
+  };
+};
+
+export const preferredProgressWidth = (
+  rows: ReturnType<typeof useRenderFrame>["rows"],
+  _tick: number,
+): number => {
+  const amountWidth = progressAmountMetrics(rows).preferredWidth;
+  const hasDeterminate = rows.some((row) => isDeterminate(row.task));
+
+  if (!hasDeterminate) {
+    return Math.max(MIN_PROGRESS_WIDTH, amountWidth);
+  }
+
+  return Math.max(MIN_PROGRESS_WIDTH, DEFAULT_BAR_WIDTH + 1 + amountWidth);
+};
+
+export const progressMinimumWidth = (
+  rows: ReturnType<typeof useRenderFrame>["rows"],
+): number => {
+  let hasDeterminateRows = false;
+  let processedDigits = 1;
+  let totalDigits = 1;
+  let simpleTextWidth = 0;
+
+  for (const row of rows) {
+    hasDeterminateRows ||= isDeterminate(row.task);
+    simpleTextWidth = Math.max(simpleTextWidth, textWidth(formatAmount(row.task, 0)));
+    processedDigits = Math.max(processedDigits, textWidth(`${row.task.units.processed}`));
+    if (row.task.units.total !== undefined) {
+      totalDigits = Math.max(totalDigits, textWidth(`${row.task.units.total}`));
+    }
+  }
+
+  if (!hasDeterminateRows) {
+    return Math.max(MIN_PROGRESS_WIDTH, simpleTextWidth);
+  }
+
+  return Math.max(MIN_PROGRESS_WIDTH, 4 + 1 + processedDigits + 1 + totalDigits);
+};
 
 const renderBar = (task: TaskSnapshot, width: number): ReactNode => {
   if (!isDeterminate(task)) {
@@ -163,7 +242,10 @@ export const ProgressColumn = ({
   const amountMetrics = useMemo(() => progressAmountMetrics(frame.rows), [frame.rows]);
   const stickyWidth = useStickyWidth(preferredWidth);
   const baseWidth = assignedWidth ?? stickyWidth;
-  const effectiveWidth = Math.max(mode === "percent" ? percentWidth : MIN_PROGRESS_WIDTH, baseWidth);
+  const effectiveWidth = Math.max(
+    mode === "percent" ? percentWidth : MIN_PROGRESS_WIDTH,
+    baseWidth,
+  );
   const width = Math.max(MIN_PROGRESS_WIDTH, metrics.width || effectiveWidth);
   const variant = resolveProgressVariant(
     width,

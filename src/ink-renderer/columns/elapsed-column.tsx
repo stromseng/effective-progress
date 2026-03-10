@@ -3,7 +3,16 @@ import { useMemo, useRef } from "react";
 import { useBoxMetrics } from "../hooks/use-box-metrics";
 import { useStickyWidth } from "../hooks/use-sticky-width";
 import { useRenderFrame } from "../render-frame-context";
-import { formatElapsed, preferredElapsedWidth } from "./shared";
+import { formatElapsed } from "../shared/format";
+import { textWidth } from "../shared/text-width";
+
+export const MIN_ELAPSED_WIDTH = 3;
+
+export const preferredElapsedWidth = (
+  rows: ReturnType<typeof useRenderFrame>["rows"],
+  now: number,
+): number =>
+  rows.reduce((max, row) => Math.max(max, textWidth(formatElapsed(row.task, now))), MIN_ELAPSED_WIDTH);
 
 export const ElapsedColumn = ({
   assignedWidth,

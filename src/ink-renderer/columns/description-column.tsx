@@ -1,17 +1,81 @@
 import { Box, Text, type DOMElement } from "ink";
 import { useMemo, useRef } from "react";
+import type { TaskTreeInfo } from "../store/types";
 import { useBoxMetrics } from "../hooks/use-box-metrics";
 import { useStickyWidth } from "../hooks/use-sticky-width";
 import { useRenderFrame } from "../render-frame-context";
-import {
-  type DescriptionCap,
-  type DescriptionVariant,
-  MIN_DESCRIPTION_WIDTH,
-  getTaskIndicator,
-  preferredDescriptionWidthForCap,
-  renderTreePrefix,
-  textWidth,
-} from "./shared";
+import { getTaskIndicator } from "../shared/format";
+import { textWidth } from "../shared/text-width";
+
+const MIN_DESCRIPTION_WIDTH = 1;
+const MIN_PLAIN_DESCRIPTION_WIDTH = 8;
+const MIN_COMPACT_DESCRIPTION_WIDTH = 3;
+const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
+
+export type DescriptionVariant = "tree" | "plain" | "compact" | "spinner";
+export type DescriptionCap = DescriptionVariant;
+
+const treeAncestorPrefix = (ancestorHasNextSibling: ReadonlyArray<boolean>): string =>
+  ancestorHasNextSibling
+    .slice(1)
+    .map((hasNextSibling) => (hasNextSibling ? "│  " : "   "))
+    .join("");
+
+export const renderTreePrefix = (tree: TaskTreeInfo): string => {
+  if (tree.depth <= 0) {
+    return "";
+  }
+
+  return `${treeAncestorPrefix(tree.ancestorHasNextSibling)}${tree.hasNextSibling ? "├─ " : "└─ "}`;
+};
+
+const maxDescriptionWidth = (
+  rows: ReturnType<typeof useRenderFrame>["rows"],
+  includeTreePrefix: boolean,
+): number =>
+  rows.reduce((max, row) => {
+    const prefix = includeTreePrefix ? renderTreePrefix(row.tree) : "";
+    return Math.max(max, textWidth(`${prefix}${row.task.description}`) + 2);
+  }, MIN_PLAIN_DESCRIPTION_WIDTH);
+
+export const minTreeDescriptionWidth = (rows: ReturnType<typeof useRenderFrame>["rows"]): number =>
+  rows.reduce(
+    (max, row) =>
+      Math.max(max, textWidth(renderTreePrefix(row.tree)) + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
+    MIN_PLAIN_DESCRIPTION_WIDTH,
+  );
+
+const preferredDescriptionWidth = (rows: ReturnType<typeof useRenderFrame>["rows"]): number => {
+  const hasNestedRows = rows.some((row) => row.tree.depth > 0);
+  return hasNestedRows
+    ? Math.max(maxDescriptionWidth(rows, true), minTreeDescriptionWidth(rows))
+    : maxDescriptionWidth(rows, false);
+};
+
+export const preferredDescriptionWidthForCap = (
+  rows: ReturnType<typeof useRenderFrame>["rows"],
+  cap: DescriptionCap,
+): number => {
+  if (cap === "compact") {
+    return maxDescriptionWidth(rows, false);
+  }
+
+  if (cap === "plain") {
+    return maxDescriptionWidth(rows, false);
+  }
+
+  return preferredDescriptionWidth(rows);
+};
+
+export const hasRenderableProgress = (rows: ReturnType<typeof useRenderFrame>["rows"]): boolean =>
+  rows.some((row) => row.task.units.total !== undefined || row.task.units.processed > 0);
+
+export const minimumDescriptionWidth = (cap: DescriptionCap): number =>
+  cap === "spinner"
+    ? MIN_DESCRIPTION_WIDTH
+    : cap === "compact"
+      ? MIN_COMPACT_DESCRIPTION_WIDTH
+      : MIN_PLAIN_DESCRIPTION_WIDTH;
 
 const resolveDescriptionVariant = (
   width: number,
@@ -44,10 +108,10 @@ const resolveDescriptionVariant = (
   }
 
   if (cap === "plain") {
-    return width < 8 ? "compact" : "plain";
+    return width < minimumDescriptionWidth("plain") ? "compact" : "plain";
   }
 
-  if (width < 8) {
+  if (width < minimumDescriptionWidth("plain")) {
     return "compact";
   }
 
@@ -56,7 +120,9 @@ const resolveDescriptionVariant = (
     0,
   );
 
-  return hasNestedRows && width >= maxTreePrefixWidth + 8 ? "tree" : "plain";
+  return hasNestedRows && width >= maxTreePrefixWidth + minimumDescriptionWidth("plain")
+    ? "tree"
+    : "plain";
 };
 
 export const DescriptionColumn = ({
