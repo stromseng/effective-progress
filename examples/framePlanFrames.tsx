@@ -34,8 +34,17 @@ const row: TaskRowModel = {
 const NOW = 9_000;
 const TICK = 0;
 const MIN_TERMINAL_WIDTH = 1;
-const detectedColumns = process.stdout.columns;
-const START_TERMINAL_WIDTH = Math.max(MIN_TERMINAL_WIDTH, Math.min(detectedColumns, 170));
+const MAX_TERMINAL_WIDTH = 170;
+const FALLBACK_TERMINAL_WIDTH = 80;
+const detectedColumns = process.stdout.isTTY ? process.stdout.columns : FALLBACK_TERMINAL_WIDTH;
+const normalizedColumns =
+  typeof detectedColumns === "number" && Number.isFinite(detectedColumns)
+    ? Math.floor(detectedColumns)
+    : FALLBACK_TERMINAL_WIDTH;
+const START_TERMINAL_WIDTH = Math.max(
+  MIN_TERMINAL_WIDTH,
+  Math.min(normalizedColumns, MAX_TERMINAL_WIDTH),
+);
 const TERMINAL_WIDTH_LABEL_WIDTH = `${START_TERMINAL_WIDTH}`.length;
 const OUTPUT_WIDTH_LABEL_WIDTH = `${START_TERMINAL_WIDTH}`.length + 1;
 
