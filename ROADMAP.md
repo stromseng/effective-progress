@@ -13,8 +13,6 @@
 - look into making composable components like shadcn for the progress bar columns.
 - update task api to have methods on the tasks instead of having to pass the ids to functions. i.e `task.incrementSuccess`
 
-- show percent instead of amount on tiny screens, hide progressbar completely
-
 ## Customization
 
 - [ ] Custom units (for example `files`, `items`, `MiB`) on determinate tasks.

@@ -114,7 +114,6 @@ Support for `either`/`validate` modes of `Effect.all` and render the amount of s
 - Column widths are measured and allocated per frame from a shared column tree, so rows stay aligned.
 - Elapsed and ETA reserve stable widths to reduce jitter while tasks transition states.
 - Sticky width can keep selected columns stable until the frame empties.
-- Layout uses a 150-column baseline and grows when content requires more space.
 - On narrow terminals, layout compacts to fit available width and tree prefixes are suppressed when description space is too tight.
 
 ## Manual task control
