@@ -94,6 +94,7 @@ Support for `either`/`validate` modes of `Effect.all` and render the amount of s
 - `examples/unknownTotalCounting.ts` - count successes/failures without a known total and render `processed/?`
 - `examples/showcase.ts` - nested concurrent tasks, spinner workloads, and mixed Effect/Console logging
 - `examples/performance.ts` - stress-style run with high log volume and deeply nested progress updates
+- `examples/performanceLong.ts` - longer-running stress run with roughly 10x the work of `performance.ts`
 
 ## Configuration
 
