@@ -34,8 +34,6 @@
 
 ## Rendering
 
-- [ ] Add a richer default preset (Rich-inspired compact single-line format).
-- [ ] Full-width safety and line-wrap protection options.
 - [ ] Optional title-above-bar layout preset for determinate tasks.
 - [ ] Half-character bar precision using `╸`/`╺` Unicode blocks for 2x visual resolution (Rich-inspired).
   - Currently `BarColumn` computes `filled = Math.round(ratio * innerWidth)` - whole-character precision. On a 40-char bar each jump is 2.5%, visibly choppy for slow tasks.
