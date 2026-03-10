@@ -49,7 +49,13 @@ const renderSnapshot = (
       createElement(
         Box,
         { flexDirection: "row" },
-        RootColumn(snapshot.rows, options.columns, new Map(), options.tick, options.now).render(),
+        createElement(RootColumn, {
+          rows: snapshot.rows,
+          terminalColumns: options.columns,
+          stickyWidths: new Map(),
+          spinnerTick: options.tick,
+          nowOverride: options.now,
+        }),
       ),
       { columns: options.columns },
     ),

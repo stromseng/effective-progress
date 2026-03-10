@@ -7,6 +7,32 @@ import * as Progress from "../src";
 import { RootColumn } from "../src/ink-renderer/columns/root-column";
 import type { TaskRowModel } from "../src/ink-renderer/store/types";
 
+const treePrefix = (tree: TaskRowModel["tree"]): string => {
+  if (tree.depth <= 0) {
+    return "";
+  }
+
+  return `${tree.ancestorHasNextSibling.slice(1).map((hasNextSibling) => (hasNextSibling ? "│  " : "   ")).join("")}${tree.hasNextSibling ? "├─ " : "└─ "}`;
+};
+
+const deriveRow = (task: Progress.TaskSnapshot, tree: TaskRowModel["tree"]): TaskRowModel => {
+  const prefix = treePrefix(tree);
+  const descriptionWidth = stringWidth(task.description);
+
+  return {
+    task,
+    tree,
+    derived: {
+      treePrefix: prefix,
+      treePrefixWidth: stringWidth(prefix),
+      descriptionWidth,
+      treePrefixedDescriptionWidth: stringWidth(prefix) + descriptionWidth,
+      hasRenderableProgress: task.units.total !== undefined || task.units.processed > 0,
+      isDeterminate: task.units.total !== undefined,
+    },
+  };
+};
+
 const makeTask = (
   id: number,
   overrides: Partial<Progress.TaskSnapshot> & {
@@ -31,15 +57,13 @@ const makeTask = (
     ...overrides,
   });
 
-const row = (task: Progress.TaskSnapshot, depth = 0): TaskRowModel => ({
-  task,
-  tree: {
+const row = (task: Progress.TaskSnapshot, depth = 0): TaskRowModel =>
+  deriveRow(task, {
     depth,
     hasChildren: false,
     hasNextSibling: false,
-    ancestorHasNextSibling: [],
-  },
-});
+    ancestorHasNextSibling: depth > 0 ? [false] : [],
+  });
 
 const renderRoot = (
   rows: ReadonlyArray<TaskRowModel>,
@@ -53,7 +77,13 @@ const renderRoot = (
       createElement(
         Box,
         { flexDirection: "row" },
-        RootColumn(rows, terminalColumns, stickyWidths, tick, now).render(),
+        createElement(RootColumn, {
+          rows,
+          terminalColumns,
+          stickyWidths,
+          spinnerTick: tick,
+          nowOverride: now,
+        }),
       ),
       { columns: terminalColumns ?? 200 },
     ),

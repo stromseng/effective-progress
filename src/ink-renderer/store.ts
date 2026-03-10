@@ -170,7 +170,7 @@ export const makeProgressRenderStore = () => {
   const publishNow = (): void => {
     hasPendingPublish = false;
     lastPublishAt = Date.now();
-    publishedSnapshot = toRenderSnapshot(state);
+    publishedSnapshot = toRenderSnapshot(state, publishedSnapshot);
     notifyListeners();
   };
 

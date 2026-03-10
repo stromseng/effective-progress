@@ -1,5 +1,6 @@
 import type { TaskStore } from "../../types";
 import type { OrderedTask, TaskRowModel } from "./types";
+import { textWidth } from "../shared/text-width";
 
 const orderedVisibleTasks = (store: TaskStore): ReadonlyArray<OrderedTask> =>
   store.renderOrder.flatMap((row) => {
@@ -21,26 +22,101 @@ export interface RenderSnapshot {
   readonly hasRunningTasks: boolean;
 }
 
-const computeTreeInfo = (
-  ordered: ReadonlyArray<OrderedTask>,
-): ReadonlyArray<OrderedTask & { readonly tree: TaskRowModel["tree"] }> => {
-  const hasNextSiblingByIndex: Array<boolean> = Array.from({ length: ordered.length }, () => false);
+const treeAncestorPrefix = (ancestorHasNextSibling: ReadonlyArray<boolean>): string =>
+  ancestorHasNextSibling
+    .slice(1)
+    .map((hasNextSibling) => (hasNextSibling ? "│  " : "   "))
+    .join("");
 
-  for (let i = 0; i < ordered.length; i++) {
-    const depth = ordered[i]!.depth;
-    for (let j = i + 1; j < ordered.length; j++) {
-      const candidateDepth = ordered[j]!.depth;
-      if (candidateDepth < depth) {
-        break;
-      }
-      if (candidateDepth === depth) {
-        hasNextSiblingByIndex[i] = true;
-        break;
-      }
+const renderTreePrefix = (tree: TaskRowModel["tree"]): string => {
+  if (tree.depth <= 0) {
+    return "";
+  }
+
+  return `${treeAncestorPrefix(tree.ancestorHasNextSibling)}${tree.hasNextSibling ? "├─ " : "└─ "}`;
+};
+
+const arraysEqual = (
+  left: ReadonlyArray<boolean>,
+  right: ReadonlyArray<boolean>,
+): boolean => {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let i = 0; i < left.length; i++) {
+    if (left[i] !== right[i]) {
+      return false;
     }
   }
 
+  return true;
+};
+
+const sameTreePrefixInputs = (
+  left: TaskRowModel["tree"],
+  right: TaskRowModel["tree"],
+): boolean =>
+  left.depth === right.depth &&
+  left.hasNextSibling === right.hasNextSibling &&
+  arraysEqual(left.ancestorHasNextSibling, right.ancestorHasNextSibling);
+
+const deriveRow = (
+  task: OrderedTask["snapshot"],
+  tree: TaskRowModel["tree"],
+  previousRow: TaskRowModel | undefined,
+): TaskRowModel["derived"] => {
+  const treePrefix =
+    previousRow !== undefined && sameTreePrefixInputs(previousRow.tree, tree)
+      ? previousRow.derived.treePrefix
+      : renderTreePrefix(tree);
+  const treePrefixWidth =
+    previousRow !== undefined && sameTreePrefixInputs(previousRow.tree, tree)
+      ? previousRow.derived.treePrefixWidth
+      : textWidth(treePrefix);
+
+  const descriptionWidth =
+    previousRow !== undefined && previousRow.task.description === task.description
+      ? previousRow.derived.descriptionWidth
+      : textWidth(task.description);
+
+  const isDeterminate =
+    previousRow !== undefined && previousRow.task.units.total === task.units.total
+      ? previousRow.derived.isDeterminate
+      : task.units.total !== undefined;
+
+  const hasRenderableProgress =
+    previousRow !== undefined &&
+    previousRow.task.units.total === task.units.total &&
+    previousRow.task.units.processed === task.units.processed
+      ? previousRow.derived.hasRenderableProgress
+      : task.units.total !== undefined || task.units.processed > 0;
+
+  return {
+    treePrefix,
+    treePrefixWidth,
+    descriptionWidth,
+    treePrefixedDescriptionWidth: treePrefixWidth + descriptionWidth,
+    hasRenderableProgress,
+    isDeterminate,
+  };
+};
+
+const computeTreeInfo = (
+  ordered: ReadonlyArray<OrderedTask>,
+  previousRows: ReadonlyArray<TaskRowModel>,
+): ReadonlyArray<TaskRowModel> => {
+  const hasNextSiblingByIndex: Array<boolean> = Array.from({ length: ordered.length }, () => false);
+  const seenByDepth: Array<boolean> = [];
+  for (let i = ordered.length - 1; i >= 0; i--) {
+    const depth = ordered[i]!.depth;
+    hasNextSiblingByIndex[i] = seenByDepth[depth] ?? false;
+    seenByDepth[depth] = true;
+    seenByDepth.length = depth + 1;
+  }
+
   const ancestorStateByDepth: Array<boolean> = [];
+  const previousRowsByTaskId = new Map(previousRows.map((row) => [row.task.id, row] as const));
 
   return ordered.map((entry, index) => {
     const depth = entry.depth;
@@ -57,25 +133,28 @@ const computeTreeInfo = (
       hasChildren,
       ancestorHasNextSibling: [...ancestorStateByDepth],
     };
+    const previousRow = previousRowsByTaskId.get(entry.snapshot.id);
+    const derived = deriveRow(entry.snapshot, tree, previousRow);
 
     ancestorStateByDepth[depth] = hasNextSiblingByIndex[index] ?? false;
 
     return {
-      ...entry,
+      task: entry.snapshot,
       tree,
+      derived,
     };
   });
 };
 
-export const toRenderSnapshot = (store: TaskStore): RenderSnapshot => {
+export const toRenderSnapshot = (
+  store: TaskStore,
+  previousSnapshot?: RenderSnapshot,
+): RenderSnapshot => {
   const visibleTasks = orderedVisibleTasks(store);
   const hasRunningTasks = visibleTasks.some((entry) => entry.snapshot.status === "running");
 
   return {
-    rows: computeTreeInfo(visibleTasks).map((entry) => ({
-      task: entry.snapshot,
-      tree: entry.tree,
-    })),
+    rows: computeTreeInfo(visibleTasks, previousSnapshot?.rows ?? []),
     hasRunningTasks,
   };
 };

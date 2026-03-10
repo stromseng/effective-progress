@@ -60,7 +60,7 @@ export const preferredProgressWidth = (
   rows: ReturnType<typeof useRenderFrame>["rows"],
 ): number => {
   const amountWidth = progressAmountMetrics(rows).preferredWidth;
-  const hasDeterminate = rows.some((row) => isDeterminate(row.task));
+  const hasDeterminate = rows.some((row) => row.derived.isDeterminate);
 
   if (!hasDeterminate) {
     return Math.max(MIN_PROGRESS_WIDTH, amountWidth);
@@ -78,7 +78,7 @@ export const progressMinimumWidth = (
   let simpleTextWidth = 0;
 
   for (const row of rows) {
-    hasDeterminateRows ||= isDeterminate(row.task);
+    hasDeterminateRows ||= row.derived.isDeterminate;
     simpleTextWidth = Math.max(simpleTextWidth, textWidth(formatAmount(row.task, 0)));
     processedDigits = Math.max(processedDigits, textWidth(`${row.task.units.processed}`));
     if (row.task.units.total !== undefined) {
@@ -127,7 +127,7 @@ const resolveProgressVariant = (
   rows: ReturnType<typeof useRenderFrame>["rows"],
   mode: ProgressPolicyMode,
 ): ProgressVariant => {
-  if (!rows.some((row) => isDeterminate(row.task))) {
+  if (!rows.some((row) => row.derived.isDeterminate)) {
     return "amount";
   }
 

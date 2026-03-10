@@ -1,5 +1,4 @@
 import { NowProvider } from "../now-context";
-import type { ReactNode } from "react";
 import { SpinnerProvider } from "../spinner-context";
 import type { TaskRowModel } from "../store/types";
 import { ColumnsLayout } from "./columns-layout";
