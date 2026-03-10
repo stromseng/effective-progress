@@ -1,14 +1,14 @@
 import { minimumDescriptionWidth, type DescriptionCap } from "./description-column";
 import type { ProgressPolicyMode } from "./progress-column";
 
-export interface RootLayoutPolicy {
+interface RootLayoutPolicy {
   readonly descriptionCap: DescriptionCap;
   readonly progressMode?: ProgressPolicyMode;
   readonly showElapsed: boolean;
   readonly showEta: boolean;
 }
 
-export interface ColumnMeasure {
+interface ColumnMeasure {
   readonly id: "description" | "progress" | "elapsed" | "eta";
   readonly min: number;
   readonly preferred: number;
@@ -150,7 +150,7 @@ const rootLayoutWidth = (
     COLUMN_GAP,
   );
 
-export const rootLayoutCandidates = (options: {
+const rootLayoutCandidates = (options: {
   readonly hasProgress: boolean;
   readonly hasEta: boolean;
   readonly preferDroppingEtaBeforePercent?: boolean;

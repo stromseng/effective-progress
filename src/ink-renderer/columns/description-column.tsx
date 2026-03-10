@@ -21,7 +21,7 @@ const treeAncestorPrefix = (ancestorHasNextSibling: ReadonlyArray<boolean>): str
     .map((hasNextSibling) => (hasNextSibling ? "│  " : "   "))
     .join("");
 
-export const renderTreePrefix = (tree: TaskTreeInfo): string => {
+const renderTreePrefix = (tree: TaskTreeInfo): string => {
   if (tree.depth <= 0) {
     return "";
   }

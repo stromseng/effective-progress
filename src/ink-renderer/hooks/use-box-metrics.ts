@@ -1,14 +1,14 @@
 import { type DOMElement, useStdout } from "ink";
 import { useCallback, useEffect, useMemo, useState, type RefObject } from "react";
 
-export interface BoxMetrics {
+interface BoxMetrics {
   readonly width: number;
   readonly height: number;
   readonly left: number;
   readonly top: number;
 }
 
-export interface UseBoxMetricsResult extends BoxMetrics {
+interface UseBoxMetricsResult extends BoxMetrics {
   readonly hasMeasured: boolean;
 }
 

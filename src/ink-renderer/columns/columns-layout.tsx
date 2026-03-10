@@ -23,7 +23,7 @@ import {
 } from "./progress-column";
 import { ProgressColumn } from "./progress-column";
 
-export interface ColumnsLayoutProps {
+interface ColumnsLayoutProps {
   readonly terminalColumns: number | undefined;
 }
 

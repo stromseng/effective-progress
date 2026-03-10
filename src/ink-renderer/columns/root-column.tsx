@@ -3,7 +3,7 @@ import type { TaskRowModel } from "../store/types";
 import { ColumnsLayout } from "./columns-layout";
 import { RenderFrameProvider } from "../render-frame-context";
 
-export interface RootColumnInstance {
+interface RootColumnInstance {
   render: () => ReactNode;
 }
 

@@ -6,7 +6,7 @@ import type { ProgressStdioService } from "./stdio";
 
 const MAX_FPS = 12;
 
-export interface InkRendererService {
+interface InkRendererService {
   readonly run: (
     store: ProgressRenderStore,
     stdio: ProgressStdioService,

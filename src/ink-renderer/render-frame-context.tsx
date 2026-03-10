@@ -2,7 +2,7 @@ import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { TaskId, TaskSnapshot } from "../types";
 import type { TaskRowModel, TaskTreeInfo } from "./store/types";
 
-export interface RenderFrameValue {
+interface RenderFrameValue {
   readonly rows: ReadonlyArray<TaskRowModel>;
   readonly taskIds: ReadonlyArray<TaskId>;
   readonly now: number;
@@ -13,7 +13,7 @@ export interface RenderFrameValue {
 
 const RenderFrameContext = createContext<RenderFrameValue | undefined>(undefined);
 
-export interface RenderFrameProviderProps {
+interface RenderFrameProviderProps {
   readonly rows: ReadonlyArray<TaskRowModel>;
   readonly now: number;
   readonly tick: number;

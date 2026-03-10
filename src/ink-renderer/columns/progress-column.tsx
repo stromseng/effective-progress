@@ -9,8 +9,8 @@ import { formatAmount } from "../shared/format";
 import { DEFAULT_BAR_WIDTH, percentText } from "../shared/progress";
 import { textWidth } from "../shared/text-width";
 
-export const MIN_PROGRESS_WIDTH = 4;
-export const PROGRESS_PERCENT_THRESHOLD = 10;
+const MIN_PROGRESS_WIDTH = 4;
+const PROGRESS_PERCENT_THRESHOLD = 10;
 
 export type ProgressPolicyMode = "full" | "percent";
 
@@ -21,7 +21,7 @@ export const preferredPercentWidth = (
 ): number =>
   rows.reduce((max, row) => Math.max(max, textWidth(percentText(row.task))), MIN_PROGRESS_WIDTH);
 
-export const progressAmountMetrics = (rows: ReturnType<typeof useRenderFrame>["rows"]) => {
+const progressAmountMetrics = (rows: ReturnType<typeof useRenderFrame>["rows"]) => {
   let countDigits = 1;
   let totalWidth = 1;
   let hasDetailed = false;

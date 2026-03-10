@@ -7,7 +7,7 @@ import { useSpinnerClock } from "./hooks/use-spinner-clock";
 const SPINNER_INTERVAL_MILLIS = 100;
 const NOW_INTERVAL_MILLIS = 1_000;
 
-export interface ProgressRootProps {
+interface ProgressRootProps {
   readonly store: ProgressRenderStore;
   readonly getTerminalColumns: () => number | undefined;
 }

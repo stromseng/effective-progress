@@ -1,6 +1,6 @@
 import type { TaskSnapshot } from "../../types";
 
-export const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 
 const isDeterminate = (
   task: TaskSnapshot,
@@ -10,7 +10,7 @@ const isDeterminate = (
 const showsUnknownTotalCounts = (task: TaskSnapshot): boolean =>
   task.units.total === undefined && task.units.processed > 0;
 
-export const formatDurationSeconds = (seconds: number): string => {
+const formatDurationSeconds = (seconds: number): string => {
   const value = Math.max(0, Math.floor(seconds));
   if (value < 60) {
     return `${value}s`;
@@ -47,17 +47,17 @@ export const formatEta = (task: TaskSnapshot, now: number): string => {
   return formatDurationSeconds(etaMillis / 1000);
 };
 
-export interface DeterminateAmountParts {
+interface DeterminateAmountParts {
   readonly succeeded: string;
   readonly failed: string;
   readonly processed: string;
   readonly total: string;
 }
 
-export type DeterminateProcessedColor = "green" | "yellow" | "red" | "whiteBright";
-export type TaskIndicatorColor = "green" | "yellow" | "red";
+type DeterminateProcessedColor = "green" | "yellow" | "red" | "whiteBright";
+type TaskIndicatorColor = "green" | "yellow" | "red";
 
-export interface TaskIndicator {
+interface TaskIndicator {
   readonly symbol: string;
   readonly color: TaskIndicatorColor;
 }
@@ -93,7 +93,7 @@ export const getTaskIndicator = (task: TaskSnapshot, tick: number): TaskIndicato
   return { symbol: "✓", color: "green" };
 };
 
-export const formatDeterminateAmountParts = (
+const formatDeterminateAmountParts = (
   task: TaskSnapshot,
 ): DeterminateAmountParts | undefined => {
   if (!isDeterminate(task)) {

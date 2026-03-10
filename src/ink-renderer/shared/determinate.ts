@@ -6,5 +6,5 @@ export const isDeterminate = (
 ): task is TaskSnapshot & { readonly units: TaskSnapshot["units"] & { readonly total: number } } =>
   task.units.total !== undefined;
 
-export const hasDeterminateRows = (rows: ReadonlyArray<TaskRowModel>): boolean =>
+const hasDeterminateRows = (rows: ReadonlyArray<TaskRowModel>): boolean =>
   rows.some((row) => isDeterminate(row.task));
