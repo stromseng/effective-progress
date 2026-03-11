@@ -1,7 +1,6 @@
 import { Box, Text } from "ink";
 import { useNow } from "../context/now-context";
 import { formatEta } from "../shared/format";
-import { textWidth } from "../shared/text-width";
 import type {
   ProgressColumnDefinition,
   ProgressColumnMeasurement,
@@ -15,15 +14,7 @@ const cropTextToWidth = (text: string, width: number): string => {
     return "";
   }
 
-  let cropped = "";
-  for (const char of text) {
-    if (textWidth(cropped + char) > width) {
-      break;
-    }
-    cropped += char;
-  }
-
-  return cropped;
+  return text.slice(0, width);
 };
 
 const etaDurationText = (row: ProgressColumnProps["row"], now: number): string | undefined => {
@@ -43,11 +34,11 @@ const renderEtaText = (row: ProgressColumnProps["row"], now: number, width: numb
   }
 
   const prefixed = `ETA: ${duration}`;
-  if (width >= textWidth(prefixed)) {
+  if (width >= prefixed.length) {
     return { mode: "prefixed", text: prefixed };
   }
 
-  if (width >= textWidth(duration)) {
+  if (width >= duration.length) {
     return { mode: "duration", text: duration };
   }
 
@@ -107,7 +98,7 @@ export const createEtaColumn = (config?: Partial<EtaColumnConfig>): ProgressColu
           return max;
         }
 
-        return Math.max(max, textWidth(`ETA: ${duration}`));
+        return Math.max(max, `ETA: ${duration}`.length);
       }, resolvedConfig.minWidth);
 
       return {
@@ -123,7 +114,7 @@ export const createEtaColumn = (config?: Partial<EtaColumnConfig>): ProgressColu
           return max;
         }
 
-        return Math.max(max, textWidth(`ETA: ${duration}`));
+        return Math.max(max, `ETA: ${duration}`.length);
       }, 0),
     justify: resolvedConfig.justify,
     noWrap: true,

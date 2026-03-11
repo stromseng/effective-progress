@@ -1,7 +1,6 @@
 import { Text } from "ink";
 import { useNow } from "../context/now-context";
 import { formatElapsed } from "../shared/format";
-import { textWidth } from "../shared/text-width";
 import type {
   ProgressColumnDefinition,
   ProgressColumnMeasurement,
@@ -47,7 +46,7 @@ export const createElapsedColumn = (
     Component,
     measure: ({ rows, now }): ProgressColumnMeasurement => {
       const width = rows.reduce(
-        (max, row) => Math.max(max, textWidth(formatElapsed(row.task, now))),
+        (max, row) => Math.max(max, formatElapsed(row.task, now).length),
         resolvedConfig.minWidth,
       );
 
@@ -58,7 +57,7 @@ export const createElapsedColumn = (
       };
     },
     getLayoutDependency: ({ rows, now }) =>
-      rows.reduce((max, row) => Math.max(max, textWidth(formatElapsed(row.task, now))), 0),
+      rows.reduce((max, row) => Math.max(max, formatElapsed(row.task, now).length), 0),
     justify: resolvedConfig.justify,
     noWrap: true,
     sticky: resolvedConfig.sticky,

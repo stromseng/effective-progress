@@ -59,11 +59,11 @@ const measureAmountLayout = (
   }
 
   const processedWidth = countedTasks.reduce(
-    (max, task) => Math.max(max, textWidth(`${task.units.processed}`)),
+    (max, task) => Math.max(max, `${task.units.processed}`.length),
     1,
   );
   const totalWidth = countedTasks.reduce(
-    (max, task) => Math.max(max, textWidth(totalTextFor(task))),
+    (max, task) => Math.max(max, totalTextFor(task).length),
     1,
   );
   const countWidth = hasDetailedRows
@@ -73,8 +73,8 @@ const measureAmountLayout = (
             max,
             processedWidth,
             totalWidth,
-            textWidth(`${task.units.succeeded}`),
-            textWidth(`${task.units.failed}`),
+            `${task.units.succeeded}`.length,
+            `${task.units.failed}`.length,
           ),
         1,
       )
