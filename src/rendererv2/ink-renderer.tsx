@@ -42,30 +42,31 @@ export const createRendererv2InkRenderer = (columns: ReadonlyArray<ProgressColum
   const ProgressRoot = CreateProgressRoot(columns);
 
   return InkRenderer.of({
-    run: (store: ProgressRenderStore, stdio: ProgressStdioService, isTTY: boolean) =>
-      Effect.sync(() =>
-        render(
-          <ProgressRoot
-            store={store}
-            getTerminalColumns={() => (isTTY ? stdio.stderr.columns : undefined)}
-            getTerminalRows={() => (isTTY ? stdio.stderr.rows : undefined)}
-          />,
-          {
-            stdout: stdio.stdout,
-            stderr: stdio.stderr,
-            patchConsole: true,
-            exitOnCtrlC: false,
-            debug: false,
-            maxFps: MAX_FPS,
-          },
-        ),
+    run: (store: ProgressRenderStore, stdio: ProgressStdioService, isTTY: boolean) => {
+      const proot = (
+        <ProgressRoot
+          store={store}
+          getTerminalColumns={() => (isTTY ? stdio.stderr.columns : undefined)}
+          getTerminalRows={() => (isTTY ? stdio.stderr.rows : undefined)}
+        />
+      );
+
+      return Effect.sync(() =>
+        render(proot, {
+          stdout: stdio.stdout,
+          stderr: stdio.stderr,
+          patchConsole: true,
+          exitOnCtrlC: false,
+          debug: false,
+          maxFps: MAX_FPS,
+        }),
       ).pipe(
         Effect.flatMap((instance) =>
           Effect.never.pipe(
             Effect.ensuring(
               Effect.gen(function* () {
                 store.flush();
-                yield* Effect.sleep("0 millis");
+                instance.rerender(proot);
                 yield* Effect.sync(() => {
                   instance.unmount();
                 });
@@ -73,6 +74,7 @@ export const createRendererv2InkRenderer = (columns: ReadonlyArray<ProgressColum
             ),
           ),
         ),
-      ),
+      );
+    },
   });
 };

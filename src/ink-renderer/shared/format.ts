@@ -1,7 +1,5 @@
 import type { TaskSnapshot } from "../../types";
 
-const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
-
 const isDeterminate = (
   task: TaskSnapshot,
 ): task is TaskSnapshot & { readonly units: TaskSnapshot["units"] & { readonly total: number } } =>
@@ -55,47 +53,6 @@ interface DeterminateAmountParts {
 }
 
 type DeterminateProcessedColor = "green" | "yellow" | "red" | "whiteBright";
-type TaskIndicatorColor = "green" | "yellow" | "red";
-
-interface TaskIndicator {
-  readonly symbol: string;
-  readonly color: TaskIndicatorColor;
-}
-
-export const getSpinnerIndicator = (tick: number): TaskIndicator => {
-  const frameIndex = tick % SPINNER_FRAMES.length;
-  return {
-    symbol: SPINNER_FRAMES[frameIndex] ?? SPINNER_FRAMES[0]!,
-    color: "yellow",
-  };
-};
-
-export const getTaskIndicator = (task: TaskSnapshot, tick: number): TaskIndicator => {
-  if (task.status === "running") {
-    return getSpinnerIndicator(tick);
-  }
-
-  if (task.status === "failed") {
-    return { symbol: "✗", color: "red" };
-  }
-
-  if (!isDeterminate(task)) {
-    return { symbol: "✓", color: "green" };
-  }
-
-  const { succeeded, failed, processed, total } = task.units;
-  if (failed === 0 && processed === total) {
-    return { symbol: "✓", color: "green" };
-  }
-  if (failed > 0 && succeeded > 0) {
-    return { symbol: "~", color: "yellow" };
-  }
-  if (failed > 0 && succeeded === 0) {
-    return { symbol: "✗", color: "red" };
-  }
-
-  return { symbol: "✓", color: "green" };
-};
 
 const formatDeterminateAmountParts = (task: TaskSnapshot): DeterminateAmountParts | undefined => {
   if (!isDeterminate(task)) {

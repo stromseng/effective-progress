@@ -1,3 +1,4 @@
+import cliSpinners from "cli-spinners";
 import { Box, Text, type DOMElement } from "ink";
 import { memo, useMemo, useRef } from "react";
 import type { TaskSnapshot } from "../../types";
@@ -5,7 +6,6 @@ import { useBoxMetrics } from "../hooks/use-box-metrics";
 import { useStickyWidth } from "../hooks/use-sticky-width";
 import { useRenderFrame } from "../render-frame-context";
 import { useSpinnerTick } from "../spinner-context";
-import { getSpinnerIndicator, getTaskIndicator } from "../shared/format";
 import type { ColumnMeasure } from "./layout-policy";
 
 const MIN_DESCRIPTION_WIDTH = 1;
@@ -13,6 +13,56 @@ const MIN_PLAIN_DESCRIPTION_WIDTH = 8;
 const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
 
 export type DescriptionVariant = "tree" | "plain" | "compact" | "spinner";
+type TaskIndicatorColor = "green" | "yellow" | "red";
+
+interface TaskIndicator {
+  readonly symbol: string;
+  readonly color: TaskIndicatorColor;
+}
+
+const SPINNER_FRAMES = cliSpinners.dots.frames;
+
+const isDeterminate = (
+  task: TaskSnapshot,
+): task is TaskSnapshot & { readonly units: TaskSnapshot["units"] & { readonly total: number } } =>
+  task.units.total !== undefined;
+
+const getSpinnerIndicator = (tick: number): TaskIndicator => ({
+  symbol:
+    SPINNER_FRAMES[
+      ((tick % SPINNER_FRAMES.length) + SPINNER_FRAMES.length) % SPINNER_FRAMES.length
+    ] ??
+    SPINNER_FRAMES[0] ??
+    "",
+  color: "yellow",
+});
+
+const getTaskIndicator = (task: TaskSnapshot, tick: number): TaskIndicator => {
+  if (task.status === "running") {
+    return getSpinnerIndicator(tick);
+  }
+
+  if (task.status === "failed") {
+    return { symbol: "✗", color: "red" };
+  }
+
+  if (!isDeterminate(task)) {
+    return { symbol: "✓", color: "green" };
+  }
+
+  const { succeeded, failed, processed, total } = task.units;
+  if (failed === 0 && processed === total) {
+    return { symbol: "✓", color: "green" };
+  }
+  if (failed > 0 && succeeded > 0) {
+    return { symbol: "~", color: "yellow" };
+  }
+  if (failed > 0 && succeeded === 0) {
+    return { symbol: "✗", color: "red" };
+  }
+
+  return { symbol: "✓", color: "green" };
+};
 
 const maxDescriptionWidth = (
   rows: ReturnType<typeof useRenderFrame>["rows"],

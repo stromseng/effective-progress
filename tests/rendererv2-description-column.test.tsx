@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { SpinnerName } from "cli-spinners";
 import { renderToString } from "ink";
 import { createElement } from "react";
 import stripAnsi from "strip-ansi";
@@ -63,10 +64,12 @@ const renderDescriptionColumn = (
   rows: ReadonlyArray<TaskRowModel>,
   terminalColumns: number,
   spinnerTick?: number,
+  spinnerType?: SpinnerName,
 ): string => {
   const Renderer = CreateProgressRenderer([
     createDescriptionColumn({
       minWidth: 1,
+      spinnerType,
       sticky: false,
     }),
   ]);
@@ -128,6 +131,22 @@ describe("rendererv2 description tree planning", () => {
 
     expect(output.includes("⠹ root")).toBeTrue();
     expect(output.includes("⠋ root")).toBeFalse();
+  });
+
+  test("renders the configured cli-spinners type", () => {
+    const rows = [
+      deriveRow(makeTask(1, "root", "running"), {
+        depth: 0,
+        hasChildren: false,
+        hasNextSibling: false,
+        ancestorHasNextSibling: [],
+      }),
+    ];
+
+    const output = renderDescriptionColumn(rows, 20, 1, "line");
+
+    expect(output.includes("\\ root")).toBeTrue();
+    expect(output.includes("⠙ root")).toBeFalse();
   });
 
   test("plans tree prefixes globally for the whole column", () => {

@@ -42,6 +42,7 @@
     "perf": "bun --cpu-prof --cpu-prof-md examples/v2/perf.tsx"
   },
   "dependencies": {
+    "cli-spinners": "^3.4.0",
     "fast-string-width": "^3.0.2",
     "ink": "^6.8.0",
     "ink-virtual-list": "^0.2.3",

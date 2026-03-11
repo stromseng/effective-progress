@@ -1,22 +1,91 @@
+import cliSpinners, { type SpinnerName } from "cli-spinners";
 import { Text } from "ink";
+import { useSpinnerTick } from "../../ink-renderer/spinner-context";
+import type { TaskSnapshot } from "../../types";
 import type {
   ProgressColumnDefinition,
   ProgressColumnMeasurement,
   ProgressColumnProps,
 } from "../public-api";
-import { TaskIndicatorGlyph } from "./task-indicator";
 
 export interface DescriptionColumnConfig {
   readonly minWidth: number;
+  readonly spinnerType: SpinnerName;
   readonly sticky: boolean;
   readonly stickyMaxWidth?: number;
 }
 
 const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
+type TaskIndicatorColor = "green" | "yellow" | "red";
+
+interface TaskIndicator {
+  readonly symbol: string;
+  readonly color: TaskIndicatorColor;
+}
+
 export const defaultDescriptionColumnConfig = {
   minWidth: 1,
+  spinnerType: "dots",
   sticky: true,
 } satisfies DescriptionColumnConfig;
+
+const isDeterminate = (
+  task: TaskSnapshot,
+): task is TaskSnapshot & { readonly units: TaskSnapshot["units"] & { readonly total: number } } =>
+  task.units.total !== undefined;
+
+const getSpinnerFrame = (tick: number, spinnerType: SpinnerName): string => {
+  const frames = cliSpinners[spinnerType].frames;
+  const frameIndex = ((tick % frames.length) + frames.length) % frames.length;
+  return frames[frameIndex] ?? frames[0] ?? "";
+};
+
+export const getTaskIndicator = (
+  task: TaskSnapshot,
+  tick: number,
+  spinnerType: SpinnerName = defaultDescriptionColumnConfig.spinnerType,
+): TaskIndicator => {
+  if (task.status === "running") {
+    return {
+      symbol: getSpinnerFrame(tick, spinnerType),
+      color: "yellow",
+    };
+  }
+
+  if (task.status === "failed") {
+    return { symbol: "✗", color: "red" };
+  }
+
+  if (!isDeterminate(task)) {
+    return { symbol: "✓", color: "green" };
+  }
+
+  const { succeeded, failed, processed, total } = task.units;
+  if (failed === 0 && processed === total) {
+    return { symbol: "✓", color: "green" };
+  }
+  if (failed > 0 && succeeded > 0) {
+    return { symbol: "~", color: "yellow" };
+  }
+  if (failed > 0 && succeeded === 0) {
+    return { symbol: "✗", color: "red" };
+  }
+
+  return { symbol: "✓", color: "green" };
+};
+
+export const TaskIndicatorGlyph = ({
+  task,
+  spinnerType = defaultDescriptionColumnConfig.spinnerType,
+}: {
+  readonly task: TaskSnapshot;
+  readonly spinnerType?: SpinnerName;
+}) => {
+  const tick = useSpinnerTick();
+  const indicator = getTaskIndicator(task, tick, spinnerType);
+
+  return <Text color={indicator.color}>{indicator.symbol}</Text>;
+};
 
 export const createDescriptionColumn = (
   config?: Partial<DescriptionColumnConfig>,
@@ -24,6 +93,7 @@ export const createDescriptionColumn = (
   const resolvedConfig = {
     ...defaultDescriptionColumnConfig,
     ...config,
+    spinnerType: config?.spinnerType ?? defaultDescriptionColumnConfig.spinnerType,
   } satisfies DescriptionColumnConfig;
   let minTreeWidth = MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2;
 
@@ -32,13 +102,13 @@ export const createDescriptionColumn = (
     const treePrefix = showTree ? row.derived.treePrefix : "";
 
     if (!showTree && width <= 1) {
-      return <TaskIndicatorGlyph task={row.task} />;
+      return <TaskIndicatorGlyph task={row.task} spinnerType={resolvedConfig.spinnerType} />;
     }
 
     if (!showTree && width === 2) {
       return (
         <Text wrap="truncate-end">
-          <TaskIndicatorGlyph task={row.task} />…
+          <TaskIndicatorGlyph task={row.task} spinnerType={resolvedConfig.spinnerType} />…
         </Text>
       );
     }
@@ -46,7 +116,7 @@ export const createDescriptionColumn = (
     return (
       <Text wrap="truncate-end">
         {treePrefix}
-        <TaskIndicatorGlyph task={row.task} />
+        <TaskIndicatorGlyph task={row.task} spinnerType={resolvedConfig.spinnerType} />
         {` ${row.task.description}`}
       </Text>
     );

@@ -44,7 +44,10 @@ const makeTask = (id: number): Progress.TaskSnapshot =>
     completedAt: 1_000,
   });
 
-const renderDescriptionList = (rows: ReadonlyArray<TaskRowModel>, terminalRows?: number): string => {
+const renderDescriptionList = (
+  rows: ReadonlyArray<TaskRowModel>,
+  terminalRows?: number,
+): string => {
   const Renderer = CreateProgressRenderer([
     createDescriptionColumn({
       minWidth: 1,

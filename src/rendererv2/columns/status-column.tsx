@@ -1,5 +1,5 @@
 import type { ProgressColumnDefinition, ProgressColumnProps } from "../public-api";
-import { TaskIndicatorGlyph } from "./task-indicator";
+import { TaskIndicatorGlyph } from "./description-column";
 
 export interface StatusColumnConfig {
   readonly width: number;
