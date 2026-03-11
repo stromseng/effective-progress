@@ -1,4 +1,5 @@
 import { Box, Text } from "ink";
+import type { ReactNode } from "react";
 import { isDeterminate } from "../../ink-renderer/shared/determinate";
 import { formatAmount } from "../../ink-renderer/shared/format";
 import { DEFAULT_BAR_WIDTH, percentText } from "../../ink-renderer/shared/progress";
@@ -22,20 +23,32 @@ const clamp = (value: number, min: number, max: number): number =>
 const progressAmountWidth = (rows: ReadonlyArray<ProgressColumnProps["row"]>): number =>
   rows.reduce((max, row) => Math.max(max, textWidth(formatAmount(row.task, 0))), 1);
 
-const renderProgressBar = (task: ProgressColumnProps["row"]["task"], width: number) => {
+const renderProgressBar = (
+  task: ProgressColumnProps["row"]["task"],
+  width: number,
+): ReactNode => {
   if (!isDeterminate(task)) {
-    return " ".repeat(Math.max(0, width));
+    return <Text>{` `.repeat(Math.max(0, width))}</Text>;
   }
 
-  const total = Math.max(task.units.total, task.units.processed);
-  if (total <= 0) {
-    return "━".repeat(Math.max(0, width));
-  }
+  const displayTotal = Math.max(task.units.total, task.units.succeeded + task.units.failed);
+  const succeededEnd =
+    displayTotal === 0 ? width : Math.round((task.units.succeeded / displayTotal) * width);
+  const failedEnd =
+    displayTotal === 0
+      ? width
+      : Math.round(((task.units.succeeded + task.units.failed) / displayTotal) * width);
+  const succeededLength = clamp(succeededEnd, 0, width);
+  const failedLength = clamp(failedEnd, succeededLength, width) - succeededLength;
+  const remainingLength = Math.max(0, width - succeededLength - failedLength);
 
-  const completed = clamp(Math.round((task.units.processed / total) * width), 0, width);
-  const remaining = Math.max(0, width - completed);
-
-  return `${"━".repeat(completed)}${"─".repeat(remaining)}`;
+  return (
+    <Text wrap="truncate-end">
+      <Text color="green">{"━".repeat(succeededLength)}</Text>
+      <Text color="red">{"━".repeat(failedLength)}</Text>
+      <Text color="gray">{"─".repeat(remainingLength)}</Text>
+    </Text>
+  );
 };
 
 export const defaultProgressColumnConfig = {

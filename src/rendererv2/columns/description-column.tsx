@@ -1,4 +1,5 @@
 import { Text } from "ink";
+import { getTaskIndicator } from "../../ink-renderer/shared/format";
 import type {
   ProgressColumnDefinition,
   ProgressColumnMeasurement,
@@ -17,31 +18,41 @@ const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
 export const createDescriptionColumn = (
   config: DescriptionColumnConfig,
 ): ProgressColumnDefinition => {
-  let minTreeWidth = MIN_TREE_DESCRIPTION_TEXT_WIDTH;
+  let minTreeWidth = MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2;
 
-  const Component = ({ row, width }: ProgressColumnProps) => {
+  const Component = ({ row, tick, width }: ProgressColumnProps) => {
     const showTree = width >= minTreeWidth;
-    const content = showTree
-      ? `${row.derived.treePrefix}${row.task.description}`
-      : row.task.description;
+    const treePrefix = showTree ? row.derived.treePrefix : "";
+    const indicator = getTaskIndicator(row.task, tick);
 
-    return <Text wrap="truncate-end">{content}</Text>;
+    return (
+      <Text wrap="truncate-end">
+        {treePrefix}
+        <Text color={indicator.color}>{indicator.symbol}</Text>
+        {` ${row.task.description}`}
+      </Text>
+    );
   };
 
   return {
     Component,
     measure: (rows: ReadonlyArray<ProgressColumnProps["row"]>): ProgressColumnMeasurement => {
+      const hasNestedRows = rows.some((row) => row.tree.depth > 0);
+
       minTreeWidth = rows.reduce(
         (max, row) =>
-          Math.max(max, row.derived.treePrefixWidth + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
-        MIN_TREE_DESCRIPTION_TEXT_WIDTH,
+          Math.max(max, row.derived.treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
+        MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2,
       );
 
       return {
         minWidth: config.minWidth,
-        preferredWidth: rows.reduce(
-          (max, row) => Math.max(max, row.derived.treePrefixedDescriptionWidth),
-          config.minWidth,
+        preferredWidth: Math.max(
+          rows.reduce(
+            (max, row) => Math.max(max, row.derived.treePrefixedDescriptionWidth + 2),
+            config.minWidth,
+          ),
+          hasNestedRows ? minTreeWidth : config.minWidth,
         ),
         maxWidth: undefined,
       };

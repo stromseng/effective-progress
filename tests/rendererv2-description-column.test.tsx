@@ -35,12 +35,16 @@ const deriveRow = (task: Progress.TaskSnapshot, tree: TaskRowModel["tree"]): Tas
   };
 };
 
-const makeTask = (id: number, description: string): Progress.TaskSnapshot =>
+const makeTask = (
+  id: number,
+  description: string,
+  status: Progress.TaskSnapshot["status"] = "done",
+): Progress.TaskSnapshot =>
   Progress.TaskSnapshot({
     id: Progress.TaskId(id),
     parentId: null,
     description,
-    status: "done",
+    status,
     countDisplay: "processedOnly",
     transient: false,
     units: {
@@ -50,7 +54,7 @@ const makeTask = (id: number, description: string): Progress.TaskSnapshot =>
       total: 1,
     },
     startedAt: 0,
-    completedAt: 1_000,
+    completedAt: status === "running" ? null : 1_000,
   });
 
 const renderDescriptionColumn = (
@@ -79,6 +83,29 @@ const renderDescriptionColumn = (
 };
 
 describe("rendererv2 description tree planning", () => {
+  test("renders the spinner after the tree prefix", () => {
+    const rows = [
+      deriveRow(makeTask(1, "root", "running"), {
+        depth: 0,
+        hasChildren: true,
+        hasNextSibling: false,
+        ancestorHasNextSibling: [],
+      }),
+      deriveRow(makeTask(2, "child", "running"), {
+        depth: 1,
+        hasChildren: false,
+        hasNextSibling: false,
+        ancestorHasNextSibling: [false],
+      }),
+    ];
+
+    const output = renderDescriptionColumn(rows, 20);
+
+    expect(output.includes("⠋ root")).toBeTrue();
+    expect(output.includes("└─ ⠋ child")).toBeTrue();
+    expect(output.includes("⠋ └─")).toBeFalse();
+  });
+
   test("plans tree prefixes globally for the whole column", () => {
     const rows = [
       deriveRow(makeTask(1, "root"), {

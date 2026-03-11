@@ -2,11 +2,11 @@ import { Effect, Logger } from "effect";
 import * as Progress from "../src";
 import { createDescriptionColumn } from "../src/rendererv2/columns/description-column";
 import { createElapsedColumn } from "../src/rendererv2/columns/elapsed-column";
+import { createEtaColumn } from "../src/rendererv2/columns/eta-column";
 import {
   createProgressColumn,
   defaultProgressColumnConfig,
 } from "../src/rendererv2/columns/progress-column";
-import { createStatusColumn } from "../src/rendererv2/columns/status-column";
 import { InkRenderer } from "../src/services/ink-renderer";
 import { createRendererv2InkRenderer } from "../src/rendererv2/ink-renderer";
 
@@ -24,16 +24,18 @@ const columns = [
     paddingRight: 2,
     sticky: true,
   }),
-  createStatusColumn({
-    width: 1,
-    paddingRight: 2,
-  }),
   createProgressColumn({
     ...defaultProgressColumnConfig,
   }),
   createElapsedColumn({
     minWidth: 2,
     justify: "right",
+    sticky: true,
+  }),
+  createEtaColumn({
+    minWidth: 0,
+    justify: "right",
+    paddingRight: 2,
     sticky: true,
   }),
 ];
