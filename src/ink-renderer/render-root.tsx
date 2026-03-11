@@ -1,7 +1,6 @@
-import { useSyncExternalStore } from "react";
 import { RootColumn } from "./columns/root-column";
 import type { ProgressRenderStore } from "./store";
-import { useRenderSnapshot } from "./store/use-render-snapshot";
+import { useProgressRenderView } from "./store/use-progress-render-view";
 
 interface ProgressRootProps {
   readonly store: ProgressRenderStore;
@@ -9,8 +8,7 @@ interface ProgressRootProps {
 }
 
 export const ProgressRoot = ({ store, getTerminalColumns }: ProgressRootProps) => {
-  const publication = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  const renderSnapshot = useRenderSnapshot(publication.snapshot);
+  const { renderSnapshot } = useProgressRenderView(store);
 
   return <RootColumn rows={renderSnapshot.rows} terminalColumns={getTerminalColumns()} />;
 };
