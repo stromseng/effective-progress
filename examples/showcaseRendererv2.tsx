@@ -1,22 +1,14 @@
 import { Effect, Logger } from "effect";
-import { Box, Text } from "ink";
 import * as Progress from "../src";
-import { isDeterminate } from "../src/ink-renderer/shared/determinate";
+import { createDescriptionColumn } from "../src/rendererv2/columns/description-column.sketch";
+import { createElapsedColumn } from "../src/rendererv2/columns/elapsed-column.sketch";
 import {
-  formatAmount,
-  formatElapsed,
-  getTaskIndicator,
-  getSpinnerIndicator,
-} from "../src/ink-renderer/shared/format";
-import { DEFAULT_BAR_WIDTH, percentText } from "../src/ink-renderer/shared/progress";
-import { textWidth } from "../src/ink-renderer/shared/text-width";
+  createProgressColumn,
+  defaultProgressColumnConfig,
+} from "../src/rendererv2/columns/progress-column.sketch";
+import { createStatusColumn } from "../src/rendererv2/columns/status-column.sketch";
 import { InkRenderer } from "../src/services/ink-renderer";
 import { createRendererv2InkRenderer } from "../src/rendererv2/ink-renderer.sketch";
-import type {
-  ProgressColumnDefinition,
-  ProgressColumnMeasurement,
-  ProgressColumnProps,
-} from "../src/rendererv2/public-api.sketch";
 
 const randomMillis = (base: number, jitter: number) =>
   Math.max(80, Math.round(base + (Math.random() * 2 - 1) * jitter));
@@ -26,175 +18,7 @@ const sleepRandom = (base: number, jitter: number) =>
 
 const stages = ["fetch", "transform", "persist"] as const;
 const services = ["identity", "catalog"] as const;
-
-const clamp = (value: number, min: number, max: number): number =>
-  Math.max(min, Math.min(max, value));
-
-const createDescriptionColumn = (config: {
-  readonly minWidth: number;
-  readonly paddingRight: number;
-  readonly sticky: boolean;
-  readonly stickyMaxWidth?: number;
-}): ProgressColumnDefinition => {
-  const Component = ({ row, width }: ProgressColumnProps) => {
-    const showTree = width >= row.derived.treePrefixWidth + 6;
-    const content = showTree
-      ? `${row.derived.treePrefix}${row.task.description}`
-      : row.task.description;
-
-    return <Text wrap="truncate-end">{content}</Text>;
-  };
-
-  return {
-    Component,
-    measure: (rows: ReadonlyArray<ProgressColumnProps["row"]>): ProgressColumnMeasurement => ({
-      minWidth: config.minWidth,
-      preferredWidth: rows.reduce(
-        (max, row) => Math.max(max, row.derived.treePrefixedDescriptionWidth),
-        config.minWidth,
-      ),
-      maxWidth: undefined,
-    }),
-    paddingRight: config.paddingRight,
-    noWrap: false,
-    sticky: config.sticky,
-    stickyMaxWidth: config.stickyMaxWidth,
-  };
-};
-
-const createStatusColumn = (config: {
-  readonly width: number;
-  readonly paddingRight: number;
-}): ProgressColumnDefinition => {
-  const Component = ({ row, tick }: ProgressColumnProps) => {
-    const indicator =
-      row.task.status === "running" ? getSpinnerIndicator(tick) : getTaskIndicator(row.task, tick);
-
-    return <Text color={indicator.color}>{indicator.symbol}</Text>;
-  };
-
-  return {
-    Component,
-    measure: () => ({
-      minWidth: config.width,
-      preferredWidth: config.width,
-      maxWidth: config.width,
-    }),
-    fixedWidth: config.width,
-    paddingRight: config.paddingRight,
-    noWrap: true,
-  };
-};
-
-const progressAmountWidth = (rows: ReadonlyArray<ProgressColumnProps["row"]>): number =>
-  rows.reduce((max, row) => Math.max(max, textWidth(formatAmount(row.task, 0))), 1);
-
-const renderProgressBar = (task: ProgressColumnProps["row"]["task"], width: number) => {
-  if (!isDeterminate(task)) {
-    return " ".repeat(Math.max(0, width));
-  }
-
-  const total = Math.max(task.units.total, task.units.processed);
-  if (total <= 0) {
-    return "━".repeat(Math.max(0, width));
-  }
-
-  const completed = clamp(Math.round((task.units.processed / total) * width), 0, width);
-  const remaining = Math.max(0, width - completed);
-
-  return `${"━".repeat(completed)}${"─".repeat(remaining)}`;
-};
-
-const createProgressColumn = (config: {
-  readonly minWidth: number;
-  readonly barWidth: number;
-  readonly paddingRight: number;
-  readonly sticky: boolean;
-}): ProgressColumnDefinition => {
-  const Component = ({ row, width }: ProgressColumnProps) => {
-    const amount = formatAmount(row.task, 0);
-    const percent = percentText(row.task);
-
-    if (width < 5) {
-      return <Text wrap="truncate-end">{percent}</Text>;
-    }
-
-    if (!row.derived.isDeterminate || width < textWidth(amount) + 6) {
-      return <Text wrap="truncate-end">{width >= textWidth(amount) ? amount : percent}</Text>;
-    }
-
-    const amountWidth = Math.min(textWidth(amount), Math.max(1, width - 5));
-    const barWidth = Math.max(4, width - amountWidth - 1);
-
-    if (barWidth + 1 + amountWidth > width) {
-      return <Text wrap="truncate-end">{amount}</Text>;
-    }
-
-    return (
-      <Box width={width}>
-        <Text wrap="truncate-end">{renderProgressBar(row.task, barWidth)}</Text>
-        <Text>{` `}</Text>
-        <Text wrap="truncate-end">{amount}</Text>
-      </Box>
-    );
-  };
-
-  return {
-    Component,
-    measure: (rows: ReadonlyArray<ProgressColumnProps["row"]>): ProgressColumnMeasurement => {
-      const amountWidth = progressAmountWidth(rows);
-      const percentWidth = rows.reduce(
-        (max, row) => Math.max(max, textWidth(percentText(row.task))),
-        3,
-      );
-      const hasDeterminateRows = rows.some((row) => row.derived.isDeterminate);
-      const preferredWidth = hasDeterminateRows
-        ? Math.max(percentWidth, amountWidth + 1 + config.barWidth)
-        : Math.max(percentWidth, amountWidth);
-
-      return {
-        minWidth: Math.min(percentWidth, config.minWidth),
-        preferredWidth,
-        maxWidth: preferredWidth,
-      };
-    },
-    paddingRight: config.paddingRight,
-    noWrap: false,
-    sticky: config.sticky,
-  };
-};
-
-const createElapsedColumn = (config: {
-  readonly minWidth: number;
-  readonly justify: "left" | "right";
-  readonly sticky: boolean;
-}): ProgressColumnDefinition => {
-  const Component = ({ row, now, width }: ProgressColumnProps) => (
-    <Text wrap="truncate-end" color="gray">
-      {formatElapsed(row.task, now).slice(0, Math.max(0, width))}
-    </Text>
-  );
-
-  return {
-    Component,
-    measure: (rows: ReadonlyArray<ProgressColumnProps["row"]>): ProgressColumnMeasurement => ({
-      minWidth: config.minWidth,
-      preferredWidth: rows.reduce(
-        (max, row) => Math.max(max, textWidth(formatElapsed(row.task, Date.now()))),
-        config.minWidth,
-      ),
-      maxWidth: rows.reduce(
-        (max, row) => Math.max(max, textWidth(formatElapsed(row.task, Date.now()))),
-        config.minWidth,
-      ),
-    }),
-    justify: config.justify,
-    noWrap: true,
-    sticky: config.sticky,
-  };
-};
-
-const columns: ReadonlyArray<ProgressColumnDefinition> = [
+const columns = [
   createDescriptionColumn({
     minWidth: 1,
     paddingRight: 2,
@@ -205,10 +29,7 @@ const columns: ReadonlyArray<ProgressColumnDefinition> = [
     paddingRight: 2,
   }),
   createProgressColumn({
-    minWidth: 4,
-    barWidth: DEFAULT_BAR_WIDTH,
-    paddingRight: 2,
-    sticky: true,
+    ...defaultProgressColumnConfig,
   }),
   createElapsedColumn({
     minWidth: 2,
