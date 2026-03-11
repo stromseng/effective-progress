@@ -1,6 +1,6 @@
 import cliSpinners from "cli-spinners";
 import { createContext, useContext, type ReactNode } from "react";
-import { useSpinnerClock } from "./hooks/use-spinner-clock";
+import { useSpinnerClock } from "../hooks/use-spinner-clock";
 
 const DEFAULT_SPINNER_INTERVAL_MILLIS = cliSpinners.dots.interval;
 

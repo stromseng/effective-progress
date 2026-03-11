@@ -1,19 +1,19 @@
 import { Text } from "ink";
-import { useNow } from "../../ink-renderer/now-context";
-import { formatElapsed } from "../../ink-renderer/shared/format";
-import { textWidth } from "../../ink-renderer/shared/text-width";
+import { useNow } from "../context/now-context";
+import { formatElapsed } from "../shared/format";
+import { textWidth } from "../shared/text-width";
 import type {
   ProgressColumnDefinition,
   ProgressColumnMeasurement,
   ProgressColumnProps,
 } from "../public-api";
 
-export interface ElapsedColumnConfig {
+interface ElapsedColumnConfig {
   readonly minWidth: number;
   readonly justify: "left" | "right";
   readonly sticky: boolean;
 }
-export const defaultElapsedColumnConfig = {
+const defaultElapsedColumnConfig = {
   minWidth: 2,
   justify: "right",
   sticky: true,

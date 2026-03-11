@@ -1,11 +1,5 @@
 import { Effect, Logger } from "effect";
 import * as Progress from "../../src";
-import { createDescriptionColumn } from "../../src/rendererv2/columns/description-column";
-import { createElapsedColumn } from "../../src/rendererv2/columns/elapsed-column";
-import { createEtaColumn } from "../../src/rendererv2/columns/eta-column";
-import { createProgressColumn } from "../../src/rendererv2/columns/progress-column";
-import { InkRenderer } from "../../src/services/ink-renderer";
-import { createRendererv2InkRenderer } from "../../src/rendererv2/ink-renderer";
 
 const randomMillis = (base: number, jitter: number) =>
   Math.max(80, Math.round(base + (Math.random() * 2 - 1) * jitter));
@@ -15,12 +9,6 @@ const sleepRandom = (base: number, jitter: number) =>
 
 const stages = ["fetch", "transform", "persist"] as const;
 const services = ["identity", "catalog"] as const;
-const columns = [
-  createDescriptionColumn(),
-  createProgressColumn(),
-  createElapsedColumn(),
-  createEtaColumn(),
-];
 
 const serviceFlow = (service: string, serviceIndex: number) =>
   Effect.gen(function* () {
@@ -92,8 +80,4 @@ const program = Effect.gen(function* () {
   );
 }).pipe(Progress.task({ description: "Showcase program", transient: false }));
 
-const renderer = createRendererv2InkRenderer(columns);
-
-Effect.runPromise(
-  program.pipe(Effect.provideService(InkRenderer, renderer), Effect.provide(Logger.pretty)),
-);
+Effect.runPromise(program.pipe(Effect.provide(Logger.pretty)));

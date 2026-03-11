@@ -1,7 +1,7 @@
 import { Box, Text } from "ink";
-import { useNow } from "../../ink-renderer/now-context";
-import { formatEta } from "../../ink-renderer/shared/format";
-import { textWidth } from "../../ink-renderer/shared/text-width";
+import { useNow } from "../context/now-context";
+import { formatEta } from "../shared/format";
+import { textWidth } from "../shared/text-width";
 import type {
   ProgressColumnDefinition,
   ProgressColumnMeasurement,
@@ -57,12 +57,12 @@ const renderEtaText = (row: ProgressColumnProps["row"], now: number, width: numb
   };
 };
 
-export interface EtaColumnConfig {
+interface EtaColumnConfig {
   readonly minWidth: number;
   readonly justify: "left" | "right";
   readonly sticky: boolean;
 }
-export const defaultEtaColumnConfig = {
+const defaultEtaColumnConfig = {
   minWidth: 3,
   justify: "right",
   sticky: true,

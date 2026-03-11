@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import * as Progress from "../src";
-import { formatAmount, getDeterminateProcessedColor } from "../src/ink-renderer/shared/format";
 import { getTaskIndicator } from "../src/rendererv2/columns/description-column";
+import { formatAmount, getDeterminateProcessedColor } from "../src/rendererv2/shared/format";
 
 const makeTask = (
   units: Progress.TaskSnapshot["units"],

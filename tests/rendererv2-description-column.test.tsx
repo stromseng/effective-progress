@@ -4,11 +4,11 @@ import { renderToString } from "ink";
 import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
-import { NowProvider } from "../src/ink-renderer/now-context";
-import { SpinnerProvider } from "../src/ink-renderer/spinner-context";
 import { createDescriptionColumn } from "../src/rendererv2/columns/description-column";
+import { NowProvider } from "../src/rendererv2/context/now-context";
 import { CreateProgressRenderer } from "../src/rendererv2/public-api";
-import type { TaskRowModel } from "../src/ink-renderer/store/types";
+import { SpinnerProvider } from "../src/rendererv2/context/spinner-context";
+import type { TaskRowModel } from "../src/rendererv2/store/types";
 
 const treePrefix = (tree: TaskRowModel["tree"]): string => {
   if (tree.depth <= 0) {

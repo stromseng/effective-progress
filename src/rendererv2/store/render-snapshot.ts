@@ -1,6 +1,6 @@
 import type { TaskStore } from "../../types";
-import type { OrderedTask, TaskRowModel } from "./types";
 import { textWidth } from "../shared/text-width";
+import type { OrderedTask, TaskRowModel } from "./types";
 
 const orderedVisibleTasks = (store: TaskStore): ReadonlyArray<OrderedTask> =>
   store.renderOrder.flatMap((row) => {
@@ -138,7 +138,11 @@ const computeTreeInfo = (
 
     ancestorStateByDepth[depth] = hasNextSiblingByIndex[index] ?? false;
 
-    if (previousRow !== undefined && previousRow.task === entry.snapshot && sameTree(previousRow.tree, tree)) {
+    if (
+      previousRow !== undefined &&
+      previousRow.task === entry.snapshot &&
+      sameTree(previousRow.tree, tree)
+    ) {
       return previousRow;
     }
 

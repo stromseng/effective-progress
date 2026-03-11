@@ -49,7 +49,6 @@ const sanitizeTotalOnAdd = (total: number | undefined) => {
     return undefined;
   }
 
-  // Negative totals are treated as "unknown total" from the start.
   return total < 0 ? undefined : total;
 };
 
@@ -58,7 +57,6 @@ const sanitizeTotalOnUpdate = (nextTotal: number | undefined) => {
     return undefined;
   }
 
-  // A negative update also clears the total back to indeterminate.
   return nextTotal < 0 ? undefined : nextTotal;
 };
 
@@ -66,7 +64,6 @@ const normalizeUnits = (counts: TaskCounts) => {
   const succeeded = Math.max(0, counts.succeeded);
   const failed = Math.max(0, counts.failed);
 
-  // Keep raw overflow counts in state; the bar clamps only at render time.
   return counts.total === undefined
     ? {
         succeeded,

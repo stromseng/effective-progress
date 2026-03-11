@@ -1,14 +1,14 @@
 import cliSpinners, { type SpinnerName } from "cli-spinners";
 import { Text } from "ink";
-import { useSpinnerTick } from "../../ink-renderer/spinner-context";
 import type { TaskSnapshot } from "../../types";
+import { useSpinnerTick } from "../context/spinner-context";
 import type {
   ProgressColumnDefinition,
   ProgressColumnMeasurement,
   ProgressColumnProps,
 } from "../public-api";
 
-export interface DescriptionColumnConfig {
+interface DescriptionColumnConfig {
   readonly minWidth: number;
   readonly spinnerType: SpinnerName;
   readonly sticky: boolean;
@@ -23,7 +23,7 @@ interface TaskIndicator {
   readonly color: TaskIndicatorColor;
 }
 
-export const defaultDescriptionColumnConfig = {
+const defaultDescriptionColumnConfig = {
   minWidth: 1,
   spinnerType: "dots",
   sticky: true,
@@ -74,7 +74,7 @@ export const getTaskIndicator = (
   return { symbol: "✓", color: "green" };
 };
 
-export const TaskIndicatorGlyph = ({
+const TaskIndicatorGlyph = ({
   task,
   spinnerType = defaultDescriptionColumnConfig.spinnerType,
 }: {

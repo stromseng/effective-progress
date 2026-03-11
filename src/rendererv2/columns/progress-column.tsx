@@ -1,16 +1,16 @@
 import { Box, Text } from "ink";
 import type { ReactNode } from "react";
-import { isDeterminate } from "../../ink-renderer/shared/determinate";
-import { formatAmount } from "../../ink-renderer/shared/format";
-import { DEFAULT_BAR_WIDTH, percentText } from "../../ink-renderer/shared/progress";
-import { textWidth } from "../../ink-renderer/shared/text-width";
+import { isDeterminate } from "../shared/determinate";
+import { formatAmount } from "../shared/format";
+import { DEFAULT_BAR_WIDTH, percentText } from "../shared/progress";
+import { textWidth } from "../shared/text-width";
 import type {
   ProgressColumnDefinition,
   ProgressColumnMeasurement,
   ProgressColumnProps,
 } from "../public-api";
 
-export interface ProgressColumnConfig {
+interface ProgressColumnConfig {
   readonly minWidth: number;
   readonly barWidth: number;
   readonly sticky: boolean;

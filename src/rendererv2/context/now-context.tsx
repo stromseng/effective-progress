@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react";
-import { useNowClock } from "./hooks/use-now-clock";
+import { useNowClock } from "../hooks/use-now-clock";
 
 const NOW_INTERVAL_MILLIS = 1_000;
 

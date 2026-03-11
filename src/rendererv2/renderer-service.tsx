@@ -1,12 +1,11 @@
 import { Effect } from "effect";
 import { render } from "ink";
-import { NowProvider } from "../ink-renderer/now-context";
-import { SpinnerProvider } from "../ink-renderer/spinner-context";
-import type { ProgressRenderStore } from "../ink-renderer/store";
-import { useProgressRenderView } from "../ink-renderer/store/use-progress-render-view";
-import { InkRenderer } from "../services/ink-renderer";
 import type { ProgressStdioService } from "../services/stdio";
+import { NowProvider } from "./context/now-context";
 import { CreateProgressRenderer, type ProgressColumnDefinition } from "./public-api";
+import { SpinnerProvider } from "./context/spinner-context";
+import type { ProgressRenderStore } from "./store";
+import { useProgressRenderView } from "./store/use-progress-render-view";
 
 const MAX_FPS = 24;
 
@@ -38,10 +37,12 @@ const CreateProgressRoot = (columns: ReadonlyArray<ProgressColumnDefinition>) =>
   };
 };
 
-export const createRendererv2InkRenderer = (columns: ReadonlyArray<ProgressColumnDefinition>) => {
+export const makeRendererv2InkRendererService = (
+  columns: ReadonlyArray<ProgressColumnDefinition>,
+) => {
   const ProgressRoot = CreateProgressRoot(columns);
 
-  return InkRenderer.of({
+  return {
     run: (store: ProgressRenderStore, stdio: ProgressStdioService, isTTY: boolean) => {
       const proot = (
         <ProgressRoot
@@ -76,5 +77,5 @@ export const createRendererv2InkRenderer = (columns: ReadonlyArray<ProgressColum
         ),
       );
     },
-  });
+  };
 };

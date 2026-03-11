@@ -3,10 +3,10 @@ import { renderToString } from "ink";
 import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
-import { NowProvider } from "../src/ink-renderer/now-context";
 import { createDescriptionColumn } from "../src/rendererv2/columns/description-column";
+import { NowProvider } from "../src/rendererv2/context/now-context";
 import { CreateProgressRenderer } from "../src/rendererv2/public-api";
-import type { TaskRowModel } from "../src/ink-renderer/store/types";
+import type { TaskRowModel } from "../src/rendererv2/store/types";
 
 const deriveRow = (task: Progress.TaskSnapshot): TaskRowModel => ({
   task,
@@ -84,12 +84,6 @@ describe("rendererv2 virtual list", () => {
     const rows = Array.from({ length: 12 }, (_, index) => deriveRow(makeTask(index + 1)));
     const output = renderDescriptionList(rows, 5);
 
-    expect(output.split("\n")).toEqual([
-      "✓ task-8",
-      "✓ task-9",
-      "✓ task-10",
-      "✓ task-11",
-      "✓ task-12",
-    ]);
+    expect(output.split("\n")).toEqual(["  ▲ 9 more", "✓ task-10", "✓ task-11", "✓ task-12"]);
   });
 });

@@ -1,15 +1,8 @@
 import { VirtualList } from "ink-virtual-list";
 import { Box } from "ink";
-import {
-  memo,
-  useEffect,
-  useMemo,
-  useRef,
-  type FunctionComponent,
-  type ReactElement,
-} from "react";
-import { useNow } from "../ink-renderer/now-context";
-import type { TaskRowModel } from "../ink-renderer/store/types";
+import { memo, useEffect, useMemo, useRef, type FunctionComponent, type ReactElement } from "react";
+import { useNow } from "./context/now-context";
+import type { TaskRowModel } from "./store/types";
 import { planColumnLayout } from "./width-allocator";
 import { RENDERER_COLUMN_GAP } from "./width-allocator";
 
@@ -44,7 +37,7 @@ export interface ProgressColumnDefinition {
   readonly stickyMaxWidth?: number;
 }
 
-export interface ProgressRendererProps {
+interface ProgressRendererProps {
   readonly rows: ReadonlyArray<TaskRowModel>;
   readonly terminalColumns?: number;
   readonly terminalRows?: number;

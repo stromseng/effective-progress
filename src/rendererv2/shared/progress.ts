@@ -1,6 +1,6 @@
 import type { TaskSnapshot } from "../../types";
-import { formatAmount } from "./format";
 import { isDeterminate } from "./determinate";
+import { formatAmount } from "./format";
 
 export const DEFAULT_BAR_WIDTH = 30;
 

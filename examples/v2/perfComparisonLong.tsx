@@ -1,7 +1,5 @@
 import { Console, Effect } from "effect";
 import * as Progress from "../../src";
-import { InkRenderer } from "../../src/services/ink-renderer";
-import { rendererv2Renderer } from "./shared";
 
 const WORKERS = 16;
 const BATCHES_PER_WORKER = 8;
@@ -99,7 +97,7 @@ const progressProgram = Effect.gen(function* () {
 const progressRun = Progress.task(progressProgram, {
   description: "Long performance run",
   transient: false,
-}).pipe(Effect.provideService(InkRenderer, rendererv2Renderer));
+});
 
 console.log("Running bare (no Progress)...\n");
 const bareStart = performance.now();

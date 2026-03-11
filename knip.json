@@ -1,5 +1,17 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["examples/**/*.ts", "examples/**/*.tsx", "tests/**/*.ts"],
-  "project": ["examples/**/*.ts", "examples/**/*.tsx", "tests/**/*.ts"]
+  "entry": [
+    "examples/**/*.ts",
+    "examples/**/*.tsx",
+    "tests/**/*.ts",
+    "tests/**/*.tsx"
+  ],
+  "project": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "examples/**/*.ts",
+    "examples/**/*.tsx",
+    "tests/**/*.ts",
+    "tests/**/*.tsx"
+  ]
 }

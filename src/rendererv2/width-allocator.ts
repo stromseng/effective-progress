@@ -1,4 +1,4 @@
-import type { TaskRowModel } from "../ink-renderer/store/types";
+import type { TaskRowModel } from "./store/types";
 import type { ProgressColumnDefinition, ProgressColumnMeasureContext } from "./public-api";
 
 interface NormalizedColumnMeasurement {
@@ -10,7 +10,7 @@ interface NormalizedColumnMeasurement {
   readonly stickyLimit?: number;
 }
 
-export interface PlannedColumn {
+interface PlannedColumn {
   readonly definition: ProgressColumnDefinition;
   readonly width: number;
 }
