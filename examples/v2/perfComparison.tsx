@@ -1,7 +1,7 @@
 import { Console, Effect } from "effect";
 import * as Progress from "../../src";
 import { InkRenderer } from "../../src/services/ink-renderer";
-import { rendererv2Renderer } from "./sharedRendererv2";
+import { rendererv2Renderer } from "./shared";
 
 const WORKERS = 16;
 const BATCHES_PER_WORKER = 8;
