@@ -1,3 +1,4 @@
+import { VirtualList } from "ink-virtual-list";
 import { Box } from "ink";
 import { useEffect, useMemo, useRef, type FunctionComponent, type ReactElement } from "react";
 import { useNow } from "../ink-renderer/now-context";
@@ -38,12 +39,13 @@ export interface ProgressColumnDefinition {
 export interface ProgressRendererProps {
   readonly rows: ReadonlyArray<TaskRowModel>;
   readonly terminalColumns?: number;
+  readonly terminalRows?: number;
 }
 
 export const CreateProgressRenderer = (
   columns: ReadonlyArray<ProgressColumnDefinition>,
 ): ((props: ProgressRendererProps) => ReactElement | null) => {
-  return ({ rows, terminalColumns }: ProgressRendererProps) => {
+  return ({ rows, terminalColumns, terminalRows }: ProgressRendererProps) => {
     const stickyWidthsRef = useRef(new Map<number, number>());
     const now = useNow();
 
@@ -64,35 +66,36 @@ export const CreateProgressRenderer = (
     }
 
     return (
-      <Box flexDirection="row" width={terminalColumns} columnGap={RENDERER_COLUMN_GAP}>
-        {layout.columns.map((column, columnIndex) => {
-          const Component = column.definition.Component;
+      <VirtualList
+        items={rows as Array<TaskRowModel>} // readonly not compatible, so we have to cast
+        keyExtractor={(row) => `${row.task.id as number}`}
+        selectedIndex={Math.max(0, rows.length - 1)}
+        height={terminalRows ?? "auto"}
+        itemHeight={1}
+        showOverflowIndicators={true}
+        renderItem={({ item: row, index: rowIndex }) => (
+          <Box flexDirection="row" width={terminalColumns} columnGap={RENDERER_COLUMN_GAP}>
+            {layout.columns.map((column, columnIndex) => {
+              const Component = column.definition.Component;
 
-          return (
-            <Box
-              key={columnIndex}
-              flexDirection="column"
-              width={column.width}
-              minWidth={column.width}
-              flexBasis={column.width}
-              flexGrow={0}
-              flexShrink={0}
-            >
-              {rows.map((row, rowIndex) => (
+              return (
                 <Box
-                  key={row.task.id as number}
+                  key={columnIndex}
                   height={1}
                   width={column.width}
                   minWidth={column.width}
+                  flexBasis={column.width}
+                  flexGrow={0}
+                  flexShrink={0}
                   justifyContent={column.definition.justify === "right" ? "flex-end" : "flex-start"}
                 >
                   <Component row={row} rowIndex={rowIndex} width={column.width} />
                 </Box>
-              ))}
-            </Box>
-          );
-        })}
-      </Box>
+              );
+            })}
+          </Box>
+        )}
+      />
     );
   };
 };

@@ -16,9 +16,11 @@ const CreateProgressRoot = (columns: ReadonlyArray<ProgressColumnDefinition>) =>
   return ({
     store,
     getTerminalColumns,
+    getTerminalRows,
   }: {
     readonly store: ProgressRenderStore;
     readonly getTerminalColumns: () => number | undefined;
+    readonly getTerminalRows: () => number | undefined;
   }) => {
     const publication = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 
@@ -28,6 +30,7 @@ const CreateProgressRoot = (columns: ReadonlyArray<ProgressColumnDefinition>) =>
           <ProgressRenderer
             rows={publication.snapshot.rows}
             terminalColumns={getTerminalColumns()}
+            terminalRows={getTerminalRows()}
           />
         </NowProvider>
       </SpinnerProvider>
@@ -45,6 +48,7 @@ export const createRendererv2InkRenderer = (columns: ReadonlyArray<ProgressColum
           <ProgressRoot
             store={store}
             getTerminalColumns={() => (isTTY ? stdio.stderr.columns : undefined)}
+            getTerminalRows={() => (isTTY ? stdio.stderr.rows : undefined)}
           />,
           {
             stdout: stdio.stdout,
@@ -53,7 +57,6 @@ export const createRendererv2InkRenderer = (columns: ReadonlyArray<ProgressColum
             exitOnCtrlC: false,
             debug: false,
             maxFps: MAX_FPS,
-            incrementalRendering: false,
           },
         ),
       ).pipe(
