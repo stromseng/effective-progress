@@ -39,7 +39,7 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "check": "bun run typecheck && bun run lint && bun run format:check && knip",
-    "perf": "bun --cpu-prof --cpu-prof-md examples/v2/perf.tsx"
+    "perf": "bun --cpu-prof --cpu-prof-md examples/performance.ts"
   },
   "dependencies": {
     "cli-spinners": "^3.4.0",

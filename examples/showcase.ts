@@ -14,8 +14,7 @@ const serviceFlow = (service: string, serviceIndex: number) =>
   Effect.gen(function* () {
     yield* Effect.logInfo(`${service}: pipeline started`);
 
-    // Spinner: unknown duration external dependency.
-    yield* Progress.forEach([service], () => sleepRandom(1400, 450), {
+    yield* Progress.task(sleepRandom(1400, 450), {
       description: `${service}: waiting for upstream`,
       transient: true,
     });
@@ -25,20 +24,17 @@ const serviceFlow = (service: string, serviceIndex: number) =>
         Effect.gen(function* () {
           const batch = batchIndex + 1;
 
-          yield* Progress.forEach(stages, (_) => sleepRandom(950, 280), {
+          yield* Progress.forEach(stages, () => sleepRandom(950, 280), {
             description: `${service}: batch ${batch} stages`,
           });
 
-          // Spinner: optional remote consistency probe with unknown duration.
-          yield* Progress.forEach(
-            ["probe"],
-            () =>
-              Effect.gen(function* () {
-                yield* sleepRandom(1600, 500);
-                if (serviceIndex === 0 && batch === 2) {
-                  yield* Effect.logWarning("One consistency probe was slower than expected");
-                }
-              }),
+          yield* Progress.task(
+            Effect.gen(function* () {
+              yield* sleepRandom(1600, 500);
+              if (serviceIndex === 0 && batch === 2) {
+                yield* Effect.logWarning("One consistency probe was slower than expected");
+              }
+            }),
             {
               description: `${service} probe`,
               transient: true,
@@ -74,8 +70,6 @@ const program = Effect.gen(function* () {
         yield* sleepRandom(1100, 300);
         if (index === 2) {
           yield* Effect.logInfo("Webhook dispatch queued for async confirmation");
-        }
-        if (index === 2) {
           yield* Effect.logInfo(`Post-step complete: ${step}`);
         }
       }),

@@ -10,26 +10,6 @@ const BURST_LOG_LINES = 300;
 
 const stepSleep = "1 millis";
 
-const runWorkerBare = (worker: number) =>
-  Effect.forEach(
-    Array.from({ length: BATCHES_PER_WORKER }, (_, i) => i + 1),
-    (batch) =>
-      Effect.forEach(
-        Array.from({ length: STEPS_PER_BATCH }, (_, i) => i + 1),
-        (step) =>
-          Effect.gen(function* () {
-            yield* Effect.sleep(stepSleep);
-            if (step % 20 === 0) {
-              yield* Console.log(
-                `worker-${worker} batch-${batch}: completed step ${step}/${STEPS_PER_BATCH}`,
-              );
-            }
-          }),
-        { concurrency: 1, discard: true },
-      ),
-    { concurrency: BATCH_CONCURRENCY, discard: true },
-  ).pipe(Effect.tap(() => Console.log(`worker-${worker}: done`)));
-
 const runWorkerProgress = (worker: number) =>
   Progress.forEach(
     Array.from({ length: BATCHES_PER_WORKER }, (_, i) => i + 1),
@@ -55,24 +35,6 @@ const runWorkerProgress = (worker: number) =>
     },
   ).pipe(Effect.tap(() => Console.log(`worker-${worker}: done`)));
 
-// --- Bare run (no Progress) ---
-const bareProgram = Effect.gen(function* () {
-  yield* Effect.forEach(
-    Array.from({ length: BURST_LOG_LINES }, (_, i) => i + 1),
-    (line) => Console.log(`warmup log ${line}/${BURST_LOG_LINES}`),
-    { discard: true },
-  );
-
-  yield* Effect.forEach(
-    Array.from({ length: WORKERS }, (_, i) => i + 1),
-    (worker) => runWorkerBare(worker),
-    { concurrency: WORKER_CONCURRENCY, discard: true },
-  );
-
-  yield* Console.log("Performance stress example complete.");
-});
-
-// --- Progress run ---
 const progressProgram = Effect.gen(function* () {
   const progress = yield* Progress.Progress;
 
@@ -101,21 +63,4 @@ const progressRun = Progress.task(progressProgram, {
   transient: false,
 });
 
-// --- Run both and compare ---
-console.log("Running bare (no Progress)...\n");
-const bareStart = performance.now();
-await Effect.runPromise(bareProgram);
-const bareMillis = performance.now() - bareStart;
-
-console.log("\nRunning with Progress...\n");
-const progressStart = performance.now();
 await Effect.runPromise(progressRun);
-const progressMillis = performance.now() - progressStart;
-
-const overheadMillis = progressMillis - bareMillis;
-const overheadPercent = ((overheadMillis / bareMillis) * 100).toFixed(1);
-
-console.log("\nPerformance comparison");
-console.log(`- bare (no Progress):  ${(bareMillis / 1000).toFixed(3)} s`);
-console.log(`- with Progress:       ${(progressMillis / 1000).toFixed(3)} s`);
-console.log(`- overhead:            ${(overheadMillis / 1000).toFixed(3)} s (${overheadPercent}%)`);

@@ -1,5 +1,5 @@
 import { Console, Effect } from "effect";
-import * as Progress from "../../src";
+import * as Progress from "../src";
 
 const WORKERS = 16;
 const BATCHES_PER_WORKER = 8;
@@ -104,7 +104,7 @@ const bareStart = performance.now();
 await Effect.runPromise(bareProgram);
 const bareMillis = performance.now() - bareStart;
 
-console.log("\nRunning with Progress using renderer v2...\n");
+console.log("\nRunning with Progress...\n");
 const progressStart = performance.now();
 await Effect.runPromise(progressRun);
 const progressMillis = performance.now() - progressStart;
@@ -114,5 +114,5 @@ const overheadPercent = ((overheadMillis / bareMillis) * 100).toFixed(1);
 
 console.log("\nPerformance comparison");
 console.log(`- bare (no Progress):  ${(bareMillis / 1000).toFixed(3)} s`);
-console.log(`- with Progress v2:    ${(progressMillis / 1000).toFixed(3)} s`);
+console.log(`- with Progress:       ${(progressMillis / 1000).toFixed(3)} s`);
 console.log(`- overhead:            ${(overheadMillis / 1000).toFixed(3)} s (${overheadPercent}%)`);
