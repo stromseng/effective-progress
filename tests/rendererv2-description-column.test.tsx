@@ -67,7 +67,6 @@ const renderDescriptionColumn = (
   const Renderer = CreateProgressRenderer([
     createDescriptionColumn({
       minWidth: 1,
-      paddingRight: 0,
       sticky: false,
     }),
   ]);

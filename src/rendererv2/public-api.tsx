@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, type FunctionComponent, type ReactElement }
 import { useNow } from "../ink-renderer/now-context";
 import type { TaskRowModel } from "../ink-renderer/store/types";
 import { planColumnLayout } from "./width-allocator";
+import { RENDERER_COLUMN_GAP } from "./width-allocator";
 
 export interface ProgressColumnMeasurement {
   readonly minWidth: number;
@@ -30,7 +31,6 @@ export interface ProgressColumnDefinition {
   readonly noWrap?: boolean;
   readonly justify?: "left" | "right";
   readonly overflow?: "ellipsis" | "crop";
-  readonly paddingRight?: number;
   readonly sticky?: boolean;
   readonly stickyMaxWidth?: number;
 }
@@ -64,7 +64,7 @@ export const CreateProgressRenderer = (
     }
 
     return (
-      <Box flexDirection="row" width={terminalColumns}>
+      <Box flexDirection="row" width={terminalColumns} columnGap={RENDERER_COLUMN_GAP}>
         {layout.columns.map((column, columnIndex) => {
           const Component = column.definition.Component;
 
@@ -77,7 +77,6 @@ export const CreateProgressRenderer = (
               flexBasis={column.width}
               flexGrow={0}
               flexShrink={0}
-              marginRight={column.paddingRight}
             >
               {rows.map((row, rowIndex) => (
                 <Box
@@ -87,11 +86,7 @@ export const CreateProgressRenderer = (
                   minWidth={column.width}
                   justifyContent={column.definition.justify === "right" ? "flex-end" : "flex-start"}
                 >
-                  <Component
-                    row={row}
-                    rowIndex={rowIndex}
-                    width={column.width}
-                  />
+                  <Component row={row} rowIndex={rowIndex} width={column.width} />
                 </Box>
               ))}
             </Box>

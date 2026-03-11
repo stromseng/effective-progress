@@ -8,7 +8,6 @@ import { TaskIndicatorGlyph } from "./task-indicator";
 
 export interface DescriptionColumnConfig {
   readonly minWidth: number;
-  readonly paddingRight: number;
   readonly sticky: boolean;
   readonly stickyMaxWidth?: number;
 }
@@ -23,6 +22,19 @@ export const createDescriptionColumn = (
   const Component = ({ row, width }: ProgressColumnProps) => {
     const showTree = width >= minTreeWidth;
     const treePrefix = showTree ? row.derived.treePrefix : "";
+
+    if (!showTree && width <= 1) {
+      return <TaskIndicatorGlyph task={row.task} />;
+    }
+
+    if (!showTree && width === 2) {
+      return (
+        <Text wrap="truncate-end">
+          <TaskIndicatorGlyph task={row.task} />
+          …
+        </Text>
+      );
+    }
 
     return (
       <Text wrap="truncate-end">
@@ -56,7 +68,6 @@ export const createDescriptionColumn = (
         maxWidth: undefined,
       };
     },
-    paddingRight: config.paddingRight,
     noWrap: false,
     sticky: config.sticky,
     stickyMaxWidth: config.stickyMaxWidth,

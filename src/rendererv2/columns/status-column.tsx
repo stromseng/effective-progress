@@ -3,7 +3,6 @@ import { TaskIndicatorGlyph } from "./task-indicator";
 
 export interface StatusColumnConfig {
   readonly width: number;
-  readonly paddingRight: number;
 }
 
 export const createStatusColumn = (config: StatusColumnConfig): ProgressColumnDefinition => {
@@ -17,7 +16,6 @@ export const createStatusColumn = (config: StatusColumnConfig): ProgressColumnDe
       maxWidth: config.width,
     }),
     fixedWidth: config.width,
-    paddingRight: config.paddingRight,
     noWrap: true,
   };
 };

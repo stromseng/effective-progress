@@ -44,7 +44,9 @@ export const ColumnsLayout = ({ terminalColumns }: ColumnsLayoutProps) => {
       return 0;
     }
 
-    return measures.slice(currentIndex + 1).some((measure) => (assignedWidths.get(measure.id) ?? 0) > 0)
+    return measures
+      .slice(currentIndex + 1)
+      .some((measure) => (assignedWidths.get(measure.id) ?? 0) > 0)
       ? COLUMN_GAP
       : 0;
   };
@@ -65,9 +67,7 @@ export const ColumnsLayout = ({ terminalColumns }: ColumnsLayoutProps) => {
         assignedWidth={assignedWidths.get("elapsed")}
         marginRight={marginRightFor("elapsed")}
       />
-      {showEtaColumn ? (
-        <EtaColumn assignedWidth={assignedWidths.get("eta")} />
-      ) : null}
+      {showEtaColumn ? <EtaColumn assignedWidth={assignedWidths.get("eta")} /> : null}
     </Box>
   );
 };

@@ -6,7 +6,6 @@ interface NormalizedColumnMeasurement {
   readonly minWidth: number;
   readonly maxWidth?: number;
   readonly preferredWidth: number;
-  readonly paddingRight: number;
   readonly sticky: boolean;
   readonly stickyLimit?: number;
 }
@@ -14,13 +13,14 @@ interface NormalizedColumnMeasurement {
 export interface PlannedColumn {
   readonly definition: ProgressColumnDefinition;
   readonly width: number;
-  readonly paddingRight: number;
 }
 
 interface PlannedColumnLayout {
   readonly columns: ReadonlyArray<PlannedColumn>;
   readonly nextStickyWidths: Map<number, number>;
 }
+
+export const RENDERER_COLUMN_GAP = 1;
 
 const clampWidth = (width: number, minWidth: number, maxWidth?: number): number =>
   maxWidth === undefined
@@ -39,7 +39,6 @@ const normalizeMeasurement = (
       minWidth: width,
       maxWidth: width,
       preferredWidth: width,
-      paddingRight: Math.max(0, definition.paddingRight ?? 0),
       sticky: definition.sticky === true,
       stickyLimit: width,
     };
@@ -62,7 +61,6 @@ const normalizeMeasurement = (
     minWidth,
     maxWidth,
     preferredWidth,
-    paddingRight: Math.max(0, definition.paddingRight ?? 0),
     sticky: definition.sticky === true,
     stickyLimit,
   };
@@ -81,7 +79,7 @@ const totalVisibleWidth = (
   }
 
   return indices.reduce((sum, index, visibleIndex) => {
-    const padding = visibleIndex < indices.length - 1 ? columns[index]!.paddingRight : 0;
+    const padding = visibleIndex < indices.length - 1 ? RENDERER_COLUMN_GAP : 0;
     return sum + widths[index]! + padding;
   }, 0);
 };
@@ -109,7 +107,7 @@ const shrinkWidestFirst = (
         minWidth: columns[index]!.minWidth,
       }))
       .filter(({ index, width, minWidth }) => width > minWidth && canShrink(index))
-      .sort((left, right) => right.width - left.width || left.index - right.index);
+      .sort((left, right) => right.width - left.width || right.index - left.index);
 
     if (shrinkable.length === 0) {
       break;
@@ -149,6 +147,24 @@ const shrinkWidestFirst = (
     if (!changed) {
       break;
     }
+  }
+
+  return widths;
+};
+
+const forceFitFromRight = (
+  widths: Array<number>,
+  columns: ReadonlyArray<NormalizedColumnMeasurement>,
+  targetWidth: number,
+  canShrink: (index: number) => boolean,
+): Array<number> => {
+  while (totalVisibleWidth(widths, columns) > targetWidth) {
+    const rightmostVisibleIndex = widths.findLastIndex((width, index) => width > 0 && canShrink(index));
+    if (rightmostVisibleIndex < 0) {
+      break;
+    }
+
+    widths[rightmostVisibleIndex] = widths[rightmostVisibleIndex]! - 1;
   }
 
   return widths;
@@ -233,13 +249,16 @@ export const planColumnLayout = (
       [...widths],
       columns,
       terminalColumns,
-      (index) =>
-        columns[index]!.definition.fixedWidth === undefined &&
-        columns[index]!.definition.noWrap !== true,
+      (index) => columns[index]!.definition.fixedWidth === undefined,
     );
 
     if (totalVisibleWidth(widths, columns) > terminalColumns) {
-      widths = shrinkWidestFirst([...widths], columns, terminalColumns, () => true);
+      widths = forceFitFromRight(
+        [...widths],
+        columns,
+        terminalColumns,
+        (index) => columns[index]!.definition.fixedWidth === undefined,
+      );
     }
   }
 
@@ -248,17 +267,11 @@ export const planColumnLayout = (
     .map((width, index) => ({
       definition: columns[index]!.definition,
       width,
-      paddingRight: columns[index]!.paddingRight,
     }))
     .filter(({ width }) => width > 0);
 
-  const plannedColumns = visible.map((column, index) => ({
-    ...column,
-    paddingRight: index < visible.length - 1 ? column.paddingRight : 0,
-  }));
-
   return {
-    columns: plannedColumns,
+    columns: visible,
     nextStickyWidths: stickyResult.nextStickyWidths,
   };
 };

@@ -14,7 +14,10 @@ export interface ElapsedColumnConfig {
   readonly sticky: boolean;
 }
 
-const ElapsedText = ({ task, width }: Pick<ProgressColumnProps, "width"> & { readonly task: ProgressColumnProps["row"]["task"] }) => {
+const ElapsedText = ({
+  task,
+  width,
+}: Pick<ProgressColumnProps, "width"> & { readonly task: ProgressColumnProps["row"]["task"] }) => {
   const now = useNow();
 
   return (

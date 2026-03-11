@@ -13,7 +13,6 @@ import type {
 export interface ProgressColumnConfig {
   readonly minWidth: number;
   readonly barWidth: number;
-  readonly paddingRight: number;
   readonly sticky: boolean;
 }
 
@@ -23,10 +22,7 @@ const clamp = (value: number, min: number, max: number): number =>
 const progressAmountWidth = (rows: ReadonlyArray<ProgressColumnProps["row"]>): number =>
   rows.reduce((max, row) => Math.max(max, textWidth(formatAmount(row.task, 0))), 1);
 
-const renderProgressBar = (
-  task: ProgressColumnProps["row"]["task"],
-  width: number,
-): ReactNode => {
+const renderProgressBar = (task: ProgressColumnProps["row"]["task"], width: number): ReactNode => {
   if (!isDeterminate(task)) {
     return <Text>{` `.repeat(Math.max(0, width))}</Text>;
   }
@@ -54,7 +50,6 @@ const renderProgressBar = (
 export const defaultProgressColumnConfig = {
   minWidth: 4,
   barWidth: DEFAULT_BAR_WIDTH,
-  paddingRight: 2,
   sticky: true,
 } satisfies ProgressColumnConfig;
 
@@ -106,7 +101,6 @@ export const createProgressColumn = (config: ProgressColumnConfig): ProgressColu
         maxWidth: preferredWidth,
       };
     },
-    paddingRight: config.paddingRight,
     noWrap: false,
     sticky: config.sticky,
   };
