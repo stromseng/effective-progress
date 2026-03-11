@@ -3,14 +3,15 @@ import { renderToString } from "ink";
 import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
+import {
+  createAmountColumn,
+  defaultAmountColumnConfig,
+} from "../src/renderer/columns/amount-column";
+import { createBarColumn, defaultBarColumnConfig } from "../src/renderer/columns/bar-column";
 import { createDescriptionColumn } from "../src/renderer/columns/description-column";
 import { createElapsedColumn } from "../src/renderer/columns/elapsed-column";
 import { createEtaColumn } from "../src/renderer/columns/eta-column";
 import { NowProvider } from "../src/renderer/context/now-context";
-import {
-  createProgressColumn,
-  defaultProgressColumnConfig,
-} from "../src/renderer/columns/progress-column";
 import { CreateProgressRenderer } from "../src/renderer/public-api";
 import { SpinnerProvider } from "../src/renderer/context/spinner-context";
 import { textWidth } from "../src/renderer/shared/text-width";
@@ -124,7 +125,8 @@ const renderFullLayout = (width: number): string => {
       minWidth: 1,
       sticky: true,
     }),
-    createProgressColumn(defaultProgressColumnConfig),
+    createBarColumn(defaultBarColumnConfig),
+    createAmountColumn(defaultAmountColumnConfig),
     createElapsedColumn({
       minWidth: 2,
       justify: "right",
@@ -162,7 +164,8 @@ const renderTightFullLayout = (width: number): string => {
       minWidth: 1,
       sticky: true,
     }),
-    createProgressColumn(defaultProgressColumnConfig),
+    createBarColumn(defaultBarColumnConfig),
+    createAmountColumn(defaultAmountColumnConfig),
     createElapsedColumn({
       minWidth: 2,
       justify: "right",
@@ -234,6 +237,6 @@ describe("rendererv2 eta column", () => {
 
     expect(textWidth(output)).toBeLessThanOrEqual(5);
     expect(output).not.toContain("10s");
-    expect(output).toContain("…");
+    expect(output).toContain("━");
   });
 });
