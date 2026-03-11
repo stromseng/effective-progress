@@ -1,14 +1,14 @@
 import { Effect, Logger } from "effect";
 import * as Progress from "../src";
-import { createDescriptionColumn } from "../src/rendererv2/columns/description-column.sketch";
-import { createElapsedColumn } from "../src/rendererv2/columns/elapsed-column.sketch";
+import { createDescriptionColumn } from "../src/rendererv2/columns/description-column";
+import { createElapsedColumn } from "../src/rendererv2/columns/elapsed-column";
 import {
   createProgressColumn,
   defaultProgressColumnConfig,
-} from "../src/rendererv2/columns/progress-column.sketch";
-import { createStatusColumn } from "../src/rendererv2/columns/status-column.sketch";
+} from "../src/rendererv2/columns/progress-column";
+import { createStatusColumn } from "../src/rendererv2/columns/status-column";
 import { InkRenderer } from "../src/services/ink-renderer";
-import { createRendererv2InkRenderer } from "../src/rendererv2/ink-renderer.sketch";
+import { createRendererv2InkRenderer } from "../src/rendererv2/ink-renderer";
 
 const randomMillis = (base: number, jitter: number) =>
   Math.max(80, Math.round(base + (Math.random() * 2 - 1) * jitter));

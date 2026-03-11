@@ -7,7 +7,7 @@ import type { ProgressRenderStore } from "../ink-renderer/store";
 import type { TaskRowModel } from "../ink-renderer/store/types";
 import { InkRenderer } from "../services/ink-renderer";
 import type { ProgressStdioService } from "../services/stdio";
-import { CreateProgressRenderer, type ProgressColumnDefinition } from "./public-api.sketch";
+import { CreateProgressRenderer, type ProgressColumnDefinition } from "./public-api";
 
 const MAX_FPS = 12;
 

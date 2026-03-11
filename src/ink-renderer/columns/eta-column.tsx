@@ -7,6 +7,7 @@ import { useStickyWidth } from "../hooks/use-sticky-width";
 import { useRenderFrame } from "../render-frame-context";
 import { formatEta } from "../shared/format";
 import { textWidth } from "../shared/text-width";
+import type { ColumnMeasure } from "./layout-policy";
 
 const RESERVED_ETA_WIDTH_UP_TO_ONE_HOUR = Array.from("ETA: 59m 59s").length;
 
@@ -20,14 +21,14 @@ const etaDurationText = (task: TaskSnapshot, now: number): string | undefined =>
 export const hasEta = (rows: ReturnType<typeof useRenderFrame>["rows"], now: number): boolean =>
   rows.some((row) => etaDurationText(row.task, now) !== undefined);
 
-export const etaMinimumWidth = (
+export const etaColumnMeasure = (
   rows: ReturnType<typeof useRenderFrame>["rows"],
   now: number,
-): number =>
-  rows.reduce((max, row) => {
-    const duration = etaDurationText(row.task, now);
-    return duration === undefined ? max : Math.max(max, textWidth(duration));
-  }, 0);
+): ColumnMeasure => ({
+  id: "eta",
+  min: 0,
+  preferred: preferredEtaWidth(rows, now),
+});
 
 export const preferredEtaWidth = (
   rows: ReturnType<typeof useRenderFrame>["rows"],
@@ -74,6 +75,10 @@ export const EtaColumn = ({
   const preferredWidth = useMemo(() => preferredEtaWidth(frame.rows, now), [frame.rows, now]);
   const stickyWidth = useStickyWidth(preferredWidth);
   const width = assignedWidth ?? stickyWidth;
+
+  if (width <= 0) {
+    return null;
+  }
 
   return (
     <Box

@@ -1,5 +1,5 @@
 import type { TaskRowModel } from "../ink-renderer/store/types";
-import type { ProgressColumnDefinition } from "./public-api.sketch";
+import type { ProgressColumnDefinition } from "./public-api";
 
 interface NormalizedColumnMeasurement {
   readonly definition: ProgressColumnDefinition;

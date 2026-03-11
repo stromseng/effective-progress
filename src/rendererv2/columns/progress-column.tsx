@@ -7,7 +7,7 @@ import type {
   ProgressColumnDefinition,
   ProgressColumnMeasurement,
   ProgressColumnProps,
-} from "../public-api.sketch";
+} from "../public-api";
 
 export interface ProgressColumnConfig {
   readonly minWidth: number;

@@ -5,14 +5,12 @@ import { useBoxMetrics } from "../hooks/use-box-metrics";
 import { useStickyWidth } from "../hooks/use-sticky-width";
 import { useRenderFrame } from "../render-frame-context";
 import { isDeterminate } from "../shared/determinate";
-import { formatAmount } from "../shared/format";
 import { DEFAULT_BAR_WIDTH, percentText } from "../shared/progress";
 import { textWidth } from "../shared/text-width";
+import type { ColumnMeasure } from "./layout-policy";
 
 const MIN_PROGRESS_WIDTH = 4;
 const PROGRESS_PERCENT_THRESHOLD = 10;
-
-export type ProgressPolicyMode = "full" | "percent";
 
 export const preferredPercentWidth = (rows: ReturnType<typeof useRenderFrame>["rows"]): number =>
   rows.reduce((max, row) => Math.max(max, textWidth(percentText(row.task))), MIN_PROGRESS_WIDTH);
@@ -65,27 +63,13 @@ export const preferredProgressWidth = (rows: ReturnType<typeof useRenderFrame>["
   return Math.max(MIN_PROGRESS_WIDTH, DEFAULT_BAR_WIDTH + 1 + amountWidth);
 };
 
-export const progressMinimumWidth = (rows: ReturnType<typeof useRenderFrame>["rows"]): number => {
-  let hasDeterminateRows = false;
-  let processedDigits = 1;
-  let totalDigits = 1;
-  let simpleTextWidth = 0;
-
-  for (const row of rows) {
-    hasDeterminateRows ||= row.derived.isDeterminate;
-    simpleTextWidth = Math.max(simpleTextWidth, textWidth(formatAmount(row.task, 0)));
-    processedDigits = Math.max(processedDigits, textWidth(`${row.task.units.processed}`));
-    if (row.task.units.total !== undefined) {
-      totalDigits = Math.max(totalDigits, textWidth(`${row.task.units.total}`));
-    }
-  }
-
-  if (!hasDeterminateRows) {
-    return Math.max(MIN_PROGRESS_WIDTH, simpleTextWidth);
-  }
-
-  return Math.max(MIN_PROGRESS_WIDTH, 4 + 1 + processedDigits + 1 + totalDigits);
-};
+export const progressColumnMeasure = (
+  rows: ReturnType<typeof useRenderFrame>["rows"],
+): ColumnMeasure => ({
+  id: "progress",
+  min: 0,
+  preferred: preferredProgressWidth(rows),
+});
 
 const renderBar = (task: TaskSnapshot, width: number): ReactNode => {
   if (!isDeterminate(task)) {
@@ -113,20 +97,19 @@ const renderBar = (task: TaskSnapshot, width: number): ReactNode => {
   );
 };
 
-type ProgressVariant = "bar" | "amount" | "percent";
+type ProgressVariant = "bar" | "amount" | "percent" | "hidden";
 
 const resolveProgressVariant = (
   width: number,
   hasMeasured: boolean,
   rows: ReturnType<typeof useRenderFrame>["rows"],
-  mode: ProgressPolicyMode,
 ): ProgressVariant => {
-  if (!rows.some((row) => row.derived.isDeterminate)) {
-    return "amount";
+  if (width <= 0) {
+    return "hidden";
   }
 
-  if (mode === "percent") {
-    return "percent";
+  if (!rows.some((row) => row.derived.isDeterminate)) {
+    return "amount";
   }
 
   if (!hasMeasured) {
@@ -182,6 +165,10 @@ const renderProgressCell = (
   variant: ProgressVariant,
   amountMetrics: ReturnType<typeof progressAmountMetrics>,
 ): ReactNode => {
+  if (variant === "hidden") {
+    return null;
+  }
+
   if (variant === "percent") {
     return <Text wrap="truncate-end">{percentText(task)}</Text>;
   }
@@ -212,11 +199,9 @@ const renderProgressCell = (
 };
 
 export const ProgressColumn = ({
-  mode,
   assignedWidth,
   marginRight = 0,
 }: {
-  readonly mode: ProgressPolicyMode;
   readonly assignedWidth?: number;
   readonly marginRight?: number;
 }) => {
@@ -224,21 +209,20 @@ export const ProgressColumn = ({
   const ref = useRef<DOMElement>(null);
   const metrics = useBoxMetrics(ref);
   const preferredWidth = useMemo(() => preferredProgressWidth(frame.rows), [frame.rows]);
-  const percentWidth = useMemo(() => preferredPercentWidth(frame.rows), [frame.rows]);
   const amountMetrics = useMemo(() => progressAmountMetrics(frame.rows), [frame.rows]);
   const stickyWidth = useStickyWidth(preferredWidth);
   const baseWidth = assignedWidth ?? stickyWidth;
-  const effectiveWidth = Math.max(
-    mode === "percent" ? percentWidth : MIN_PROGRESS_WIDTH,
-    baseWidth,
-  );
-  const width = Math.max(MIN_PROGRESS_WIDTH, metrics.width || effectiveWidth);
+  const effectiveWidth = Math.max(0, baseWidth);
+  const width = metrics.width || effectiveWidth;
   const variant = resolveProgressVariant(
     width,
     metrics.hasMeasured || assignedWidth !== undefined,
     frame.rows,
-    mode,
   );
+
+  if (effectiveWidth <= 0 || variant === "hidden") {
+    return null;
+  }
 
   return (
     <Box
@@ -248,7 +232,6 @@ export const ProgressColumn = ({
       flexShrink={1}
       flexBasis={effectiveWidth}
       width={effectiveWidth}
-      minWidth={MIN_PROGRESS_WIDTH}
       marginRight={marginRight}
     >
       {frame.rows.map((row) => (

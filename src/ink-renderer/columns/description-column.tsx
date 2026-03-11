@@ -6,14 +6,13 @@ import { useStickyWidth } from "../hooks/use-sticky-width";
 import { useRenderFrame } from "../render-frame-context";
 import { useSpinnerTick } from "../spinner-context";
 import { getSpinnerIndicator, getTaskIndicator } from "../shared/format";
+import type { ColumnMeasure } from "./layout-policy";
 
 const MIN_DESCRIPTION_WIDTH = 1;
 const MIN_PLAIN_DESCRIPTION_WIDTH = 8;
-const MIN_COMPACT_DESCRIPTION_WIDTH = 3;
 const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
 
 export type DescriptionVariant = "tree" | "plain" | "compact" | "spinner";
-export type DescriptionCap = DescriptionVariant;
 
 const maxDescriptionWidth = (
   rows: ReturnType<typeof useRenderFrame>["rows"],
@@ -28,7 +27,7 @@ const maxDescriptionWidth = (
     );
   }, MIN_PLAIN_DESCRIPTION_WIDTH);
 
-export const minTreeDescriptionWidth = (rows: ReturnType<typeof useRenderFrame>["rows"]): number =>
+const minTreeDescriptionWidth = (rows: ReturnType<typeof useRenderFrame>["rows"]): number =>
   rows.reduce(
     (max, row) => Math.max(max, row.derived.treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
     MIN_PLAIN_DESCRIPTION_WIDTH,
@@ -41,66 +40,33 @@ const preferredDescriptionWidth = (rows: ReturnType<typeof useRenderFrame>["rows
     : maxDescriptionWidth(rows, false);
 };
 
-export const preferredDescriptionWidthForCap = (
-  rows: ReturnType<typeof useRenderFrame>["rows"],
-  cap: DescriptionCap,
-): number => {
-  if (cap === "compact") {
-    return maxDescriptionWidth(rows, false);
-  }
-
-  if (cap === "plain") {
-    return maxDescriptionWidth(rows, false);
-  }
-
-  return preferredDescriptionWidth(rows);
-};
-
 export const hasRenderableProgress = (rows: ReturnType<typeof useRenderFrame>["rows"]): boolean =>
   rows.some((row) => row.derived.hasRenderableProgress);
 
-export const minimumDescriptionWidth = (cap: DescriptionCap): number =>
-  cap === "spinner"
-    ? MIN_DESCRIPTION_WIDTH
-    : cap === "compact"
-      ? MIN_COMPACT_DESCRIPTION_WIDTH
-      : MIN_PLAIN_DESCRIPTION_WIDTH;
+export const descriptionColumnMeasure = (
+  rows: ReturnType<typeof useRenderFrame>["rows"],
+): ColumnMeasure => ({
+  id: "description",
+  min: MIN_DESCRIPTION_WIDTH,
+  preferred: preferredDescriptionWidth(rows),
+});
 
 const resolveDescriptionVariant = (
   width: number,
   hasMeasured: boolean,
   rows: ReturnType<typeof useRenderFrame>["rows"],
-  cap: DescriptionCap,
 ): DescriptionVariant => {
-  if (cap === "spinner") {
-    return "spinner";
-  }
-
   const hasNestedRows = rows.some((row) => row.tree.depth > 0);
 
   if (!hasMeasured) {
-    return cap === "compact"
-      ? "compact"
-      : cap === "plain"
-        ? "plain"
-        : hasNestedRows
-          ? "tree"
-          : "plain";
+    return hasNestedRows ? "tree" : "plain";
   }
 
   if (width <= 1) {
     return "spinner";
   }
 
-  if (cap === "compact") {
-    return "compact";
-  }
-
-  if (cap === "plain") {
-    return width < minimumDescriptionWidth("plain") ? "compact" : "plain";
-  }
-
-  if (width < minimumDescriptionWidth("plain")) {
+  if (width < MIN_PLAIN_DESCRIPTION_WIDTH) {
     return "compact";
   }
 
@@ -109,7 +75,7 @@ const resolveDescriptionVariant = (
     0,
   );
 
-  return hasNestedRows && width >= maxTreePrefixWidth + minimumDescriptionWidth("plain")
+  return hasNestedRows && width >= maxTreePrefixWidth + MIN_PLAIN_DESCRIPTION_WIDTH
     ? "tree"
     : "plain";
 };
@@ -131,29 +97,24 @@ const TaskIndicatorGlyph = ({ task }: { readonly task: TaskSnapshot }) => {
 };
 
 export const DescriptionColumn = ({
-  cap,
   assignedWidth,
   marginRight = 0,
 }: {
-  readonly cap: DescriptionCap;
   readonly assignedWidth?: number;
   readonly marginRight?: number;
 }) => {
   const frame = useRenderFrame();
   const ref = useRef<DOMElement>(null);
   const metrics = useBoxMetrics(ref);
-  const preferredWidth = useMemo(
-    () => preferredDescriptionWidthForCap(frame.rows, cap),
-    [cap, frame.rows],
-  );
+  const preferredWidth = useMemo(() => preferredDescriptionWidth(frame.rows), [frame.rows]);
   const stickyWidth = useStickyWidth(preferredWidth);
   const baseWidth = assignedWidth ?? stickyWidth;
+  const effectiveWidth = Math.max(0, baseWidth);
   const hasResolvedWidth = metrics.hasMeasured || assignedWidth !== undefined;
   const variant = resolveDescriptionVariant(
-    metrics.width || baseWidth,
+    metrics.width || effectiveWidth,
     hasResolvedWidth,
     frame.rows,
-    cap,
   );
 
   return (
@@ -162,8 +123,8 @@ export const DescriptionColumn = ({
       flexDirection="column"
       flexGrow={0}
       flexShrink={1}
-      flexBasis={baseWidth}
-      width={baseWidth}
+      flexBasis={effectiveWidth}
+      width={effectiveWidth}
       minWidth={MIN_DESCRIPTION_WIDTH}
       marginRight={marginRight}
     >

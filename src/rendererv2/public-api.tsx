@@ -1,7 +1,7 @@
 import { Box } from "ink";
 import { useEffect, useMemo, useRef, type FunctionComponent, type ReactElement } from "react";
 import type { TaskRowModel } from "../ink-renderer/store/types";
-import { planColumnLayout } from "./width-allocator.sketch";
+import { planColumnLayout } from "./width-allocator";
 
 export interface ProgressColumnMeasurement {
   readonly minWidth: number;

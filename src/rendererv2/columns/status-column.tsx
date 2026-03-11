@@ -1,6 +1,6 @@
 import { Text } from "ink";
 import { getTaskIndicator, getSpinnerIndicator } from "../../ink-renderer/shared/format";
-import type { ProgressColumnDefinition, ProgressColumnProps } from "../public-api.sketch";
+import type { ProgressColumnDefinition, ProgressColumnProps } from "../public-api";
 
 export interface StatusColumnConfig {
   readonly width: number;

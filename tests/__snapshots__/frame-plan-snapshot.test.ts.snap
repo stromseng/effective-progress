@@ -8,42 +8,42 @@ exports[`Frame plan snapshot matches the old renderer baseline 1`] = `
 41:36:└─ ⠋ verify ━━━─ 15/20    9s ETA: 3s     |
 40:35:└─ ⠋ verify ━━━─ 15/20   9s ETA: 3s     |
 39:35:└─ ⠋ verify ━━━─ 15/20   9s ETA: 3s    |
-38:34:└─ ⠋ verify ━━━─ 15/20  9s ETA: 3s    |
-37:34:└─ ⠋ verify ━━━─ 15/20  9s ETA: 3s   |
-36:34:└─ ⠋ verify ━━━─ 15/20  9s ETA: 3s  |
-35:34:└─ ⠋ verify ━━━─ 15/20  9s ETA: 3s |
-34:34:└─ ⠋ verify ━━━─ 15/20  9s ETA: 3s|
-33:29:└─ ⠋ verify ━━━─ 15/20  9s 3s    |
-32:29:└─ ⠋ verify ━━━─ 15/20  9s 3s   |
-31:29:└─ ⠋ verify ━━━─ 15/20  9s 3s  |
-30:29:└─ ⠋ verify ━━━─ 15/20  9s 3s |
-29:29:└─ ⠋ verify ━━━─ 15/20  9s 3s|
-28:26:⠋ verify ━━━─ 15/20  9s 3s  |
-27:26:⠋ verify ━━━─ 15/20  9s 3s |
-26:26:⠋ verify ━━━─ 15/20  9s 3s|
-25:25:⠋ verify 75%   9s ETA: 3s|
-24:20:⠋ verify 75%   9s 3s    |
-23:20:⠋ verify 75%   9s 3s   |
-22:20:⠋ verify 75%   9s 3s  |
-21:20:⠋ verify 75%   9s 3s |
-20:20:⠋ verify 75%   9s 3s|
-19:17:⠋ verify 75%   9s  |
-18:17:⠋ verify 75%   9s |
-17:17:⠋ verify 75%   9s|
-16:12:⠋ verify 75%    |
-15:12:⠋ verify 75%   |
-14:12:⠋ verify 75%  |
-13:12:⠋ verify 75% |
-12:11:⠋ veri… 75% |
-11:10:⠋ ver… 75% |
-10:9:⠋ ve… 75% |
-9:8:⠋ v… 75% |
-8:7:⠋ … 75% |
-7:7:⠋ veri…|
-6:6:⠋ ver…|
-5:5:⠋ ve…|
-4:4:⠋ v…|
-3:3:⠋ …|
+38:34:⠋ verify   ━━━─ 15/20   9s ETA: 3s    |
+37:33:⠋ verify   ━━━─ 15/20  9s ETA: 3s    |
+36:33:⠋ verify   ━━━─ 15/20  9s ETA: 3s   |
+35:32:⠋ verify  ━━━─ 15/20  9s ETA: 3s   |
+34:31:⠋ verify  75%        9s ETA: 3s   |
+33:31:⠋ verify  75%        9s ETA: 3s  |
+32:30:⠋ verify 75%        9s ETA: 3s  |
+31:29:⠋ verify 75%       9s ETA: 3s  |
+30:29:⠋ verify 75%       9s ETA: 3s |
+29:28:⠋ veri… 75%       9s ETA: 3s |
+28:27:⠋ veri… 75%      9s ETA: 3s |
+27:27:⠋ veri… 75%      9s ETA: 3s|
+26:26:⠋ ver… 75%      9s ETA: 3s|
+25:25:⠋ ver… 75%     9s ETA: 3s|
+24:20:⠋ ver… 75%     9s 3s    |
+23:19:⠋ ve… 75%     9s 3s    |
+22:18:⠋ ve… 75%    9s 3s    |
+21:18:⠋ ve… 75%    9s 3s   |
+20:17:⠋ v… 75%    9s 3s   |
+19:16:⠋ v… 75%   9s 3s   |
+18:16:⠋ v… 75%   9s 3s  |
+17:15:⠋ … 75%   9s 3s  |
+16:14:⠋ … 75%  9s 3s  |
+15:14:⠋ … 75%  9s 3s |
+14:13:⠋… 75%  9s 3s |
+13:12:⠋… 7…  9s 3s |
+12:11:⠋… 7… 9s 3s |
+11:11:⠋… 7… 9s 3s|
+10:10:⠋ 7… 9s 3s|
+9:9:⠋ … 9s 3s|
+8:8:⠋ … 9 3s|
+7:7:⠋ … 9 …|
+6:5:⠋ 9 … |
+5:3:⠋ …  |
+4:1:⠋   |
+3:1:⠋  |
 2:1:⠋ |
 1:1:⠋|"
 `;

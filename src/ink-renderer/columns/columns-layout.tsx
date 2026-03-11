@@ -5,24 +5,13 @@ import { useNow } from "../now-context";
 import { useRenderFrame } from "../render-frame-context";
 import {
   DescriptionColumn,
+  descriptionColumnMeasure,
   hasRenderableProgress,
-  minTreeDescriptionWidth,
-  preferredDescriptionWidthForCap,
 } from "./description-column";
-import { ElapsedColumn, MIN_ELAPSED_WIDTH, preferredElapsedWidth } from "./elapsed-column";
-import { EtaColumn, etaMinimumWidth, hasEta, preferredEtaWidth } from "./eta-column";
-import {
-  COLUMN_GAP,
-  assignedWidthsForMeasures,
-  rootLayoutMeasures,
-  selectRootLayoutPolicy,
-} from "./layout-policy";
-import {
-  preferredPercentWidth,
-  preferredProgressWidth,
-  progressMinimumWidth,
-} from "./progress-column";
-import { ProgressColumn } from "./progress-column";
+import { ElapsedColumn, elapsedColumnMeasure } from "./elapsed-column";
+import { EtaColumn, etaColumnMeasure, hasEta } from "./eta-column";
+import { COLUMN_GAP, assignedWidthsForMeasures } from "./layout-policy";
+import { progressColumnMeasure, ProgressColumn } from "./progress-column";
 
 interface ColumnsLayoutProps {
   readonly terminalColumns: number | undefined;
@@ -36,111 +25,47 @@ export const ColumnsLayout = ({ terminalColumns }: ColumnsLayoutProps) => {
   const rootWidth = terminalColumns ?? (rootMetrics.hasMeasured ? rootMetrics.width : undefined);
   const showProgress = useMemo(() => hasRenderableProgress(frame.rows), [frame.rows]);
   const showEtaColumn = useMemo(() => hasEta(frame.rows, now), [frame.rows, now]);
-  const percentPreferredWidth = useMemo(() => preferredPercentWidth(frame.rows), [frame.rows]);
-  const elapsedPreferredWidth = useMemo(
-    () => preferredElapsedWidth(frame.rows, now),
-    [frame.rows, now],
-  );
-  const etaMinWidth = useMemo(() => etaMinimumWidth(frame.rows, now), [frame.rows, now]);
-  const etaPreferredWidth = useMemo(() => preferredEtaWidth(frame.rows, now), [frame.rows, now]);
-  const descriptionTreeMinWidth = useMemo(() => minTreeDescriptionWidth(frame.rows), [frame.rows]);
-  const progressPreferred = useMemo(() => preferredProgressWidth(frame.rows), [frame.rows]);
-  const progressFullMinWidth = useMemo(() => progressMinimumWidth(frame.rows), [frame.rows]);
-  const layoutPolicy = useMemo(
-    () =>
-      selectRootLayoutPolicy({
-        terminalColumns: rootWidth,
-        hasProgress: showProgress,
-        hasEta: showEtaColumn,
-        preferDroppingEtaBeforePercent: etaMinWidth > 3,
-        descriptionPreferredWidth: preferredDescriptionWidthForCap(frame.rows, "tree"),
-        descriptionTreeMinWidth,
-        elapsedMinWidth: MIN_ELAPSED_WIDTH,
-        elapsedPreferredWidth,
-        etaMinWidth,
-        etaPreferredWidth,
-        percentWidth: percentPreferredWidth,
-        progressPreferredWidth: progressPreferred,
-        progressFullMinWidth,
-      }),
-    [
-      descriptionTreeMinWidth,
-      elapsedPreferredWidth,
-      etaMinWidth,
-      etaPreferredWidth,
-      frame.rows,
-      percentPreferredWidth,
-      progressPreferred,
-      progressFullMinWidth,
-      rootWidth,
-      showEtaColumn,
-      showProgress,
-    ],
-  );
   const measures = useMemo(
-    () =>
-      rootLayoutMeasures(layoutPolicy, {
-        hasProgress: showProgress,
-        hasEta: showEtaColumn,
-        descriptionPreferredWidth: preferredDescriptionWidthForCap(
-          frame.rows,
-          layoutPolicy.descriptionCap,
-        ),
-        descriptionTreeMinWidth,
-        elapsedMinWidth: MIN_ELAPSED_WIDTH,
-        elapsedPreferredWidth,
-        etaMinWidth,
-        etaPreferredWidth,
-        percentWidth: percentPreferredWidth,
-        progressPreferredWidth: progressPreferred,
-        progressFullMinWidth,
-      }),
-    [
-      descriptionTreeMinWidth,
-      elapsedPreferredWidth,
-      etaMinWidth,
-      etaPreferredWidth,
-      frame.rows,
-      layoutPolicy,
-      percentPreferredWidth,
-      progressPreferred,
-      progressFullMinWidth,
-      showEtaColumn,
-      showProgress,
+    () => [
+      descriptionColumnMeasure(frame.rows),
+      ...(showProgress ? [progressColumnMeasure(frame.rows)] : []),
+      elapsedColumnMeasure(frame.rows, now),
+      ...(showEtaColumn ? [etaColumnMeasure(frame.rows, now)] : []),
     ],
+    [frame.rows, now, showEtaColumn, showProgress],
   );
   const assignedWidths = useMemo(
     () => assignedWidthsForMeasures(measures, rootWidth),
     [measures, rootWidth],
   );
+  const marginRightFor = (id: (typeof measures)[number]["id"]): number => {
+    const currentIndex = measures.findIndex((measure) => measure.id === id);
+    if (currentIndex < 0) {
+      return 0;
+    }
+
+    return measures.slice(currentIndex + 1).some((measure) => (assignedWidths.get(measure.id) ?? 0) > 0)
+      ? COLUMN_GAP
+      : 0;
+  };
 
   return (
     <Box ref={rootRef} flexDirection="row" width={terminalColumns}>
       <DescriptionColumn
-        cap={layoutPolicy.descriptionCap}
         assignedWidth={assignedWidths.get("description")}
-        marginRight={
-          layoutPolicy.progressMode !== undefined ||
-          layoutPolicy.showElapsed ||
-          layoutPolicy.showEta
-            ? COLUMN_GAP
-            : 0
-        }
+        marginRight={marginRightFor("description")}
       />
-      {showProgress && layoutPolicy.progressMode !== undefined ? (
+      {showProgress ? (
         <ProgressColumn
-          mode={layoutPolicy.progressMode}
           assignedWidth={assignedWidths.get("progress")}
-          marginRight={layoutPolicy.showElapsed || layoutPolicy.showEta ? COLUMN_GAP : 0}
+          marginRight={marginRightFor("progress")}
         />
       ) : null}
-      {layoutPolicy.showElapsed ? (
-        <ElapsedColumn
-          assignedWidth={assignedWidths.get("elapsed")}
-          marginRight={layoutPolicy.showEta && showEtaColumn ? COLUMN_GAP : 0}
-        />
-      ) : null}
-      {layoutPolicy.showEta && showEtaColumn ? (
+      <ElapsedColumn
+        assignedWidth={assignedWidths.get("elapsed")}
+        marginRight={marginRightFor("elapsed")}
+      />
+      {showEtaColumn ? (
         <EtaColumn assignedWidth={assignedWidths.get("eta")} />
       ) : null}
     </Box>

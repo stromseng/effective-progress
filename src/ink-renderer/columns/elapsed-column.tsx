@@ -6,8 +6,18 @@ import { useStickyWidth } from "../hooks/use-sticky-width";
 import { useRenderFrame } from "../render-frame-context";
 import { formatElapsed } from "../shared/format";
 import { textWidth } from "../shared/text-width";
+import type { ColumnMeasure } from "./layout-policy";
 
 export const MIN_ELAPSED_WIDTH = 3;
+
+export const elapsedColumnMeasure = (
+  rows: ReturnType<typeof useRenderFrame>["rows"],
+  now: number,
+): ColumnMeasure => ({
+  id: "elapsed",
+  min: 0,
+  preferred: preferredElapsedWidth(rows, now),
+});
 
 export const preferredElapsedWidth = (
   rows: ReturnType<typeof useRenderFrame>["rows"],
@@ -32,6 +42,10 @@ export const ElapsedColumn = ({
   const preferredWidth = useMemo(() => preferredElapsedWidth(frame.rows, now), [frame.rows, now]);
   const stickyWidth = useStickyWidth(preferredWidth);
   const width = assignedWidth ?? stickyWidth;
+
+  if (width <= 0) {
+    return null;
+  }
 
   return (
     <Box

@@ -296,7 +296,7 @@ describe("frame layout planning", () => {
     expect(narrowOutput.includes("75%")).toBeTrue();
   });
 
-  test("drops ETA when the root switches to a tighter column set", () => {
+  test("shortens ETA text based on the assigned width", () => {
     const rows = [
       row(
         makeTask(12, {
@@ -315,37 +315,37 @@ describe("frame layout planning", () => {
     const noEta = renderView(rows, 28);
     const noEtaOrElapsed = renderView(rows, 16);
 
-    expect(prefixed.includes("ETA: ")).toBeTrue();
+    expect(prefixed.includes("ETA: 2h 46m")).toBeTrue();
     expect(noEta.includes("ETA: ")).toBeFalse();
-    expect(noEta.includes("2h 46m")).toBeFalse();
-    expect(noEtaOrElapsed.includes("10s")).toBeFalse();
+    expect(noEta.includes("2h 46m")).toBeTrue();
+    expect(noEtaOrElapsed.includes("ETA: ")).toBeFalse();
+    expect(noEtaOrElapsed.includes("2h")).toBeTrue();
   });
 
-  test("reclaims utility reserves under tighter widths", () => {
+  test("hides elapsed when its assigned width collapses to zero", () => {
     const rows = [
       row(
         makeTask(9, {
-          description: "short-desc",
-          startedAt: 0,
+          description: "tight",
+          status: "done",
+          completedAt: 2_000,
           units: {
-            succeeded: 1,
+            succeeded: 0,
             failed: 0,
-            processed: 1,
-            total: 4,
+            processed: 0,
           },
         }),
       ),
     ];
 
-    const medium = renderRoot(rows, 1_000, 0, 80, new Map());
-    const narrow = renderRoot(rows, 1_000, 0, 28, new Map());
+    const wide = renderRoot(rows, 2_000, 0, 4, new Map());
+    const hidden = renderRoot(rows, 2_000, 0, 2, new Map());
 
-    expect(maxLineWidth(narrow)).toBeLessThan(maxLineWidth(medium));
-    expect(medium.includes("ETA: ")).toBeTrue();
-    expect(narrow.includes("ETA: ")).toBeFalse();
+    expect(wide.includes("2s")).toBeTrue();
+    expect(hidden.includes("2")).toBeFalse();
   });
 
-  test("shrinks progress before hiding ETA", () => {
+  test("keeps ETA visible while progress shrinks internally", () => {
     const rows = [
       row(
         makeTask(10, {
@@ -372,7 +372,7 @@ describe("frame layout planning", () => {
     expect(percent.includes("25%")).toBeTrue();
   });
 
-  test("switches to the percent progress set before shrinking utility columns further", () => {
+  test("switches progress to percent based on assigned width", () => {
     const rows = [
       row(
         makeTask(11, {
@@ -394,9 +394,11 @@ describe("frame layout planning", () => {
     const percent = renderRoot(rows, 1_000, 0, 20, new Map());
 
     expect(medium.includes("1/1234")).toBeTrue();
-    expect(narrow.includes("1/1234")).toBeTrue();
+    expect(narrow.includes("1/1234")).toBeFalse();
+    expect(narrow.includes("0%")).toBeTrue();
+    expect(narrow.includes("20m 33s")).toBeTrue();
     expect(percent.includes("1/1234")).toBeFalse();
-    expect(percent.includes("%")).toBeTrue();
+    expect(percent.includes("0%")).toBeTrue();
   });
 
   test("switches to percentage when progress width drops below ten columns", () => {

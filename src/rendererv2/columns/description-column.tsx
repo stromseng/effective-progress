@@ -3,7 +3,7 @@ import type {
   ProgressColumnDefinition,
   ProgressColumnMeasurement,
   ProgressColumnProps,
-} from "../public-api.sketch";
+} from "../public-api";
 
 export interface DescriptionColumnConfig {
   readonly minWidth: number;
@@ -12,11 +12,15 @@ export interface DescriptionColumnConfig {
   readonly stickyMaxWidth?: number;
 }
 
+const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
+
 export const createDescriptionColumn = (
   config: DescriptionColumnConfig,
 ): ProgressColumnDefinition => {
+  let minTreeWidth = MIN_TREE_DESCRIPTION_TEXT_WIDTH;
+
   const Component = ({ row, width }: ProgressColumnProps) => {
-    const showTree = width >= row.derived.treePrefixWidth + 6;
+    const showTree = width >= minTreeWidth;
     const content = showTree
       ? `${row.derived.treePrefix}${row.task.description}`
       : row.task.description;
@@ -26,14 +30,22 @@ export const createDescriptionColumn = (
 
   return {
     Component,
-    measure: (rows: ReadonlyArray<ProgressColumnProps["row"]>): ProgressColumnMeasurement => ({
-      minWidth: config.minWidth,
-      preferredWidth: rows.reduce(
-        (max, row) => Math.max(max, row.derived.treePrefixedDescriptionWidth),
-        config.minWidth,
-      ),
-      maxWidth: undefined,
-    }),
+    measure: (rows: ReadonlyArray<ProgressColumnProps["row"]>): ProgressColumnMeasurement => {
+      minTreeWidth = rows.reduce(
+        (max, row) =>
+          Math.max(max, row.derived.treePrefixWidth + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
+        MIN_TREE_DESCRIPTION_TEXT_WIDTH,
+      );
+
+      return {
+        minWidth: config.minWidth,
+        preferredWidth: rows.reduce(
+          (max, row) => Math.max(max, row.derived.treePrefixedDescriptionWidth),
+          config.minWidth,
+        ),
+        maxWidth: undefined,
+      };
+    },
     paddingRight: config.paddingRight,
     noWrap: false,
     sticky: config.sticky,
