@@ -13,7 +13,10 @@ export const preferredElapsedWidth = (
   rows: ReturnType<typeof useRenderFrame>["rows"],
   now: number,
 ): number =>
-  rows.reduce((max, row) => Math.max(max, textWidth(formatElapsed(row.task, now))), MIN_ELAPSED_WIDTH);
+  rows.reduce(
+    (max, row) => Math.max(max, textWidth(formatElapsed(row.task, now))),
+    MIN_ELAPSED_WIDTH,
+  );
 
 export const ElapsedColumn = ({
   assignedWidth,

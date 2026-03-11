@@ -36,10 +36,7 @@ const renderTreePrefix = (tree: TaskRowModel["tree"]): string => {
   return `${treeAncestorPrefix(tree.ancestorHasNextSibling)}${tree.hasNextSibling ? "├─ " : "└─ "}`;
 };
 
-const arraysEqual = (
-  left: ReadonlyArray<boolean>,
-  right: ReadonlyArray<boolean>,
-): boolean => {
+const arraysEqual = (left: ReadonlyArray<boolean>, right: ReadonlyArray<boolean>): boolean => {
   if (left.length !== right.length) {
     return false;
   }
@@ -53,10 +50,7 @@ const arraysEqual = (
   return true;
 };
 
-const sameTreePrefixInputs = (
-  left: TaskRowModel["tree"],
-  right: TaskRowModel["tree"],
-): boolean =>
+const sameTreePrefixInputs = (left: TaskRowModel["tree"], right: TaskRowModel["tree"]): boolean =>
   left.depth === right.depth &&
   left.hasNextSibling === right.hasNextSibling &&
   arraysEqual(left.ancestorHasNextSibling, right.ancestorHasNextSibling);

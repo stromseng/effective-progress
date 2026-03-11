@@ -97,9 +97,7 @@ export const getTaskIndicator = (task: TaskSnapshot, tick: number): TaskIndicato
   return { symbol: "✓", color: "green" };
 };
 
-const formatDeterminateAmountParts = (
-  task: TaskSnapshot,
-): DeterminateAmountParts | undefined => {
+const formatDeterminateAmountParts = (task: TaskSnapshot): DeterminateAmountParts | undefined => {
   if (!isDeterminate(task)) {
     return undefined;
   }

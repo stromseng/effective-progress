@@ -168,8 +168,18 @@ const rootLayoutCandidates = (options: {
   return [
     ...(options.hasEta
       ? [
-          policy({ descriptionCap: "tree", progressMode: "full", showElapsed: true, showEta: true }),
-          policy({ descriptionCap: "plain", progressMode: "full", showElapsed: true, showEta: true }),
+          policy({
+            descriptionCap: "tree",
+            progressMode: "full",
+            showElapsed: true,
+            showEta: true,
+          }),
+          policy({
+            descriptionCap: "plain",
+            progressMode: "full",
+            showElapsed: true,
+            showEta: true,
+          }),
           ...(options.preferDroppingEtaBeforePercent
             ? [
                 policy({
@@ -180,18 +190,43 @@ const rootLayoutCandidates = (options: {
                 }),
               ]
             : []),
-          policy({ descriptionCap: "plain", progressMode: "percent", showElapsed: true, showEta: true }),
+          policy({
+            descriptionCap: "plain",
+            progressMode: "percent",
+            showElapsed: true,
+            showEta: true,
+          }),
         ]
       : []),
     ...(options.hasEta
       ? []
       : [
-          policy({ descriptionCap: "tree", progressMode: "full", showElapsed: true, showEta: false }),
-          policy({ descriptionCap: "plain", progressMode: "full", showElapsed: true, showEta: false }),
+          policy({
+            descriptionCap: "tree",
+            progressMode: "full",
+            showElapsed: true,
+            showEta: false,
+          }),
+          policy({
+            descriptionCap: "plain",
+            progressMode: "full",
+            showElapsed: true,
+            showEta: false,
+          }),
         ]),
     policy({ descriptionCap: "plain", progressMode: "percent", showElapsed: true, showEta: false }),
-    policy({ descriptionCap: "plain", progressMode: "percent", showElapsed: false, showEta: false }),
-    policy({ descriptionCap: "compact", progressMode: "percent", showElapsed: false, showEta: false }),
+    policy({
+      descriptionCap: "plain",
+      progressMode: "percent",
+      showElapsed: false,
+      showEta: false,
+    }),
+    policy({
+      descriptionCap: "compact",
+      progressMode: "percent",
+      showElapsed: false,
+      showEta: false,
+    }),
     policy({ descriptionCap: "compact", showElapsed: false, showEta: false }),
     policy({ descriptionCap: "spinner", showElapsed: false, showEta: false }),
   ];
@@ -219,8 +254,7 @@ export const selectRootLayoutPolicy = (options: {
 
   return (
     candidates.find((policy) => rootLayoutWidth(policy, options) <= options.terminalColumns!) ??
-    candidates.at(-1) ??
-    { descriptionCap: "spinner", showElapsed: false, showEta: false }
+    candidates.at(-1) ?? { descriptionCap: "spinner", showElapsed: false, showEta: false }
   );
 };
 

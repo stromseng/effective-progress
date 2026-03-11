@@ -14,9 +14,7 @@ const PROGRESS_PERCENT_THRESHOLD = 10;
 
 export type ProgressPolicyMode = "full" | "percent";
 
-export const preferredPercentWidth = (
-  rows: ReturnType<typeof useRenderFrame>["rows"],
-): number =>
+export const preferredPercentWidth = (rows: ReturnType<typeof useRenderFrame>["rows"]): number =>
   rows.reduce((max, row) => Math.max(max, textWidth(percentText(row.task))), MIN_PROGRESS_WIDTH);
 
 const progressAmountMetrics = (rows: ReturnType<typeof useRenderFrame>["rows"]) => {
@@ -56,9 +54,7 @@ const progressAmountMetrics = (rows: ReturnType<typeof useRenderFrame>["rows"]) 
   };
 };
 
-export const preferredProgressWidth = (
-  rows: ReturnType<typeof useRenderFrame>["rows"],
-): number => {
+export const preferredProgressWidth = (rows: ReturnType<typeof useRenderFrame>["rows"]): number => {
   const amountWidth = progressAmountMetrics(rows).preferredWidth;
   const hasDeterminate = rows.some((row) => row.derived.isDeterminate);
 
@@ -69,9 +65,7 @@ export const preferredProgressWidth = (
   return Math.max(MIN_PROGRESS_WIDTH, DEFAULT_BAR_WIDTH + 1 + amountWidth);
 };
 
-export const progressMinimumWidth = (
-  rows: ReturnType<typeof useRenderFrame>["rows"],
-): number => {
+export const progressMinimumWidth = (rows: ReturnType<typeof useRenderFrame>["rows"]): number => {
   let hasDeterminateRows = false;
   let processedDigits = 1;
   let totalDigits = 1;
@@ -229,10 +223,7 @@ export const ProgressColumn = ({
   const frame = useRenderFrame();
   const ref = useRef<DOMElement>(null);
   const metrics = useBoxMetrics(ref);
-  const preferredWidth = useMemo(
-    () => preferredProgressWidth(frame.rows),
-    [frame.rows],
-  );
+  const preferredWidth = useMemo(() => preferredProgressWidth(frame.rows), [frame.rows]);
   const percentWidth = useMemo(() => preferredPercentWidth(frame.rows), [frame.rows]);
   const amountMetrics = useMemo(() => progressAmountMetrics(frame.rows), [frame.rows]);
   const stickyWidth = useStickyWidth(preferredWidth);

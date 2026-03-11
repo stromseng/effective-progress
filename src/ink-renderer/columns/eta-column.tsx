@@ -39,11 +39,7 @@ export const preferredEtaWidth = (
       return max;
     }
 
-    return Math.max(
-      max,
-      textWidth(`ETA: ${duration}`),
-      RESERVED_ETA_WIDTH_UP_TO_ONE_HOUR,
-    );
+    return Math.max(max, textWidth(`ETA: ${duration}`), RESERVED_ETA_WIDTH_UP_TO_ONE_HOUR);
   }, 0);
 
 const renderEtaText = (task: TaskSnapshot, now: number, width: number): string => {
@@ -96,7 +92,7 @@ export const EtaColumn = ({
         const rendered = renderEtaText(
           row.task,
           now,
-          metrics.hasMeasured ? (metrics.width || width) : width,
+          metrics.hasMeasured ? metrics.width || width : width,
         );
 
         return (

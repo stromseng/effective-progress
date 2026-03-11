@@ -12,7 +12,10 @@ const treePrefix = (tree: TaskRowModel["tree"]): string => {
     return "";
   }
 
-  return `${tree.ancestorHasNextSibling.slice(1).map((hasNextSibling) => (hasNextSibling ? "│  " : "   ")).join("")}${tree.hasNextSibling ? "├─ " : "└─ "}`;
+  return `${tree.ancestorHasNextSibling
+    .slice(1)
+    .map((hasNextSibling) => (hasNextSibling ? "│  " : "   "))
+    .join("")}${tree.hasNextSibling ? "├─ " : "└─ "}`;
 };
 
 const deriveRow = (task: Progress.TaskSnapshot, tree: TaskRowModel["tree"]): TaskRowModel => {

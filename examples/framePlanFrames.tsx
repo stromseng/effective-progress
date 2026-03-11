@@ -9,7 +9,10 @@ const treePrefix = (tree: TaskRowModel["tree"]): string => {
     return "";
   }
 
-  return `${tree.ancestorHasNextSibling.slice(1).map((hasNextSibling) => (hasNextSibling ? "│  " : "   ")).join("")}${tree.hasNextSibling ? "├─ " : "└─ "}`;
+  return `${tree.ancestorHasNextSibling
+    .slice(1)
+    .map((hasNextSibling) => (hasNextSibling ? "│  " : "   "))
+    .join("")}${tree.hasNextSibling ? "├─ " : "└─ "}`;
 };
 
 const task = Progress.TaskSnapshot({
@@ -43,7 +46,8 @@ const row: TaskRowModel = {
     treePrefix: treePrefix(tree),
     treePrefixWidth: fastStringWidth(treePrefix(tree)),
     descriptionWidth: fastStringWidth(task.description),
-    treePrefixedDescriptionWidth: fastStringWidth(treePrefix(tree)) + fastStringWidth(task.description),
+    treePrefixedDescriptionWidth:
+      fastStringWidth(treePrefix(tree)) + fastStringWidth(task.description),
     hasRenderableProgress: task.units.total !== undefined || task.units.processed > 0,
     isDeterminate: task.units.total !== undefined,
   },

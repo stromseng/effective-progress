@@ -30,8 +30,7 @@ const maxDescriptionWidth = (
 
 export const minTreeDescriptionWidth = (rows: ReturnType<typeof useRenderFrame>["rows"]): number =>
   rows.reduce(
-    (max, row) =>
-      Math.max(max, row.derived.treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
+    (max, row) => Math.max(max, row.derived.treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
     MIN_PLAIN_DESCRIPTION_WIDTH,
   );
 

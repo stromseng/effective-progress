@@ -35,9 +35,9 @@
     "build": "tsdown",
     "prepublishOnly": "bun run build",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint .",
-    "format": "oxfmt --write .",
-    "format:check": "oxfmt --check ."
+    "lint": "bun run oxlint .",
+    "format": "bun run oxfmt --write .",
+    "format:check": "bun run oxfmt --check ."
   },
   "dependencies": {
     "chalk": "^5.6.2",

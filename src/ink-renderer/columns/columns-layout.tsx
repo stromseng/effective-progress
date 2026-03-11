@@ -37,7 +37,10 @@ export const ColumnsLayout = ({ terminalColumns }: ColumnsLayoutProps) => {
   const showProgress = useMemo(() => hasRenderableProgress(frame.rows), [frame.rows]);
   const showEtaColumn = useMemo(() => hasEta(frame.rows, now), [frame.rows, now]);
   const percentPreferredWidth = useMemo(() => preferredPercentWidth(frame.rows), [frame.rows]);
-  const elapsedPreferredWidth = useMemo(() => preferredElapsedWidth(frame.rows, now), [frame.rows, now]);
+  const elapsedPreferredWidth = useMemo(
+    () => preferredElapsedWidth(frame.rows, now),
+    [frame.rows, now],
+  );
   const etaMinWidth = useMemo(() => etaMinimumWidth(frame.rows, now), [frame.rows, now]);
   const etaPreferredWidth = useMemo(() => preferredEtaWidth(frame.rows, now), [frame.rows, now]);
   const descriptionTreeMinWidth = useMemo(() => minTreeDescriptionWidth(frame.rows), [frame.rows]);
@@ -117,7 +120,9 @@ export const ColumnsLayout = ({ terminalColumns }: ColumnsLayoutProps) => {
         cap={layoutPolicy.descriptionCap}
         assignedWidth={assignedWidths.get("description")}
         marginRight={
-          layoutPolicy.progressMode !== undefined || layoutPolicy.showElapsed || layoutPolicy.showEta
+          layoutPolicy.progressMode !== undefined ||
+          layoutPolicy.showElapsed ||
+          layoutPolicy.showEta
             ? COLUMN_GAP
             : 0
         }
