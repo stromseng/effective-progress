@@ -87,7 +87,11 @@ const totalVisibleWidth = (
 };
 
 const nextDistinctWidth = (
-  entries: ReadonlyArray<{ readonly index: number; readonly width: number; readonly minWidth: number }>,
+  entries: ReadonlyArray<{
+    readonly index: number;
+    readonly width: number;
+    readonly minWidth: number;
+  }>,
   widest: number,
 ): number | undefined => entries.find((entry) => entry.width < widest)?.width;
 

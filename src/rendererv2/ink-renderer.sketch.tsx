@@ -24,14 +24,7 @@ const CreateProgressRoot = (columns: ReadonlyArray<ProgressColumnDefinition>) =>
     const now = useNow();
     const tick = useSpinnerTick();
 
-    return (
-      <ProgressRenderer
-        rows={rows}
-        now={now}
-        tick={tick}
-        terminalColumns={terminalColumns}
-      />
-    );
+    return <ProgressRenderer rows={rows} now={now} tick={tick} terminalColumns={terminalColumns} />;
   };
 
   return ({
@@ -41,21 +34,19 @@ const CreateProgressRoot = (columns: ReadonlyArray<ProgressColumnDefinition>) =>
     readonly store: ProgressRenderStore;
     readonly getTerminalColumns: () => number | undefined;
   }) => {
-    const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+    const publication = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 
     return (
-      <SpinnerProvider active={snapshot.hasRunningTasks}>
-        <NowProvider active={snapshot.hasRunningTasks}>
-          <ProgressFrame rows={snapshot.rows} terminalColumns={getTerminalColumns()} />
+      <SpinnerProvider active={publication.snapshot.hasRunningTasks}>
+        <NowProvider active={publication.snapshot.hasRunningTasks}>
+          <ProgressFrame rows={publication.snapshot.rows} terminalColumns={getTerminalColumns()} />
         </NowProvider>
       </SpinnerProvider>
     );
   };
 };
 
-export const createRendererv2InkRenderer = (
-  columns: ReadonlyArray<ProgressColumnDefinition>,
-) => {
+export const createRendererv2InkRenderer = (columns: ReadonlyArray<ProgressColumnDefinition>) => {
   const ProgressRoot = CreateProgressRoot(columns);
 
   return InkRenderer.of({

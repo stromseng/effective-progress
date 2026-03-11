@@ -68,9 +68,7 @@ const createStatusColumn = (config: {
 }): ProgressColumnDefinition => {
   const Component = ({ row, tick }: ProgressColumnProps) => {
     const indicator =
-      row.task.status === "running"
-        ? getSpinnerIndicator(tick)
-        : getTaskIndicator(row.task, tick);
+      row.task.status === "running" ? getSpinnerIndicator(tick) : getTaskIndicator(row.task, tick);
 
     return <Text color={indicator.color}>{indicator.symbol}</Text>;
   };

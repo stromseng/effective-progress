@@ -8,7 +8,7 @@ interface ProgressRootProps {
 }
 
 export const ProgressRoot = ({ store, getTerminalColumns }: ProgressRootProps) => {
-  const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  const publication = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 
-  return <RootColumn rows={snapshot.rows} terminalColumns={getTerminalColumns()} />;
+  return <RootColumn rows={publication.snapshot.rows} terminalColumns={getTerminalColumns()} />;
 };

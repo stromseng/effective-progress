@@ -84,7 +84,13 @@ export const CreateProgressRenderer = (
                   minWidth={column.width}
                   justifyContent={column.definition.justify === "right" ? "flex-end" : "flex-start"}
                 >
-                  <Component row={row} rowIndex={rowIndex} now={now} tick={tick} width={column.width} />
+                  <Component
+                    row={row}
+                    rowIndex={rowIndex}
+                    now={now}
+                    tick={tick}
+                    width={column.width}
+                  />
                 </Box>
               ))}
             </Box>

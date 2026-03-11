@@ -1,6 +1,20 @@
 import { Clock, Effect, Option } from "effect";
-import type { AddTaskOptions, TaskId, TaskStore, UpdateTaskOptions } from "../types";
+import type {
+  AddTaskOptions,
+  ProgressTaskEvent,
+  TaskId,
+  TaskStore,
+  UpdateTaskOptions,
+} from "../types";
 import { TaskId as makeTaskId, TaskSnapshot } from "../types";
+import {
+  TaskAddedEvent,
+  TaskAdvancedEvent,
+  TaskCompletedEvent,
+  TaskFailedEvent,
+  TaskRemovedEvent,
+  TaskUpdatedEvent,
+} from "../types";
 import { toRenderSnapshot, type RenderSnapshot } from "./store/render-snapshot";
 
 interface TaskCounts {
@@ -9,8 +23,13 @@ interface TaskCounts {
   readonly total?: number;
 }
 
+export interface RenderPublication {
+  readonly snapshot: RenderSnapshot;
+  readonly events: ReadonlyArray<ProgressTaskEvent>;
+}
+
 export interface ProgressRenderStore {
-  readonly getSnapshot: () => RenderSnapshot;
+  readonly getSnapshot: () => RenderPublication;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
   readonly addTask: (options: AddTaskOptions) => Effect.Effect<TaskId>;
@@ -147,6 +166,29 @@ const removeFromRenderOrder = (
   return next;
 };
 
+const subtreeTaskIds = (
+  renderOrder: ReadonlyArray<TaskStore["renderOrder"][number]>,
+  taskId: TaskId,
+): ReadonlyArray<TaskId> => {
+  const idx = renderOrder.findIndex((row) => row.id === taskId);
+  if (idx === -1) {
+    return [];
+  }
+
+  const taskDepth = renderOrder[idx]!.depth;
+  let end = idx + 1;
+  while (end < renderOrder.length && renderOrder[end]!.depth > taskDepth) {
+    end++;
+  }
+
+  return renderOrder.slice(idx, end).map((row) => row.id);
+};
+
+interface StateUpdate {
+  readonly state: TaskStore;
+  readonly events: ReadonlyArray<ProgressTaskEvent>;
+}
+
 const SNAPSHOT_PUBLISH_INTERVAL_MILLIS = 100;
 
 export const makeProgressRenderStore = () => {
@@ -155,7 +197,11 @@ export const makeProgressRenderStore = () => {
     tasks: new Map<TaskId, TaskSnapshot>(),
     renderOrder: [],
   };
-  let publishedSnapshot = toRenderSnapshot(state);
+  let pendingEvents: Array<ProgressTaskEvent> = [];
+  let publishedPublication: RenderPublication = {
+    snapshot: toRenderSnapshot(state),
+    events: [],
+  };
   let hasPendingPublish = false;
   let lastPublishAt = 0;
   let publishTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -168,10 +214,16 @@ export const makeProgressRenderStore = () => {
   };
 
   const publishNow = (): void => {
+    const nextPublication: RenderPublication = {
+      snapshot: toRenderSnapshot(state, publishedPublication.snapshot),
+      events: [...pendingEvents],
+    };
+
     hasPendingPublish = false;
-    lastPublishAt = Date.now();
-    publishedSnapshot = toRenderSnapshot(state, publishedSnapshot);
+    publishedPublication = nextPublication;
     notifyListeners();
+    pendingEvents = [];
+    lastPublishAt = Date.now();
   };
 
   const clearScheduledPublish = (): void => {
@@ -209,22 +261,25 @@ export const makeProgressRenderStore = () => {
     }, waitMillis);
   };
 
-  const publish = (nextState: TaskStore): void => {
-    if (nextState === state) {
+  const publish = (update: StateUpdate): void => {
+    if (update.state === state) {
       return;
     }
 
-    state = nextState;
+    state = update.state;
+    if (update.events.length > 0) {
+      pendingEvents.push(...update.events);
+    }
     hasPendingPublish = true;
     schedulePublish();
   };
 
-  const updateState = (transform: (current: TaskStore) => TaskStore): void => {
+  const updateState = (transform: (current: TaskStore) => StateUpdate): void => {
     publish(transform(state));
   };
 
   const store = {
-    getSnapshot: () => publishedSnapshot,
+    getSnapshot: () => publishedPublication,
     subscribe: (listener) => {
       listeners.add(listener);
       return () => {
@@ -269,53 +324,74 @@ export const makeProgressRenderStore = () => {
           const { index, depth } = findInsertionIndex(current.renderOrder, parentId);
           const nextRenderOrder = [...current.renderOrder];
           nextRenderOrder.splice(index, 0, { id: taskId, depth });
-          return { tasks: nextTasks, renderOrder: nextRenderOrder };
+
+          return {
+            state: { tasks: nextTasks, renderOrder: nextRenderOrder },
+            events: [
+              new TaskAddedEvent({
+                taskId,
+                parentId,
+                description: task.description,
+                total: task.units.total,
+                transient: task.transient,
+                countDisplay: task.countDisplay,
+              }),
+            ],
+          };
         });
 
         return taskId;
       }),
     updateTask: (taskId, options) =>
-      Effect.gen(function* () {
-        const currentTask = state.tasks.get(taskId);
-        if (!currentTask) {
-          return;
-        }
-
-        const nextTask = updatedSnapshot(currentTask, options);
-
+      Effect.sync(() => {
         updateState((current) => {
-          const liveTask = current.tasks.get(taskId);
-          if (!liveTask) {
-            return current;
+          const currentTask = current.tasks.get(taskId);
+          if (!currentTask) {
+            return { state: current, events: [] };
           }
 
+          const nextTask = updatedSnapshot(currentTask, options);
           const nextTasks = new Map(current.tasks);
           nextTasks.set(taskId, nextTask);
 
+          const events: Array<ProgressTaskEvent> = [
+            new TaskUpdatedEvent({
+              taskId,
+              description: options.description ?? undefined,
+              succeeded: options.succeeded ?? undefined,
+              failed: options.failed ?? undefined,
+              processed:
+                options.succeeded !== undefined || options.failed !== undefined
+                  ? nextTask.units.processed
+                  : undefined,
+              total: hasExplicitTotal(options) ? nextTask.units.total : undefined,
+              transient: options.transient ?? undefined,
+              countDisplay: options.countDisplay ?? undefined,
+            }),
+          ];
+
           if (options.transient !== undefined) {
-            for (const [candidateId, candidate] of current.tasks.entries()) {
-              if (candidateId === taskId) {
+            for (const candidateId of subtreeTaskIds(current.renderOrder, taskId).slice(1)) {
+              const candidate = current.tasks.get(candidateId);
+              if (!candidate) {
                 continue;
               }
 
-              let parentId = candidate.parentId;
-              let isDescendant = false;
-              while (parentId !== null) {
-                if (parentId === taskId) {
-                  isDescendant = true;
-                  break;
-                }
-
-                parentId = current.tasks.get(parentId)?.parentId ?? null;
-              }
-
-              if (isDescendant) {
-                nextTasks.set(candidateId, withTransient(candidate, nextTask.transient));
-              }
+              const nextCandidate = withTransient(candidate, nextTask.transient);
+              nextTasks.set(candidateId, nextCandidate);
+              events.push(
+                new TaskUpdatedEvent({
+                  taskId: candidateId,
+                  transient: nextCandidate.transient,
+                }),
+              );
             }
           }
 
-          return { tasks: nextTasks, renderOrder: current.renderOrder };
+          return {
+            state: { tasks: nextTasks, renderOrder: current.renderOrder },
+            events,
+          };
         });
       }),
     incrementSucceeded: (taskId, amount = 1) =>
@@ -323,7 +399,7 @@ export const makeProgressRenderStore = () => {
         updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
-            return current;
+            return { state: current, events: [] };
           }
 
           const nextTasks = new Map(current.tasks);
@@ -346,7 +422,10 @@ export const makeProgressRenderStore = () => {
             }),
           );
 
-          return { tasks: nextTasks, renderOrder: current.renderOrder };
+          return {
+            state: { tasks: nextTasks, renderOrder: current.renderOrder },
+            events: [new TaskAdvancedEvent({ taskId, amount, kind: "succeeded" })],
+          };
         });
       }),
     incrementFailed: (taskId, amount = 1) =>
@@ -354,7 +433,7 @@ export const makeProgressRenderStore = () => {
         updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
-            return current;
+            return { state: current, events: [] };
           }
 
           const nextTasks = new Map(current.tasks);
@@ -377,7 +456,10 @@ export const makeProgressRenderStore = () => {
             }),
           );
 
-          return { tasks: nextTasks, renderOrder: current.renderOrder };
+          return {
+            state: { tasks: nextTasks, renderOrder: current.renderOrder },
+            events: [new TaskAdvancedEvent({ taskId, amount, kind: "failed" })],
+          };
         });
       }),
     completeTask: (taskId) =>
@@ -387,15 +469,27 @@ export const makeProgressRenderStore = () => {
         updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
-            return current;
+            return { state: current, events: [] };
           }
 
           const nextTasks = new Map(current.tasks);
           if (currentTask.transient) {
-            nextTasks.delete(taskId);
+            const removedTaskIds = subtreeTaskIds(current.renderOrder, taskId);
+            for (const removedTaskId of removedTaskIds) {
+              nextTasks.delete(removedTaskId);
+            }
+
             return {
-              tasks: nextTasks,
-              renderOrder: removeFromRenderOrder(current.renderOrder, taskId),
+              state: {
+                tasks: nextTasks,
+                renderOrder: removeFromRenderOrder(current.renderOrder, taskId),
+              },
+              events: [
+                new TaskCompletedEvent({ taskId }),
+                ...removedTaskIds.map(
+                  (removedTaskId) => new TaskRemovedEvent({ taskId: removedTaskId }),
+                ),
+              ],
             };
           }
 
@@ -418,8 +512,7 @@ export const makeProgressRenderStore = () => {
                         failed: currentTask.units.failed,
                         total: currentTask.units.total,
                       })
-                    : // Preserve overflowed raw counts once the task has already reached/passed total.
-                      currentTask.units
+                    : currentTask.units
                   : currentTask.units.processed > 0
                     ? normalizeUnits({
                         succeeded: currentTask.units.succeeded,
@@ -432,7 +525,10 @@ export const makeProgressRenderStore = () => {
             }),
           );
 
-          return { tasks: nextTasks, renderOrder: current.renderOrder };
+          return {
+            state: { tasks: nextTasks, renderOrder: current.renderOrder },
+            events: [new TaskCompletedEvent({ taskId })],
+          };
         });
       }),
     failTask: (taskId) =>
@@ -442,15 +538,27 @@ export const makeProgressRenderStore = () => {
         updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
-            return current;
+            return { state: current, events: [] };
           }
 
           const nextTasks = new Map(current.tasks);
           if (currentTask.transient) {
-            nextTasks.delete(taskId);
+            const removedTaskIds = subtreeTaskIds(current.renderOrder, taskId);
+            for (const removedTaskId of removedTaskIds) {
+              nextTasks.delete(removedTaskId);
+            }
+
             return {
-              tasks: nextTasks,
-              renderOrder: removeFromRenderOrder(current.renderOrder, taskId),
+              state: {
+                tasks: nextTasks,
+                renderOrder: removeFromRenderOrder(current.renderOrder, taskId),
+              },
+              events: [
+                new TaskFailedEvent({ taskId }),
+                ...removedTaskIds.map(
+                  (removedTaskId) => new TaskRemovedEvent({ taskId: removedTaskId }),
+                ),
+              ],
             };
           }
 
@@ -469,7 +577,10 @@ export const makeProgressRenderStore = () => {
             }),
           );
 
-          return { tasks: nextTasks, renderOrder: current.renderOrder };
+          return {
+            state: { tasks: nextTasks, renderOrder: current.renderOrder },
+            events: [new TaskFailedEvent({ taskId })],
+          };
         });
       }),
     getTask: (taskId) => Effect.sync(() => Option.fromNullable(state.tasks.get(taskId))),
