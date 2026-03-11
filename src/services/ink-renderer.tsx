@@ -1,7 +1,7 @@
 import { Context, Layer } from "effect";
-import { defaultRendererv2Columns } from "../rendererv2/default-columns";
-import { makeRendererv2InkRendererService } from "../rendererv2/renderer-service";
-import type { ProgressRenderStore } from "../rendererv2/store";
+import { defaultRendererv2Columns } from "../renderer/default-columns";
+import { makeRendererv2InkRendererService } from "../renderer/renderer-service";
+import type { ProgressRenderStore } from "../renderer/store";
 import type { ProgressStdioService } from "./stdio";
 
 interface InkRendererService {

@@ -2,14 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { render, Text } from "ink";
 import { createElement } from "react";
 import * as Progress from "../src";
-import { NowProvider, useNow } from "../src/rendererv2/context/now-context";
+import { NowProvider, useNow } from "../src/renderer/context/now-context";
 import {
   CreateProgressRenderer,
   type ProgressColumnDefinition,
   type ProgressColumnMeasurement,
   type ProgressColumnProps,
-} from "../src/rendererv2/public-api";
-import type { TaskRowModel } from "../src/rendererv2/store/types";
+} from "../src/renderer/public-api";
+import type { TaskRowModel } from "../src/renderer/store/types";
 import { createMockStdio } from "./helpers/mock-stdio";
 
 const deriveRow = (task: Progress.TaskSnapshot): TaskRowModel => ({

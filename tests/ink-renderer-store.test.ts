@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { makeProgressRenderStore } from "../src/rendererv2/store";
+import { makeProgressRenderStore } from "../src/renderer/store";
 
 const sleep = (millis: number) =>
   new Promise<void>((resolve) => {

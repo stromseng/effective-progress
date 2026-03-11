@@ -3,18 +3,18 @@ import { renderToString } from "ink";
 import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
-import { createDescriptionColumn } from "../src/rendererv2/columns/description-column";
-import { createElapsedColumn } from "../src/rendererv2/columns/elapsed-column";
-import { createEtaColumn } from "../src/rendererv2/columns/eta-column";
-import { NowProvider } from "../src/rendererv2/context/now-context";
+import { createDescriptionColumn } from "../src/renderer/columns/description-column";
+import { createElapsedColumn } from "../src/renderer/columns/elapsed-column";
+import { createEtaColumn } from "../src/renderer/columns/eta-column";
+import { NowProvider } from "../src/renderer/context/now-context";
 import {
   createProgressColumn,
   defaultProgressColumnConfig,
-} from "../src/rendererv2/columns/progress-column";
-import { CreateProgressRenderer } from "../src/rendererv2/public-api";
-import { SpinnerProvider } from "../src/rendererv2/context/spinner-context";
-import { textWidth } from "../src/rendererv2/shared/text-width";
-import type { TaskRowModel } from "../src/rendererv2/store/types";
+} from "../src/renderer/columns/progress-column";
+import { CreateProgressRenderer } from "../src/renderer/public-api";
+import { SpinnerProvider } from "../src/renderer/context/spinner-context";
+import { textWidth } from "../src/renderer/shared/text-width";
+import type { TaskRowModel } from "../src/renderer/store/types";
 
 const deriveRow = (task: Progress.TaskSnapshot): TaskRowModel => ({
   task,
