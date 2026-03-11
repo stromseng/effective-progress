@@ -38,7 +38,8 @@
     "lint": "oxlint .",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
-    "check": "bun run typecheck && bun run lint && bun run format:check && knip"
+    "check": "bun run typecheck && bun run lint && bun run format:check && knip",
+    "perf": "bun --cpu-prof --cpu-prof-md examples/v2/perf.tsx"
   },
   "dependencies": {
     "fast-string-width": "^3.0.2",
