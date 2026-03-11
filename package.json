@@ -37,7 +37,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",
     "format": "oxfmt --write .",
-    "format:check": "oxfmt --check ."
+    "format:check": "oxfmt --check .",
+    "check": "bun run typecheck && bun run lint && bun run format:check && knip"
   },
   "dependencies": {
     "fast-string-width": "^3.0.2",

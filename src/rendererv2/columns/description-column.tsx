@@ -13,10 +13,18 @@ export interface DescriptionColumnConfig {
 }
 
 const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
+export const defaultDescriptionColumnConfig = {
+  minWidth: 1,
+  sticky: true,
+} satisfies DescriptionColumnConfig;
 
 export const createDescriptionColumn = (
-  config: DescriptionColumnConfig,
+  config?: Partial<DescriptionColumnConfig>,
 ): ProgressColumnDefinition => {
+  const resolvedConfig = {
+    ...defaultDescriptionColumnConfig,
+    ...config,
+  } satisfies DescriptionColumnConfig;
   let minTreeWidth = MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2;
 
   const Component = ({ row, width }: ProgressColumnProps) => {
@@ -30,8 +38,7 @@ export const createDescriptionColumn = (
     if (!showTree && width === 2) {
       return (
         <Text wrap="truncate-end">
-          <TaskIndicatorGlyph task={row.task} />
-          …
+          <TaskIndicatorGlyph task={row.task} />…
         </Text>
       );
     }
@@ -57,19 +64,19 @@ export const createDescriptionColumn = (
       );
 
       return {
-        minWidth: config.minWidth,
+        minWidth: resolvedConfig.minWidth,
         preferredWidth: Math.max(
           rows.reduce(
             (max, row) => Math.max(max, row.derived.treePrefixedDescriptionWidth + 2),
-            config.minWidth,
+            resolvedConfig.minWidth,
           ),
-          hasNestedRows ? minTreeWidth : config.minWidth,
+          hasNestedRows ? minTreeWidth : resolvedConfig.minWidth,
         ),
         maxWidth: undefined,
       };
     },
     noWrap: false,
-    sticky: config.sticky,
-    stickyMaxWidth: config.stickyMaxWidth,
+    sticky: resolvedConfig.sticky,
+    stickyMaxWidth: resolvedConfig.stickyMaxWidth,
   };
 };

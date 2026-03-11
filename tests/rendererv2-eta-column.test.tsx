@@ -8,7 +8,10 @@ import { SpinnerProvider } from "../src/ink-renderer/spinner-context";
 import { createDescriptionColumn } from "../src/rendererv2/columns/description-column";
 import { createElapsedColumn } from "../src/rendererv2/columns/elapsed-column";
 import { createEtaColumn } from "../src/rendererv2/columns/eta-column";
-import { createProgressColumn, defaultProgressColumnConfig } from "../src/rendererv2/columns/progress-column";
+import {
+  createProgressColumn,
+  defaultProgressColumnConfig,
+} from "../src/rendererv2/columns/progress-column";
 import { CreateProgressRenderer } from "../src/rendererv2/public-api";
 import type { TaskRowModel } from "../src/ink-renderer/store/types";
 import { textWidth } from "../src/ink-renderer/shared/text-width";

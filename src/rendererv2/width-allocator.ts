@@ -69,10 +69,7 @@ const normalizeMeasurement = (
 const visibleIndices = (widths: ReadonlyArray<number>): Array<number> =>
   widths.flatMap((width, index) => (width > 0 ? [index] : []));
 
-const totalVisibleWidth = (
-  widths: ReadonlyArray<number>,
-  columns: ReadonlyArray<NormalizedColumnMeasurement>,
-): number => {
+const totalVisibleWidth = (widths: ReadonlyArray<number>): number => {
   const indices = visibleIndices(widths);
   if (indices.length === 0) {
     return 0;
@@ -99,7 +96,7 @@ const shrinkWidestFirst = (
   targetWidth: number,
   canShrink: (index: number) => boolean,
 ): Array<number> => {
-  while (totalVisibleWidth(widths, columns) > targetWidth) {
+  while (totalVisibleWidth(widths) > targetWidth) {
     const shrinkable = widths
       .map((width, index) => ({
         index,
@@ -113,7 +110,7 @@ const shrinkWidestFirst = (
       break;
     }
 
-    const overflow = totalVisibleWidth(widths, columns) - targetWidth;
+    const overflow = totalVisibleWidth(widths) - targetWidth;
     const widest = shrinkable[0]!.width;
     const cohort = shrinkable.filter((entry) => entry.width === widest);
     const floor = Math.max(
@@ -132,7 +129,7 @@ const shrinkWidestFirst = (
 
     let changed = false;
     for (const { index, minWidth } of cohort) {
-      if (totalVisibleWidth(widths, columns) <= targetWidth) {
+      if (totalVisibleWidth(widths) <= targetWidth) {
         break;
       }
 
@@ -158,8 +155,10 @@ const forceFitFromRight = (
   targetWidth: number,
   canShrink: (index: number) => boolean,
 ): Array<number> => {
-  while (totalVisibleWidth(widths, columns) > targetWidth) {
-    const rightmostVisibleIndex = widths.findLastIndex((width, index) => width > 0 && canShrink(index));
+  while (totalVisibleWidth(widths) > targetWidth) {
+    const rightmostVisibleIndex = widths.findLastIndex(
+      (width, index) => width > 0 && canShrink(index),
+    );
     if (rightmostVisibleIndex < 0) {
       break;
     }
@@ -195,7 +194,7 @@ const applyStickyGrowth = (
       }
     });
   } else {
-    let remaining = targetWidth - totalVisibleWidth(widths, columns);
+    let remaining = targetWidth - totalVisibleWidth(widths);
 
     if (remaining > 0) {
       stickyTargets.forEach((target, index) => {
@@ -252,7 +251,7 @@ export const planColumnLayout = (
       (index) => columns[index]!.definition.fixedWidth === undefined,
     );
 
-    if (totalVisibleWidth(widths, columns) > terminalColumns) {
+    if (totalVisibleWidth(widths) > terminalColumns) {
       widths = forceFitFromRight(
         [...widths],
         columns,

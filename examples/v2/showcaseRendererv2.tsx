@@ -3,10 +3,7 @@ import * as Progress from "../../src";
 import { createDescriptionColumn } from "../../src/rendererv2/columns/description-column";
 import { createElapsedColumn } from "../../src/rendererv2/columns/elapsed-column";
 import { createEtaColumn } from "../../src/rendererv2/columns/eta-column";
-import {
-  createProgressColumn,
-  defaultProgressColumnConfig,
-} from "../../src/rendererv2/columns/progress-column";
+import { createProgressColumn } from "../../src/rendererv2/columns/progress-column";
 import { InkRenderer } from "../../src/services/ink-renderer";
 import { createRendererv2InkRenderer } from "../../src/rendererv2/ink-renderer";
 
@@ -19,23 +16,10 @@ const sleepRandom = (base: number, jitter: number) =>
 const stages = ["fetch", "transform", "persist"] as const;
 const services = ["identity", "catalog"] as const;
 const columns = [
-  createDescriptionColumn({
-    minWidth: 1,
-    sticky: true,
-  }),
-  createProgressColumn({
-    ...defaultProgressColumnConfig,
-  }),
-  createElapsedColumn({
-    minWidth: 2,
-    justify: "right",
-    sticky: true,
-  }),
-  createEtaColumn({
-    minWidth: 3,
-    justify: "right",
-    sticky: true,
-  }),
+  createDescriptionColumn(),
+  createProgressColumn(),
+  createElapsedColumn(),
+  createEtaColumn(),
 ];
 
 const serviceFlow = (service: string, serviceIndex: number) =>

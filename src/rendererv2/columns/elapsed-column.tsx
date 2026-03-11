@@ -13,6 +13,11 @@ export interface ElapsedColumnConfig {
   readonly justify: "left" | "right";
   readonly sticky: boolean;
 }
+export const defaultElapsedColumnConfig = {
+  minWidth: 2,
+  justify: "right",
+  sticky: true,
+} satisfies ElapsedColumnConfig;
 
 const ElapsedText = ({
   task,
@@ -27,7 +32,13 @@ const ElapsedText = ({
   );
 };
 
-export const createElapsedColumn = (config: ElapsedColumnConfig): ProgressColumnDefinition => {
+export const createElapsedColumn = (
+  config?: Partial<ElapsedColumnConfig>,
+): ProgressColumnDefinition => {
+  const resolvedConfig = {
+    ...defaultElapsedColumnConfig,
+    ...config,
+  } satisfies ElapsedColumnConfig;
   const Component = ({ row, width }: ProgressColumnProps) => (
     <ElapsedText task={row.task} width={width} />
   );
@@ -35,18 +46,18 @@ export const createElapsedColumn = (config: ElapsedColumnConfig): ProgressColumn
   return {
     Component,
     measure: ({ rows, now }): ProgressColumnMeasurement => ({
-      minWidth: config.minWidth,
+      minWidth: resolvedConfig.minWidth,
       preferredWidth: rows.reduce(
         (max, row) => Math.max(max, textWidth(formatElapsed(row.task, now))),
-        config.minWidth,
+        resolvedConfig.minWidth,
       ),
       maxWidth: rows.reduce(
         (max, row) => Math.max(max, textWidth(formatElapsed(row.task, now))),
-        config.minWidth,
+        resolvedConfig.minWidth,
       ),
     }),
-    justify: config.justify,
+    justify: resolvedConfig.justify,
     noWrap: true,
-    sticky: config.sticky,
+    sticky: resolvedConfig.sticky,
   };
 };

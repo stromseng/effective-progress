@@ -95,6 +95,9 @@ Support for `either`/`validate` modes of `Effect.all` and render the amount of s
 - `examples/showcase.ts` - nested concurrent tasks, spinner workloads, and mixed Effect/Console logging
 - `examples/performance.ts` - stress-style run with high log volume and deeply nested progress updates
 - `examples/performanceLong.ts` - longer-running stress run with roughly 10x the work of `performance.ts`
+- `examples/v2/showcaseRendererv2.tsx` - showcase flow rendered with the experimental v2 renderer columns
+- `examples/v2/performanceRendererv2.tsx` - `performance.ts` workload rendered with the experimental v2 renderer
+- `examples/v2/performanceLongRendererv2.tsx` - `performanceLong.ts` workload rendered with the experimental v2 renderer
 
 ## Configuration
 

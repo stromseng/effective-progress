@@ -62,6 +62,11 @@ export interface EtaColumnConfig {
   readonly justify: "left" | "right";
   readonly sticky: boolean;
 }
+export const defaultEtaColumnConfig = {
+  minWidth: 3,
+  justify: "right",
+  sticky: true,
+} satisfies EtaColumnConfig;
 
 const EtaText = ({
   row,
@@ -84,15 +89,19 @@ const EtaText = ({
   );
 };
 
-export const createEtaColumn = (config: EtaColumnConfig): ProgressColumnDefinition => {
+export const createEtaColumn = (config?: Partial<EtaColumnConfig>): ProgressColumnDefinition => {
+  const resolvedConfig = {
+    ...defaultEtaColumnConfig,
+    ...config,
+  } satisfies EtaColumnConfig;
   const Component = ({ row, width }: ProgressColumnProps) => (
-    <EtaText row={row} width={width} justify={config.justify} />
+    <EtaText row={row} width={width} justify={resolvedConfig.justify} />
   );
 
   return {
     Component,
     measure: ({ rows, now }): ProgressColumnMeasurement => ({
-      minWidth: config.minWidth,
+      minWidth: resolvedConfig.minWidth,
       preferredWidth: rows.reduce((max, row) => {
         const duration = etaDurationText(row, now);
         if (duration === undefined) {
@@ -100,7 +109,7 @@ export const createEtaColumn = (config: EtaColumnConfig): ProgressColumnDefiniti
         }
 
         return Math.max(max, textWidth(`ETA: ${duration}`));
-      }, config.minWidth),
+      }, resolvedConfig.minWidth),
       maxWidth: rows.reduce((max, row) => {
         const duration = etaDurationText(row, now);
         if (duration === undefined) {
@@ -108,10 +117,10 @@ export const createEtaColumn = (config: EtaColumnConfig): ProgressColumnDefiniti
         }
 
         return Math.max(max, textWidth(`ETA: ${duration}`));
-      }, config.minWidth),
+      }, resolvedConfig.minWidth),
     }),
-    justify: config.justify,
+    justify: resolvedConfig.justify,
     noWrap: true,
-    sticky: config.sticky,
+    sticky: resolvedConfig.sticky,
   };
 };

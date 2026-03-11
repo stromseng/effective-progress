@@ -53,7 +53,13 @@ export const defaultProgressColumnConfig = {
   sticky: true,
 } satisfies ProgressColumnConfig;
 
-export const createProgressColumn = (config: ProgressColumnConfig): ProgressColumnDefinition => {
+export const createProgressColumn = (
+  config?: Partial<ProgressColumnConfig>,
+): ProgressColumnDefinition => {
+  const resolvedConfig = {
+    ...defaultProgressColumnConfig,
+    ...config,
+  } satisfies ProgressColumnConfig;
   const Component = ({ row, width }: ProgressColumnProps) => {
     const amount = formatAmount(row.task, 0);
     const percent = percentText(row.task);
@@ -92,16 +98,16 @@ export const createProgressColumn = (config: ProgressColumnConfig): ProgressColu
       );
       const hasDeterminateRows = rows.some((row) => row.derived.isDeterminate);
       const preferredWidth = hasDeterminateRows
-        ? Math.max(percentWidth, amountWidth + 1 + config.barWidth)
+        ? Math.max(percentWidth, amountWidth + 1 + resolvedConfig.barWidth)
         : Math.max(percentWidth, amountWidth);
 
       return {
-        minWidth: Math.min(percentWidth, config.minWidth),
+        minWidth: Math.min(percentWidth, resolvedConfig.minWidth),
         preferredWidth,
         maxWidth: preferredWidth,
       };
     },
     noWrap: false,
-    sticky: config.sticky,
+    sticky: resolvedConfig.sticky,
   };
 };
