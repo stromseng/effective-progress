@@ -1,10 +1,9 @@
 import { Effect } from "effect";
 import { render } from "ink";
 import { useSyncExternalStore } from "react";
-import { NowProvider, useNow } from "../ink-renderer/now-context";
+import { NowProvider } from "../ink-renderer/now-context";
 import { SpinnerProvider } from "../ink-renderer/spinner-context";
 import type { ProgressRenderStore } from "../ink-renderer/store";
-import type { TaskRowModel } from "../ink-renderer/store/types";
 import { InkRenderer } from "../services/ink-renderer";
 import type { ProgressStdioService } from "../services/stdio";
 import { CreateProgressRenderer, type ProgressColumnDefinition } from "./public-api";
@@ -13,18 +12,6 @@ const MAX_FPS = 24;
 
 const CreateProgressRoot = (columns: ReadonlyArray<ProgressColumnDefinition>) => {
   const ProgressRenderer = CreateProgressRenderer(columns);
-
-  const ProgressFrame = ({
-    rows,
-    terminalColumns,
-  }: {
-    readonly rows: ReadonlyArray<TaskRowModel>;
-    readonly terminalColumns: number | undefined;
-  }) => {
-    const now = useNow();
-
-    return <ProgressRenderer rows={rows} now={now} terminalColumns={terminalColumns} />;
-  };
 
   return ({
     store,
@@ -38,7 +25,10 @@ const CreateProgressRoot = (columns: ReadonlyArray<ProgressColumnDefinition>) =>
     return (
       <SpinnerProvider active={publication.snapshot.hasRunningTasks}>
         <NowProvider active={publication.snapshot.hasRunningTasks}>
-          <ProgressFrame rows={publication.snapshot.rows} terminalColumns={getTerminalColumns()} />
+          <ProgressRenderer
+            rows={publication.snapshot.rows}
+            terminalColumns={getTerminalColumns()}
+          />
         </NowProvider>
       </SpinnerProvider>
     );

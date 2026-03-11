@@ -3,6 +3,7 @@ import { renderToString } from "ink";
 import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
+import { NowProvider } from "../src/ink-renderer/now-context";
 import { createEtaColumn } from "../src/rendererv2/columns/eta-column";
 import { CreateProgressRenderer } from "../src/rendererv2/public-api";
 import type { TaskRowModel } from "../src/ink-renderer/store/types";
@@ -55,10 +56,13 @@ const renderEtaColumn = (width: number): string => {
 
   return stripAnsi(
     renderToString(
-      createElement(Renderer, {
-        rows: [deriveRow(makeTask())],
-        now: 1_000,
-        terminalColumns: width,
+      createElement(NowProvider, {
+        active: false,
+        nowOverride: 1_000,
+        children: createElement(Renderer, {
+          rows: [deriveRow(makeTask())],
+          terminalColumns: width,
+        }),
       }),
       { columns: width },
     ),

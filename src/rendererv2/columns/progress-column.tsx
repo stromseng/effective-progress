@@ -89,7 +89,7 @@ export const createProgressColumn = (config: ProgressColumnConfig): ProgressColu
 
   return {
     Component,
-    measure: (rows: ReadonlyArray<ProgressColumnProps["row"]>): ProgressColumnMeasurement => {
+    measure: ({ rows }): ProgressColumnMeasurement => {
       const amountWidth = progressAmountWidth(rows);
       const percentWidth = rows.reduce(
         (max, row) => Math.max(max, textWidth(percentText(row.task))),

@@ -3,6 +3,7 @@ import { renderToString } from "ink";
 import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
+import { NowProvider } from "../src/ink-renderer/now-context";
 import { SpinnerProvider } from "../src/ink-renderer/spinner-context";
 import { createDescriptionColumn } from "../src/rendererv2/columns/description-column";
 import { CreateProgressRenderer } from "../src/rendererv2/public-api";
@@ -73,18 +74,18 @@ const renderDescriptionColumn = (
 
   return stripAnsi(
     renderToString(
-      createElement(
-        SpinnerProvider,
-        {
+      createElement(NowProvider, {
+        active: false,
+        nowOverride: 0,
+        children: createElement(SpinnerProvider, {
           active: false,
           tickOverride: spinnerTick,
           children: createElement(Renderer, {
             rows,
-            now: 0,
             terminalColumns,
           }),
-        },
-      ),
+        }),
+      }),
       { columns: terminalColumns },
     ),
   );

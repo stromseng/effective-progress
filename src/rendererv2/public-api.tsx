@@ -1,5 +1,6 @@
 import { Box } from "ink";
 import { useEffect, useMemo, useRef, type FunctionComponent, type ReactElement } from "react";
+import { useNow } from "../ink-renderer/now-context";
 import type { TaskRowModel } from "../ink-renderer/store/types";
 import { planColumnLayout } from "./width-allocator";
 
@@ -12,15 +13,19 @@ export interface ProgressColumnMeasurement {
 export interface ProgressColumnProps {
   readonly row: TaskRowModel;
   readonly rowIndex: number;
-  readonly now: number;
   readonly width: number;
 }
 
 export type ProgressColumnComponent = FunctionComponent<ProgressColumnProps>;
 
+export interface ProgressColumnMeasureContext {
+  readonly rows: ReadonlyArray<TaskRowModel>;
+  readonly now: number;
+}
+
 export interface ProgressColumnDefinition {
   readonly Component: ProgressColumnComponent;
-  readonly measure: (rows: ReadonlyArray<TaskRowModel>) => ProgressColumnMeasurement;
+  readonly measure: (context: ProgressColumnMeasureContext) => ProgressColumnMeasurement;
   readonly fixedWidth?: number;
   readonly noWrap?: boolean;
   readonly justify?: "left" | "right";
@@ -32,21 +37,21 @@ export interface ProgressColumnDefinition {
 
 export interface ProgressRendererProps {
   readonly rows: ReadonlyArray<TaskRowModel>;
-  readonly now: number;
   readonly terminalColumns?: number;
 }
 
 export const CreateProgressRenderer = (
   columns: ReadonlyArray<ProgressColumnDefinition>,
 ): ((props: ProgressRendererProps) => ReactElement | null) => {
-  return ({ rows, now, terminalColumns }: ProgressRendererProps) => {
+  return ({ rows, terminalColumns }: ProgressRendererProps) => {
     const stickyWidthsRef = useRef(new Map<number, number>());
+    const now = useNow();
 
     const layout = useMemo(
       () =>
         rows.length === 0
           ? { columns: [], nextStickyWidths: new Map<number, number>() }
-          : planColumnLayout(columns, rows, terminalColumns, stickyWidthsRef.current),
+          : planColumnLayout(columns, rows, now, terminalColumns, stickyWidthsRef.current),
       [columns, now, rows, terminalColumns],
     );
 
@@ -85,7 +90,6 @@ export const CreateProgressRenderer = (
                   <Component
                     row={row}
                     rowIndex={rowIndex}
-                    now={now}
                     width={column.width}
                   />
                 </Box>

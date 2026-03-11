@@ -35,7 +35,7 @@ export const createDescriptionColumn = (
 
   return {
     Component,
-    measure: (rows: ReadonlyArray<ProgressColumnProps["row"]>): ProgressColumnMeasurement => {
+    measure: ({ rows }): ProgressColumnMeasurement => {
       const hasNestedRows = rows.some((row) => row.tree.depth > 0);
 
       minTreeWidth = rows.reduce(

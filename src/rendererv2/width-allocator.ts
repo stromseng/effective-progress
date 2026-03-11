@@ -1,5 +1,5 @@
 import type { TaskRowModel } from "../ink-renderer/store/types";
-import type { ProgressColumnDefinition } from "./public-api";
+import type { ProgressColumnDefinition, ProgressColumnMeasureContext } from "./public-api";
 
 interface NormalizedColumnMeasurement {
   readonly definition: ProgressColumnDefinition;
@@ -29,7 +29,7 @@ const clampWidth = (width: number, minWidth: number, maxWidth?: number): number 
 
 const normalizeMeasurement = (
   definition: ProgressColumnDefinition,
-  rows: ReadonlyArray<TaskRowModel>,
+  context: ProgressColumnMeasureContext,
 ): NormalizedColumnMeasurement => {
   if (definition.fixedWidth !== undefined) {
     const width = Math.max(0, definition.fixedWidth);
@@ -45,7 +45,7 @@ const normalizeMeasurement = (
     };
   }
 
-  const measured = definition.measure(rows);
+  const measured = definition.measure(context);
   const minWidth = Math.max(0, measured.minWidth);
   const maxWidth =
     measured.maxWidth === undefined ? undefined : Math.max(minWidth, measured.maxWidth);
@@ -220,10 +220,12 @@ const applyStickyGrowth = (
 export const planColumnLayout = (
   definitions: ReadonlyArray<ProgressColumnDefinition>,
   rows: ReadonlyArray<TaskRowModel>,
+  now: number,
   terminalColumns: number | undefined,
   previousStickyWidths: ReadonlyMap<number, number>,
 ): PlannedColumnLayout => {
-  const columns = definitions.map((definition) => normalizeMeasurement(definition, rows));
+  const measureContext = { rows, now };
+  const columns = definitions.map((definition) => normalizeMeasurement(definition, measureContext));
   let widths = columns.map((column) => column.preferredWidth);
 
   if (terminalColumns !== undefined) {

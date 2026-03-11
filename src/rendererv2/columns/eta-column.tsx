@@ -1,4 +1,5 @@
 import { Text } from "ink";
+import { useNow } from "../../ink-renderer/now-context";
 import { formatEta } from "../../ink-renderer/shared/format";
 import { textWidth } from "../../ink-renderer/shared/text-width";
 import type {
@@ -41,19 +42,25 @@ export interface EtaColumnConfig {
   readonly sticky: boolean;
 }
 
-export const createEtaColumn = (config: EtaColumnConfig): ProgressColumnDefinition => {
-  const Component = ({ now, row, width }: ProgressColumnProps) => (
+const EtaText = ({ row, width }: Pick<ProgressColumnProps, "row" | "width">) => {
+  const now = useNow();
+
+  return (
     <Text wrap="truncate-end" color="gray">
       {renderEtaText(row, now, width)}
     </Text>
   );
+};
+
+export const createEtaColumn = (config: EtaColumnConfig): ProgressColumnDefinition => {
+  const Component = ({ row, width }: ProgressColumnProps) => <EtaText row={row} width={width} />;
 
   return {
     Component,
-    measure: (rows: ReadonlyArray<ProgressColumnProps["row"]>): ProgressColumnMeasurement => ({
+    measure: ({ rows, now }): ProgressColumnMeasurement => ({
       minWidth: config.minWidth,
       preferredWidth: rows.reduce((max, row) => {
-        const duration = etaDurationText(row, Date.now());
+        const duration = etaDurationText(row, now);
         if (duration === undefined) {
           return max;
         }
@@ -61,7 +68,7 @@ export const createEtaColumn = (config: EtaColumnConfig): ProgressColumnDefiniti
         return Math.max(max, textWidth(`ETA: ${duration}`), RESERVED_ETA_WIDTH_UP_TO_ONE_HOUR);
       }, config.minWidth),
       maxWidth: rows.reduce((max, row) => {
-        const duration = etaDurationText(row, Date.now());
+        const duration = etaDurationText(row, now);
         if (duration === undefined) {
           return max;
         }
