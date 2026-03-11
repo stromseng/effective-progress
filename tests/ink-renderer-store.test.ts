@@ -51,11 +51,12 @@ describe("progress render store", () => {
     expect(notifications).toBe(2);
 
     const publication = store.getSnapshot();
-    expect(publication.snapshot.rows).toHaveLength(1);
-    expect(publication.snapshot.rows[0]?.task.units.total).toBe(10);
-    expect(publication.snapshot.rows[0]?.task.units.succeeded).toBe(2);
-    expect(publication.snapshot.rows[0]?.task.units.failed).toBe(1);
-    expect(publication.snapshot.rows[0]?.task.units.processed).toBe(3);
+    const task = publication.snapshot.tasks.get(taskId);
+    expect(publication.snapshot.renderOrder).toHaveLength(1);
+    expect(task?.units.total).toBe(10);
+    expect(task?.units.succeeded).toBe(2);
+    expect(task?.units.failed).toBe(1);
+    expect(task?.units.processed).toBe(3);
     expect(publication.events).toHaveLength(3);
   });
 
@@ -84,8 +85,8 @@ describe("progress render store", () => {
     store.flush();
 
     expect(notifications).toBe(2);
-    const row = store.getSnapshot().snapshot.rows[0];
-    expect(row?.task.units.total).toBe(4);
-    expect(row?.task.units.processed).toBe(2);
+    const task = store.getSnapshot().snapshot.tasks.get(taskId);
+    expect(task?.units.total).toBe(4);
+    expect(task?.units.processed).toBe(2);
   });
 });

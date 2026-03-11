@@ -45,17 +45,20 @@ export const createElapsedColumn = (
 
   return {
     Component,
-    measure: ({ rows, now }): ProgressColumnMeasurement => ({
-      minWidth: resolvedConfig.minWidth,
-      preferredWidth: rows.reduce(
+    measure: ({ rows, now }): ProgressColumnMeasurement => {
+      const width = rows.reduce(
         (max, row) => Math.max(max, textWidth(formatElapsed(row.task, now))),
         resolvedConfig.minWidth,
-      ),
-      maxWidth: rows.reduce(
-        (max, row) => Math.max(max, textWidth(formatElapsed(row.task, now))),
-        resolvedConfig.minWidth,
-      ),
-    }),
+      );
+
+      return {
+        minWidth: resolvedConfig.minWidth,
+        preferredWidth: width,
+        maxWidth: width,
+      };
+    },
+    getLayoutDependency: ({ rows, now }) =>
+      rows.reduce((max, row) => Math.max(max, textWidth(formatElapsed(row.task, now))), 0),
     justify: resolvedConfig.justify,
     noWrap: true,
     sticky: resolvedConfig.sticky,

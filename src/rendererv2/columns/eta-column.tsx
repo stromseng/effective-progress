@@ -100,25 +100,31 @@ export const createEtaColumn = (config?: Partial<EtaColumnConfig>): ProgressColu
 
   return {
     Component,
-    measure: ({ rows, now }): ProgressColumnMeasurement => ({
-      minWidth: resolvedConfig.minWidth,
-      preferredWidth: rows.reduce((max, row) => {
+    measure: ({ rows, now }): ProgressColumnMeasurement => {
+      const width = rows.reduce((max, row) => {
         const duration = etaDurationText(row, now);
         if (duration === undefined) {
           return max;
         }
 
         return Math.max(max, textWidth(`ETA: ${duration}`));
-      }, resolvedConfig.minWidth),
-      maxWidth: rows.reduce((max, row) => {
+      }, resolvedConfig.minWidth);
+
+      return {
+        minWidth: resolvedConfig.minWidth,
+        preferredWidth: width,
+        maxWidth: width,
+      };
+    },
+    getLayoutDependency: ({ rows, now }) =>
+      rows.reduce((max, row) => {
         const duration = etaDurationText(row, now);
         if (duration === undefined) {
           return max;
         }
 
         return Math.max(max, textWidth(`ETA: ${duration}`));
-      }, resolvedConfig.minWidth),
-    }),
+      }, 0),
     justify: resolvedConfig.justify,
     noWrap: true,
     sticky: resolvedConfig.sticky,

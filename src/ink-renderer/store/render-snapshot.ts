@@ -55,11 +55,18 @@ const sameTreePrefixInputs = (left: TaskRowModel["tree"], right: TaskRowModel["t
   left.hasNextSibling === right.hasNextSibling &&
   arraysEqual(left.ancestorHasNextSibling, right.ancestorHasNextSibling);
 
+const sameTree = (left: TaskRowModel["tree"], right: TaskRowModel["tree"]): boolean =>
+  sameTreePrefixInputs(left, right) && left.hasChildren === right.hasChildren;
+
 const deriveRow = (
   task: OrderedTask["snapshot"],
   tree: TaskRowModel["tree"],
   previousRow: TaskRowModel | undefined,
 ): TaskRowModel["derived"] => {
+  if (previousRow !== undefined && previousRow.task === task && sameTree(previousRow.tree, tree)) {
+    return previousRow.derived;
+  }
+
   const treePrefix =
     previousRow !== undefined && sameTreePrefixInputs(previousRow.tree, tree)
       ? previousRow.derived.treePrefix
@@ -128,13 +135,18 @@ const computeTreeInfo = (
       ancestorHasNextSibling: [...ancestorStateByDepth],
     };
     const previousRow = previousRowsByTaskId.get(entry.snapshot.id);
-    const derived = deriveRow(entry.snapshot, tree, previousRow);
 
     ancestorStateByDepth[depth] = hasNextSiblingByIndex[index] ?? false;
 
+    if (previousRow !== undefined && previousRow.task === entry.snapshot && sameTree(previousRow.tree, tree)) {
+      return previousRow;
+    }
+
+    const derived = deriveRow(entry.snapshot, tree, previousRow);
+
     return {
       task: entry.snapshot,
-      tree,
+      tree: previousRow !== undefined && sameTree(previousRow.tree, tree) ? previousRow.tree : tree,
       derived,
     };
   });

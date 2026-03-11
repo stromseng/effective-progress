@@ -81,6 +81,46 @@ const renderSnapshotsAtWidths = (
     .join("\n\n");
 
 describe("Ink renderer snapshots", () => {
+  test("reuses unchanged row models between render snapshots", () => {
+    const initialTasks = [
+      makeTask(1, { description: "one" }),
+      makeTask(2, { description: "two" }),
+      makeTask(3, { description: "three" }),
+    ];
+    const renderOrder = initialTasks.map((task) => ({ id: task.id, depth: 0 as const }));
+
+    const initial = toRenderSnapshot({
+      tasks: new Map(initialTasks.map((task) => [task.id, task])),
+      renderOrder,
+    });
+
+    const updatedTaskTwo = Progress.TaskSnapshot({
+      ...initialTasks[1]!,
+      units: {
+        succeeded: 1,
+        failed: 0,
+        processed: 1,
+        total: 1,
+      },
+    });
+
+    const next = toRenderSnapshot(
+      {
+        tasks: new Map([
+          [initialTasks[0]!.id, initialTasks[0]!],
+          [updatedTaskTwo.id, updatedTaskTwo],
+          [initialTasks[2]!.id, initialTasks[2]!],
+        ]),
+        renderOrder,
+      },
+      initial,
+    );
+
+    expect(next.rows[0]).toBe(initial.rows[0]);
+    expect(next.rows[1]).not.toBe(initial.rows[1]);
+    expect(next.rows[2]).toBe(initial.rows[2]);
+  });
+
   test("renders a stable matrix of task states", () => {
     const tasks = [
       makeTask(1, {

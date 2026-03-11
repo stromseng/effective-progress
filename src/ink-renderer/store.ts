@@ -15,7 +15,6 @@ import {
   TaskRemovedEvent,
   TaskUpdatedEvent,
 } from "../types";
-import { toRenderSnapshot, type RenderSnapshot } from "./store/render-snapshot";
 
 interface TaskCounts {
   readonly succeeded: number;
@@ -24,7 +23,7 @@ interface TaskCounts {
 }
 
 export interface RenderPublication {
-  readonly snapshot: RenderSnapshot;
+  readonly snapshot: TaskStore;
   readonly events: ReadonlyArray<ProgressTaskEvent>;
 }
 
@@ -199,7 +198,7 @@ export const makeProgressRenderStore = () => {
   };
   let pendingEvents: Array<ProgressTaskEvent> = [];
   let publishedPublication: RenderPublication = {
-    snapshot: toRenderSnapshot(state),
+    snapshot: state,
     events: [],
   };
   let hasPendingPublish = false;
@@ -215,7 +214,7 @@ export const makeProgressRenderStore = () => {
 
   const publishNow = (): void => {
     const nextPublication: RenderPublication = {
-      snapshot: toRenderSnapshot(state, publishedPublication.snapshot),
+      snapshot: state,
       events: [...pendingEvents],
     };
 

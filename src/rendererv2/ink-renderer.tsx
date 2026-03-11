@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import { NowProvider } from "../ink-renderer/now-context";
 import { SpinnerProvider } from "../ink-renderer/spinner-context";
 import type { ProgressRenderStore } from "../ink-renderer/store";
+import { useRenderSnapshot } from "../ink-renderer/store/use-render-snapshot";
 import { InkRenderer } from "../services/ink-renderer";
 import type { ProgressStdioService } from "../services/stdio";
 import { CreateProgressRenderer, type ProgressColumnDefinition } from "./public-api";
@@ -23,12 +24,14 @@ const CreateProgressRoot = (columns: ReadonlyArray<ProgressColumnDefinition>) =>
     readonly getTerminalRows: () => number | undefined;
   }) => {
     const publication = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+    const renderSnapshot = useRenderSnapshot(publication.snapshot);
+    const hasRunningTasks = renderSnapshot.rows.some((row) => row.task.status === "running");
 
     return (
-      <SpinnerProvider active={publication.snapshot.hasRunningTasks}>
-        <NowProvider active={publication.snapshot.hasRunningTasks}>
+      <SpinnerProvider active={hasRunningTasks}>
+        <NowProvider active={hasRunningTasks}>
           <ProgressRenderer
-            rows={publication.snapshot.rows}
+            rows={renderSnapshot.rows}
             terminalColumns={getTerminalColumns()}
             terminalRows={getTerminalRows()}
           />
