@@ -44,7 +44,7 @@ const serviceFlow = (service: string, serviceIndex: number) =>
   Effect.gen(function* () {
     yield* Effect.logInfo(`${service}: pipeline started`);
 
-    yield* Progress.forEach([service], () => sleepRandom(1400, 450), {
+    yield* Progress.task(sleepRandom(1400, 450), {
       description: `${service}: waiting for upstream`,
       transient: true,
     });
@@ -58,15 +58,13 @@ const serviceFlow = (service: string, serviceIndex: number) =>
             description: `${service}: batch ${batch} stages`,
           });
 
-          yield* Progress.forEach(
-            ["probe"],
-            () =>
-              Effect.gen(function* () {
-                yield* sleepRandom(1600, 500);
-                if (serviceIndex === 0 && batch === 2) {
-                  yield* Effect.logWarning("One consistency probe was slower than expected");
-                }
-              }),
+          yield* Progress.task(
+            Effect.gen(function* () {
+              yield* sleepRandom(1600, 500);
+              if (serviceIndex === 0 && batch === 2) {
+                yield* Effect.logWarning("One consistency probe was slower than expected");
+              }
+            }),
             {
               description: `${service} probe`,
               transient: true,
