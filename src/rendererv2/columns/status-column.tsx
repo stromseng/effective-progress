@@ -1,6 +1,5 @@
-import { Text } from "ink";
-import { getTaskIndicator, getSpinnerIndicator } from "../../ink-renderer/shared/format";
 import type { ProgressColumnDefinition, ProgressColumnProps } from "../public-api";
+import { TaskIndicatorGlyph } from "./task-indicator";
 
 export interface StatusColumnConfig {
   readonly width: number;
@@ -8,12 +7,7 @@ export interface StatusColumnConfig {
 }
 
 export const createStatusColumn = (config: StatusColumnConfig): ProgressColumnDefinition => {
-  const Component = ({ row, tick }: ProgressColumnProps) => {
-    const indicator =
-      row.task.status === "running" ? getSpinnerIndicator(tick) : getTaskIndicator(row.task, tick);
-
-    return <Text color={indicator.color}>{indicator.symbol}</Text>;
-  };
+  const Component = ({ row }: ProgressColumnProps) => <TaskIndicatorGlyph task={row.task} />;
 
   return {
     Component,

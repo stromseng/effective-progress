@@ -3,6 +3,7 @@ import { renderToString } from "ink";
 import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
+import { SpinnerProvider } from "../src/ink-renderer/spinner-context";
 import { createDescriptionColumn } from "../src/rendererv2/columns/description-column";
 import { CreateProgressRenderer } from "../src/rendererv2/public-api";
 import type { TaskRowModel } from "../src/ink-renderer/store/types";
@@ -60,6 +61,7 @@ const makeTask = (
 const renderDescriptionColumn = (
   rows: ReadonlyArray<TaskRowModel>,
   terminalColumns: number,
+  spinnerTick?: number,
 ): string => {
   const Renderer = CreateProgressRenderer([
     createDescriptionColumn({
@@ -71,12 +73,18 @@ const renderDescriptionColumn = (
 
   return stripAnsi(
     renderToString(
-      createElement(Renderer, {
-        rows,
-        now: 0,
-        tick: 0,
-        terminalColumns,
-      }),
+      createElement(
+        SpinnerProvider,
+        {
+          active: false,
+          tickOverride: spinnerTick,
+          children: createElement(Renderer, {
+            rows,
+            now: 0,
+            terminalColumns,
+          }),
+        },
+      ),
       { columns: terminalColumns },
     ),
   );
@@ -104,6 +112,22 @@ describe("rendererv2 description tree planning", () => {
     expect(output.includes("⠋ root")).toBeTrue();
     expect(output.includes("└─ ⠋ child")).toBeTrue();
     expect(output.includes("⠋ └─")).toBeFalse();
+  });
+
+  test("uses the spinner context instead of a renderer tick prop", () => {
+    const rows = [
+      deriveRow(makeTask(1, "root", "running"), {
+        depth: 0,
+        hasChildren: false,
+        hasNextSibling: false,
+        ancestorHasNextSibling: [],
+      }),
+    ];
+
+    const output = renderDescriptionColumn(rows, 20, 2);
+
+    expect(output.includes("⠹ root")).toBeTrue();
+    expect(output.includes("⠋ root")).toBeFalse();
   });
 
   test("plans tree prefixes globally for the whole column", () => {

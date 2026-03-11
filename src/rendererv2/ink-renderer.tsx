@@ -2,14 +2,14 @@ import { Effect } from "effect";
 import { render } from "ink";
 import { useSyncExternalStore } from "react";
 import { NowProvider, useNow } from "../ink-renderer/now-context";
-import { SpinnerProvider, useSpinnerTick } from "../ink-renderer/spinner-context";
+import { SpinnerProvider } from "../ink-renderer/spinner-context";
 import type { ProgressRenderStore } from "../ink-renderer/store";
 import type { TaskRowModel } from "../ink-renderer/store/types";
 import { InkRenderer } from "../services/ink-renderer";
 import type { ProgressStdioService } from "../services/stdio";
 import { CreateProgressRenderer, type ProgressColumnDefinition } from "./public-api";
 
-const MAX_FPS = 12;
+const MAX_FPS = 24;
 
 const CreateProgressRoot = (columns: ReadonlyArray<ProgressColumnDefinition>) => {
   const ProgressRenderer = CreateProgressRenderer(columns);
@@ -22,9 +22,8 @@ const CreateProgressRoot = (columns: ReadonlyArray<ProgressColumnDefinition>) =>
     readonly terminalColumns: number | undefined;
   }) => {
     const now = useNow();
-    const tick = useSpinnerTick();
 
-    return <ProgressRenderer rows={rows} now={now} tick={tick} terminalColumns={terminalColumns} />;
+    return <ProgressRenderer rows={rows} now={now} terminalColumns={terminalColumns} />;
   };
 
   return ({

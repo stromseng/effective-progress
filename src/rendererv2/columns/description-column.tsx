@@ -1,10 +1,10 @@
 import { Text } from "ink";
-import { getTaskIndicator } from "../../ink-renderer/shared/format";
 import type {
   ProgressColumnDefinition,
   ProgressColumnMeasurement,
   ProgressColumnProps,
 } from "../public-api";
+import { TaskIndicatorGlyph } from "./task-indicator";
 
 export interface DescriptionColumnConfig {
   readonly minWidth: number;
@@ -20,15 +20,14 @@ export const createDescriptionColumn = (
 ): ProgressColumnDefinition => {
   let minTreeWidth = MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2;
 
-  const Component = ({ row, tick, width }: ProgressColumnProps) => {
+  const Component = ({ row, width }: ProgressColumnProps) => {
     const showTree = width >= minTreeWidth;
     const treePrefix = showTree ? row.derived.treePrefix : "";
-    const indicator = getTaskIndicator(row.task, tick);
 
     return (
       <Text wrap="truncate-end">
         {treePrefix}
-        <Text color={indicator.color}>{indicator.symbol}</Text>
+        <TaskIndicatorGlyph task={row.task} />
         {` ${row.task.description}`}
       </Text>
     );

@@ -58,7 +58,6 @@ const renderEtaColumn = (width: number): string => {
       createElement(Renderer, {
         rows: [deriveRow(makeTask())],
         now: 1_000,
-        tick: 0,
         terminalColumns: width,
       }),
       { columns: width },

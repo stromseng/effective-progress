@@ -13,7 +13,6 @@ export interface ProgressColumnProps {
   readonly row: TaskRowModel;
   readonly rowIndex: number;
   readonly now: number;
-  readonly tick: number;
   readonly width: number;
 }
 
@@ -34,14 +33,13 @@ export interface ProgressColumnDefinition {
 export interface ProgressRendererProps {
   readonly rows: ReadonlyArray<TaskRowModel>;
   readonly now: number;
-  readonly tick: number;
   readonly terminalColumns?: number;
 }
 
 export const CreateProgressRenderer = (
   columns: ReadonlyArray<ProgressColumnDefinition>,
 ): ((props: ProgressRendererProps) => ReactElement | null) => {
-  return ({ rows, now, tick, terminalColumns }: ProgressRendererProps) => {
+  return ({ rows, now, terminalColumns }: ProgressRendererProps) => {
     const stickyWidthsRef = useRef(new Map<number, number>());
 
     const layout = useMemo(
@@ -49,7 +47,7 @@ export const CreateProgressRenderer = (
         rows.length === 0
           ? { columns: [], nextStickyWidths: new Map<number, number>() }
           : planColumnLayout(columns, rows, terminalColumns, stickyWidthsRef.current),
-      [columns, now, rows, terminalColumns, tick],
+      [columns, now, rows, terminalColumns],
     );
 
     useEffect(() => {
@@ -88,7 +86,6 @@ export const CreateProgressRenderer = (
                     row={row}
                     rowIndex={rowIndex}
                     now={now}
-                    tick={tick}
                     width={column.width}
                   />
                 </Box>
