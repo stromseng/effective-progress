@@ -1,11 +1,25 @@
 import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { makeProgressRenderStore } from "../src/ink-renderer/store";
+import { makeProgressRenderStore } from "../src/renderer/store";
 
 const sleep = (millis: number) =>
   new Promise<void>((resolve) => {
     setTimeout(resolve, millis);
   });
+
+const waitFor = async (
+  predicate: () => boolean,
+  timeoutMillis: number,
+  pollMillis = 10,
+): Promise<void> => {
+  const deadline = Date.now() + timeoutMillis;
+  while (!predicate()) {
+    if (Date.now() >= deadline) {
+      throw new Error(`Condition not met within ${timeoutMillis}ms`);
+    }
+    await sleep(pollMillis);
+  }
+};
 
 describe("progress render store", () => {
   test("coalesces rapid task updates into a single published snapshot", async () => {
@@ -32,16 +46,18 @@ describe("progress render store", () => {
 
     expect(notifications).toBe(1);
 
-    await sleep(70);
+    await waitFor(() => notifications === 2, 250);
 
     expect(notifications).toBe(2);
 
-    const snapshot = store.getSnapshot();
-    expect(snapshot.rows).toHaveLength(1);
-    expect(snapshot.rows[0]?.task.units.total).toBe(10);
-    expect(snapshot.rows[0]?.task.units.succeeded).toBe(2);
-    expect(snapshot.rows[0]?.task.units.failed).toBe(1);
-    expect(snapshot.rows[0]?.task.units.processed).toBe(3);
+    const publication = store.getSnapshot();
+    const task = publication.snapshot.tasks.get(taskId);
+    expect(publication.snapshot.renderOrder).toHaveLength(1);
+    expect(task?.units.total).toBe(10);
+    expect(task?.units.succeeded).toBe(2);
+    expect(task?.units.failed).toBe(1);
+    expect(task?.units.processed).toBe(3);
+    expect(publication.events).toHaveLength(3);
   });
 
   test("flush publishes pending updates immediately", async () => {
@@ -69,8 +85,8 @@ describe("progress render store", () => {
     store.flush();
 
     expect(notifications).toBe(2);
-    const row = store.getSnapshot().rows[0];
-    expect(row?.task.units.total).toBe(4);
-    expect(row?.task.units.processed).toBe(2);
+    const task = store.getSnapshot().snapshot.tasks.get(taskId);
+    expect(task?.units.total).toBe(4);
+    expect(task?.units.processed).toBe(2);
   });
 });

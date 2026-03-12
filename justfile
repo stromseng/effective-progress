@@ -35,6 +35,3 @@ record-gifs:
     vhs docs/tapes/mixedOutcomes.tape
     vhs docs/tapes/nesting.tape
     vhs docs/tapes/showcase.tape
-
-perf-check:
-    bun --cpu-prof --cpu-prof-md examples/performance.ts

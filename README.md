@@ -95,6 +95,8 @@ Support for `either`/`validate` modes of `Effect.all` and render the amount of s
 - `examples/showcase.ts` - nested concurrent tasks, spinner workloads, and mixed Effect/Console logging
 - `examples/performance.ts` - stress-style run with high log volume and deeply nested progress updates
 - `examples/performanceLong.ts` - longer-running stress run with roughly 10x the work of `performance.ts`
+- `examples/performanceComparison.ts` - bare vs progress comparison for the `performance.ts` workload
+- `examples/performanceComparisonLong.ts` - longer bare vs progress comparison for the `performanceLong.ts` workload
 
 ## Configuration
 

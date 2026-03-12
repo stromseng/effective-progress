@@ -1,6 +1,6 @@
 import { Context, Effect, Exit, FiberRef, Layer, Option } from "effect";
 import { dual } from "effect/Function";
-import { makeProgressRenderStore } from "../ink-renderer/store";
+import { makeProgressRenderStore } from "../renderer/store";
 import type { AddTaskOptions, ProgressService, TaskId } from "../types";
 import { Task } from "../types";
 import { InkRenderer } from "./ink-renderer";
