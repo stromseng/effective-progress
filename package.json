@@ -37,11 +37,15 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",
     "format": "oxfmt --write .",
-    "format:check": "oxfmt --check ."
+    "format:check": "oxfmt --check .",
+    "check": "bun run typecheck && bun run lint && bun run format:check && knip",
+    "perf": "bun --cpu-prof --cpu-prof-md examples/performance.ts"
   },
   "dependencies": {
+    "cli-spinners": "^3.4.0",
     "fast-string-width": "^3.0.2",
     "ink": "^6.8.0",
+    "ink-virtual-list": "^0.2.3",
     "react": "^19.2.4"
   },
   "devDependencies": {
@@ -49,6 +53,7 @@
     "@types/bun": "latest",
     "@types/react": "^19.2.14",
     "effect": "^3.19.17",
+    "knip": "^5.86.0",
     "oxfmt": "^0.32.0",
     "oxlint": "^1.47.0",
     "strip-ansi": "^7.2.0",

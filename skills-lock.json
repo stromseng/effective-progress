@@ -1,10 +1,20 @@
 {
   "version": 1,
   "skills": {
+    "opentui": {
+      "source": "msmps/opentui-skill",
+      "sourceType": "github",
+      "computedHash": "2255043508a64062e44f6de2243dbcb06de97ceefa30357da77affac355c3eee"
+    },
     "tsdown": {
       "source": "rolldown/tsdown",
       "sourceType": "github",
       "computedHash": "c4d2d1b9e194143d6aa647c92389345dfe4a1f25f2a4708f8f5db1062f6c4840"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "computedHash": "3462ec83f862abb2d532953df33a4dbf87f4616849da5d4b5cc7c13601aaf997"
     }
   }
 }

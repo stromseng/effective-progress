@@ -39,7 +39,7 @@ export const TaskUnitsSchema = Schema.Struct({
 
 export type TaskUnits = typeof TaskUnitsSchema.Type;
 
-export class TaskSnapshot extends Schema.TaggedClass<TaskSnapshot>()("TaskSnapshot", {
+export const TaskSnapshotSchema = Schema.Struct({
   id: TaskIdSchema,
   parentId: Schema.NullOr(TaskIdSchema),
   description: Schema.String,
@@ -49,7 +49,11 @@ export class TaskSnapshot extends Schema.TaggedClass<TaskSnapshot>()("TaskSnapsh
   units: TaskUnitsSchema,
   startedAt: Schema.Number,
   completedAt: Schema.NullOr(Schema.Number),
-}) {}
+});
+
+export type TaskSnapshot = typeof TaskSnapshotSchema.Type;
+
+export const TaskSnapshot = (snapshot: TaskSnapshot): TaskSnapshot => snapshot;
 
 export interface RenderRow {
   readonly id: TaskId;

@@ -1,16 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import * as Progress from "../src";
-import {
-  formatAmount,
-  getDeterminateProcessedColor,
-  getTaskIndicator,
-} from "../src/ink-renderer/format";
+import { getTaskIndicator } from "../src/renderer/columns/description-column";
+import { formatAmount, getDeterminateProcessedColor } from "../src/renderer/shared/format";
 
 const makeTask = (
   units: Progress.TaskSnapshot["units"],
   status: Progress.TaskStatus,
 ): Progress.TaskSnapshot =>
-  new Progress.TaskSnapshot({
+  Progress.TaskSnapshot({
     id: Progress.TaskId(1),
     parentId: null,
     description: "task",
@@ -119,7 +116,7 @@ describe("determinate amount formatting", () => {
       },
       "failed",
     );
-    const processedOnlyTask = new Progress.TaskSnapshot({
+    const processedOnlyTask = Progress.TaskSnapshot({
       ...task,
       countDisplay: "processedOnly",
     });
@@ -156,7 +153,7 @@ describe("determinate amount formatting", () => {
   });
 
   test("renders zero-total determinate counts as 0/0", () => {
-    const task = new Progress.TaskSnapshot({
+    const task = Progress.TaskSnapshot({
       ...makeTask(
         {
           succeeded: 0,
@@ -173,7 +170,7 @@ describe("determinate amount formatting", () => {
   });
 
   test("renders processed/? for counted indeterminate tasks", () => {
-    const task = new Progress.TaskSnapshot({
+    const task = Progress.TaskSnapshot({
       ...makeTask(
         {
           succeeded: 3,
