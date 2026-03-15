@@ -1,0 +1,141 @@
+diff --git a/build/dom.d.ts b/build/dom.d.ts
+index 56aaedebc508232665803a4515810302690a1f7e..6d5942430bb8b0aee6c41ff30dc3a373e0a4bca8 100644
+--- a/build/dom.d.ts
++++ b/build/dom.d.ts
+@@ -34,6 +34,7 @@ export type DOMElement = {
+     onComputeLayout?: () => void;
+     onRender?: () => void;
+     onImmediateRender?: () => void;
++    internal_layoutListeners?: Set<() => void>;
+ } & InkNode;
+ export type TextNode = {
+     nodeName: TextName;
+@@ -53,4 +54,17 @@ export declare const setAttribute: (node: DOMElement, key: string, value: DOMNod
+ export declare const setStyle: (node: DOMNode, style: Styles) => void;
+ export declare const createTextNode: (text: string) => TextNode;
+ export declare const setTextNodeValue: (node: TextNode, text: string) => void;
++export declare const addLayoutListener: (rootNode: DOMElement, listener: () => void) => () => void;
++export declare const emitLayoutListeners: (rootNode: DOMElement) => void;
++import { type RefObject } from 'react';
++export type BoxMetrics = {
++    readonly width: number;
++    readonly height: number;
++    readonly left: number;
++    readonly top: number;
++};
++export type UseBoxMetricsResult = BoxMetrics & {
++    readonly hasMeasured: boolean;
++};
++export declare const useBoxMetrics: (ref: RefObject<DOMElement | null>) => UseBoxMetricsResult;
+ export {};
+diff --git a/build/dom.js b/build/dom.js
+index 9aed5ff83891673dfd577a9b9b1cddd03167ad65..9382c2fe78c5dc50f08110a23cfd760281471961 100644
+--- a/build/dom.js
++++ b/build/dom.js
+@@ -121,4 +121,58 @@ export const setTextNodeValue = (node, text) => {
+     node.nodeValue = text;
+     markNodeAsDirty(node);
+ };
++export const addLayoutListener = (rootNode, listener) => {
++    if (rootNode.nodeName !== 'ink-root') {
++        return () => {};
++    }
++    rootNode.internal_layoutListeners ??= new Set();
++    rootNode.internal_layoutListeners.add(listener);
++    return () => {
++        rootNode.internal_layoutListeners?.delete(listener);
++    };
++};
++export const emitLayoutListeners = (rootNode) => {
++    if (rootNode.nodeName !== 'ink-root' || !rootNode.internal_layoutListeners) {
++        return;
++    }
++    for (const listener of rootNode.internal_layoutListeners) {
++        listener();
++    }
++};
++import { useState, useEffect, useCallback, useMemo } from 'react';
++import useStdout from './hooks/use-stdout.js';
++const emptyMetrics = { width: 0, height: 0, left: 0, top: 0 };
++const findRootNode = (node) => {
++    if (!node) return undefined;
++    if (!node.parentNode) return node.nodeName === 'ink-root' ? node : undefined;
++    return findRootNode(node.parentNode);
++};
++export const useBoxMetrics = (ref) => {
++    const [metrics, setMetrics] = useState(emptyMetrics);
++    const [hasMeasured, setHasMeasured] = useState(false);
++    const { stdout } = useStdout();
++    const updateMetrics = useCallback(() => {
++        const layout = ref.current?.yogaNode?.getComputedLayout() ?? emptyMetrics;
++        setMetrics((previousMetrics) => {
++            const hasChanged =
++                previousMetrics.width !== layout.width ||
++                previousMetrics.height !== layout.height ||
++                previousMetrics.left !== layout.left ||
++                previousMetrics.top !== layout.top;
++            return hasChanged ? layout : previousMetrics;
++        });
++        setHasMeasured(Boolean(ref.current));
++    }, [ref]);
++    useEffect(updateMetrics);
++    useEffect(() => {
++        const rootNode = findRootNode(ref.current);
++        if (!rootNode) return;
++        return addLayoutListener(rootNode, updateMetrics);
++    });
++    useEffect(() => {
++        stdout.on('resize', updateMetrics);
++        return () => { stdout.off('resize', updateMetrics); };
++    }, [stdout, updateMetrics]);
++    return useMemo(() => ({ ...metrics, hasMeasured }), [metrics, hasMeasured]);
++};
+ //# sourceMappingURL=dom.js.map
+\ No newline at end of file
+diff --git a/build/index.d.ts b/build/index.d.ts
+index 91f3bc4f2c03bbf74878f7012e031d602014aee5..a85042f670dd0ac300737598382a5d50b28874db 100644
+--- a/build/index.d.ts
++++ b/build/index.d.ts
+@@ -27,6 +27,8 @@ export { default as useFocus } from './hooks/use-focus.js';
+ export { default as useFocusManager } from './hooks/use-focus-manager.js';
+ export { default as useIsScreenReaderEnabled } from './hooks/use-is-screen-reader-enabled.js';
+ export { default as useCursor } from './hooks/use-cursor.js';
++export type { BoxMetrics, UseBoxMetricsResult } from './dom.js';
++export { useBoxMetrics } from './dom.js';
+ export type { CursorPosition } from './log-update.js';
+ export { default as measureElement } from './measure-element.js';
+ export type { DOMElement } from './dom.js';
+diff --git a/build/index.js b/build/index.js
+index 2324f29aa6b00acb66fb7f3a1364aac394d94898..fc5753f9ffef1db815926238bebad25cb4ced76f 100644
+--- a/build/index.js
++++ b/build/index.js
+@@ -15,6 +15,7 @@ export { default as useFocus } from './hooks/use-focus.js';
+ export { default as useFocusManager } from './hooks/use-focus-manager.js';
+ export { default as useIsScreenReaderEnabled } from './hooks/use-is-screen-reader-enabled.js';
+ export { default as useCursor } from './hooks/use-cursor.js';
++export { useBoxMetrics } from './dom.js';
+ export { default as measureElement } from './measure-element.js';
+ export { kittyFlags, kittyModifiers } from './kitty-keyboard.js';
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file
+diff --git a/build/reconciler.js b/build/reconciler.js
+index 03c7d45d61c0c8abc9313126a264951c8ece0b8d..1bb2efca99df2d65200085bdb886ed6bfc40945b 100644
+--- a/build/reconciler.js
++++ b/build/reconciler.js
+@@ -3,7 +3,7 @@ import { DefaultEventPriority, NoEventPriority, } from 'react-reconciler/constan
+ import * as Scheduler from 'scheduler';
+ import Yoga from 'yoga-layout';
+ import { createContext } from 'react';
+-import { createTextNode, appendChildNode, insertBeforeNode, removeChildNode, setStyle, setTextNodeValue, createNode, setAttribute, } from './dom.js';
++import { createTextNode, appendChildNode, insertBeforeNode, removeChildNode, emitLayoutListeners, setStyle, setTextNodeValue, createNode, setAttribute, } from './dom.js';
+ import applyStyles from './styles.js';
+ import { isDev } from './utils.js';
+ // We need to conditionally perform devtools connection to avoid
+@@ -81,6 +81,7 @@ export default createReconciler({
+         if (typeof rootNode.onComputeLayout === 'function') {
+             rootNode.onComputeLayout();
+         }
++        emitLayoutListeners(rootNode);
+         // Since renders are throttled at the instance level and <Static> component children
+         // are rendered only once and then get deleted, we need an escape hatch to
+         // trigger an immediate render to ensure <Static> children are written to output before they get erased
