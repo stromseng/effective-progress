@@ -74,8 +74,8 @@ const deriveRow = (
   const treePrefixWidth =
     previousRow !== undefined && sameTreePrefixInputs(previousRow.tree, tree)
       ? previousRow.derived.treePrefixWidth
-      // Tree prefixes are built from fixed box-drawing glyphs we treat as single-cell.
-      : treePrefix.length;
+      : // Tree prefixes are built from fixed box-drawing glyphs we treat as single-cell.
+        treePrefix.length;
 
   const descriptionWidth =
     previousRow !== undefined && previousRow.task.description === task.description

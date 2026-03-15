@@ -125,6 +125,7 @@ const handle: TaskHandle<M> = {
 ```
 
 The `unknown → M` cast is safe because:
+
 - The slot is initialized with a value of type `M` (from `options.metadata`)
 - It's only written to through `handle.setMetadata`, which accepts `M`
 - No other code path writes to the same slot with a different type
@@ -139,49 +140,50 @@ interface RunResult {
   durationMs: number;
 }
 
-yield* Progress.task(
-  (handle) =>
-    //  ^-- TaskHandle<RunResult>
-    Effect.gen(function* () {
-      for (let i = 0; i < scripts.length; i++) {
-        const result = yield* runScript(model, i);
+yield *
+  Progress.task(
+    (handle) =>
+      //  ^-- TaskHandle<RunResult>
+      Effect.gen(function* () {
+        for (let i = 0; i < scripts.length; i++) {
+          const result = yield* runScript(model, i);
 
-        // Task operations — no need to yield Task or Progress
-        if (result.exitCode === 0) {
-          yield* handle.incrementSucceeded();
-        } else {
-          yield* handle.incrementFailed();
+          // Task operations — no need to yield Task or Progress
+          if (result.exitCode === 0) {
+            yield* handle.incrementSucceeded();
+          } else {
+            yield* handle.incrementFailed();
+          }
+
+          // Typed metadata
+          yield* handle.setMetadata(result);
+          //                        ^^^^^^ must be RunResult — type error otherwise
+
+          // Update description dynamically
+          yield* handle.update({ description: `[litellm] ${model} (${i + 1}/${scripts.length})` });
         }
-
-        // Typed metadata
-        yield* handle.setMetadata(result);
-        //                        ^^^^^^ must be RunResult — type error otherwise
-
-        // Update description dynamically
-        yield* handle.update({ description: `[litellm] ${model} (${i + 1}/${scripts.length})` });
-      }
-    }),
-  {
-    description: `[litellm] ${model}`,
-    total: scripts.length,
-    metadata: {
-      model: "",
-      script: "",
-      exitCode: null,
-      durationMs: 0,
-    } as RunResult,
-    columns: [
-      // t is TaskSnapshot & { metadata: RunResult } — full snapshot + typed metadata
-      { header: "Model",  render: (t) => t.metadata.model },
-      { header: "Script", render: (t) => t.metadata.script },
-      { header: "Exit",   render: (t) => String(t.metadata.exitCode ?? "—") },
-      { header: "Failed", render: (t) => `${t.units.failed}` },  // snapshot fields too
-    ],
-  },
-);
+      }),
+    {
+      description: `[litellm] ${model}`,
+      total: scripts.length,
+      metadata: {
+        model: "",
+        script: "",
+        exitCode: null,
+        durationMs: 0,
+      } as RunResult,
+      columns: [
+        // t is TaskSnapshot & { metadata: RunResult } — full snapshot + typed metadata
+        { header: "Model", render: (t) => t.metadata.model },
+        { header: "Script", render: (t) => t.metadata.script },
+        { header: "Exit", render: (t) => String(t.metadata.exitCode ?? "—") },
+        { header: "Failed", render: (t) => `${t.units.failed}` }, // snapshot fields too
+      ],
+    },
+  );
 
 // Existing API — unchanged, no metadata
-yield* Progress.task(effect, { description: "simple task" });
+yield * Progress.task(effect, { description: "simple task" });
 ```
 
 ---
@@ -398,21 +400,13 @@ const AmountColumn = ({ rows }: { rows: VisibleRow[] }) => (
 **CustomColumn:**
 
 ```tsx
-const CustomColumn = ({
-  column,
-  rows,
-}: {
-  column: MergedCustomColumn;
-  rows: VisibleRow[];
-}) => (
+const CustomColumn = ({ column, rows }: { column: MergedCustomColumn; rows: VisibleRow[] }) => (
   <Box flexDirection="column" flexShrink={0}>
     {rows.map((row) => {
       const renderer = column.renderers.get(row.task.id);
       return (
         <Box key={row.task.id} height={1}>
-          <Text wrap="truncate-end">
-            {renderer ? renderer(row.task) : ""}
-          </Text>
+          <Text wrap="truncate-end">{renderer ? renderer(row.task) : ""}</Text>
         </Box>
       );
     })}
@@ -453,7 +447,7 @@ export const TaskSnapshotSchema = Schema.Struct({
   units: TaskUnitsSchema,
   startedAt: Schema.Number,
   completedAt: Schema.NullOr(Schema.Number),
-  metadata: Schema.Unknown,  // NEW
+  metadata: Schema.Unknown, // NEW
 });
 ```
 
@@ -463,7 +457,7 @@ export const TaskSnapshotSchema = Schema.Struct({
 export interface TaskStore {
   readonly tasks: Map<TaskId, TaskSnapshot>;
   readonly renderOrder: ReadonlyArray<RenderRow>;
-  readonly columns: Map<TaskId, ReadonlyArray<TaskColumnDef<unknown>>>;  // NEW
+  readonly columns: Map<TaskId, ReadonlyArray<TaskColumnDef<unknown>>>; // NEW
 }
 ```
 
@@ -538,41 +532,41 @@ The render snapshot logic stays the same. It still computes tree info, visibilit
 
 ### Deleted
 
-| File | Reason |
-|---|---|
-| `src/renderer/width-allocator.ts` | Replaced by Yoga flexbox layout |
-| `src/renderer/columns/description-column.tsx` | Rewritten as column-major component |
-| `src/renderer/columns/bar-column.tsx` | Rewritten as column-major component |
-| `src/renderer/columns/amount-column.tsx` | Rewritten as column-major component |
-| `src/renderer/columns/elapsed-column.tsx` | Rewritten as column-major component |
-| `src/renderer/columns/eta-column.tsx` | Rewritten as column-major component |
-| `src/renderer/default-columns.tsx` | Column set now built into renderer directly |
+| File                                          | Reason                                      |
+| --------------------------------------------- | ------------------------------------------- |
+| `src/renderer/width-allocator.ts`             | Replaced by Yoga flexbox layout             |
+| `src/renderer/columns/description-column.tsx` | Rewritten as column-major component         |
+| `src/renderer/columns/bar-column.tsx`         | Rewritten as column-major component         |
+| `src/renderer/columns/amount-column.tsx`      | Rewritten as column-major component         |
+| `src/renderer/columns/elapsed-column.tsx`     | Rewritten as column-major component         |
+| `src/renderer/columns/eta-column.tsx`         | Rewritten as column-major component         |
+| `src/renderer/default-columns.tsx`            | Column set now built into renderer directly |
 
 ### New
 
-| File | Purpose |
-|---|---|
+| File                                          | Purpose                                                             |
+| --------------------------------------------- | ------------------------------------------------------------------- |
 | `src/renderer/columns/description-column.tsx` | Column-major description (preserves rendering logic, new container) |
-| `src/renderer/columns/bar-column.tsx` | Column-major bar (preserves segment rendering) |
-| `src/renderer/columns/amount-column.tsx` | Column-major amount (preserves formatting) |
-| `src/renderer/columns/elapsed-column.tsx` | Column-major elapsed (preserves formatting) |
-| `src/renderer/columns/eta-column.tsx` | Column-major eta (preserves formatting) |
-| `src/renderer/columns/custom-column.tsx` | Custom column component for user-defined columns |
+| `src/renderer/columns/bar-column.tsx`         | Column-major bar (preserves segment rendering)                      |
+| `src/renderer/columns/amount-column.tsx`      | Column-major amount (preserves formatting)                          |
+| `src/renderer/columns/elapsed-column.tsx`     | Column-major elapsed (preserves formatting)                         |
+| `src/renderer/columns/eta-column.tsx`         | Column-major eta (preserves formatting)                             |
+| `src/renderer/columns/custom-column.tsx`      | Custom column component for user-defined columns                    |
 
 ### Modified
 
-| File | Changes |
-|---|---|
-| `src/types.ts` | `TaskColumnDef<M>`, `TaskHandle<M>`, generic `AddTaskOptions<M>`, `metadata` on snapshot |
-| `src/api.ts` | Callback overloads on `task()` |
-| `src/services/progress.ts` | `setMetadata`/`getMetadata`, callback overloads on `runTask`/`withTask` |
-| `src/renderer/store.ts` | `columns` map, `setMetadata`/`getMetadata`, metadata in `addTask` |
-| `src/renderer/store/types.ts` | No change needed (TaskRowModel stays the same) |
-| `src/renderer/store/render-snapshot.ts` | No change needed |
-| `src/renderer/public-api.tsx` | Complete rewrite: column-major layout, useBoxMetrics, custom columns |
-| `src/renderer/renderer-service.tsx` | Updated to use new renderer, remove column config parameter |
-| `src/services/ink-renderer.tsx` | Simplified — no longer passes column definitions |
-| `src/index.ts` | Export `TaskColumnDef`, `TaskHandle` |
+| File                                    | Changes                                                                                  |
+| --------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `src/types.ts`                          | `TaskColumnDef<M>`, `TaskHandle<M>`, generic `AddTaskOptions<M>`, `metadata` on snapshot |
+| `src/api.ts`                            | Callback overloads on `task()`                                                           |
+| `src/services/progress.ts`              | `setMetadata`/`getMetadata`, callback overloads on `runTask`/`withTask`                  |
+| `src/renderer/store.ts`                 | `columns` map, `setMetadata`/`getMetadata`, metadata in `addTask`                        |
+| `src/renderer/store/types.ts`           | No change needed (TaskRowModel stays the same)                                           |
+| `src/renderer/store/render-snapshot.ts` | No change needed                                                                         |
+| `src/renderer/public-api.tsx`           | Complete rewrite: column-major layout, useBoxMetrics, custom columns                     |
+| `src/renderer/renderer-service.tsx`     | Updated to use new renderer, remove column config parameter                              |
+| `src/services/ink-renderer.tsx`         | Simplified — no longer passes column definitions                                         |
+| `src/index.ts`                          | Export `TaskColumnDef`, `TaskHandle`                                                     |
 
 ---
 
@@ -600,10 +594,10 @@ The render snapshot logic stays the same. It still computes tree info, visibilit
 1. Rewrite each built-in column as a column-major component:
    - Preserve existing cell rendering logic (spinners, bar segments, formatting)
    - Wrap in `<Box flexDirection="column">` with `useBoxMetrics`
-4. Write `custom-column.tsx` with merged column logic
-5. Rewrite `public-api.tsx` as column-major layout
-6. Update `renderer-service.tsx` — remove column configuration parameter
-7. Update `ink-renderer.tsx` — simplify
+2. Write `custom-column.tsx` with merged column logic
+3. Rewrite `public-api.tsx` as column-major layout
+4. Update `renderer-service.tsx` — remove column configuration parameter
+5. Update `ink-renderer.tsx` — simplify
 
 ### Step 4: Delete old code
 
@@ -628,4 +622,3 @@ The render snapshot logic stays the same. It still computes tree info, visibilit
 3. **`all()` and `forEach()` metadata** — not supported for now. Users can use `task()` + manual `Effect.all`.
 4. **Event for metadata updates** — not needed for now.
 5. **Header row** — not shown for now.
-

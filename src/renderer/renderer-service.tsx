@@ -2,55 +2,29 @@ import { Effect } from "effect";
 import { render } from "ink";
 import type { ProgressStdioService } from "../services/stdio";
 import { NowProvider } from "./context/now-context";
-import { CreateProgressRenderer, type ProgressColumnDefinition } from "./public-api";
+import { ProgressRenderer } from "./public-api";
 import { SpinnerProvider } from "./context/spinner-context";
 import type { ProgressRenderStore } from "./store";
 import { useProgressRenderView } from "./store/use-progress-render-view";
 
 const MAX_FPS = 24;
 
-const CreateProgressRoot = (columns: ReadonlyArray<ProgressColumnDefinition>) => {
-  const ProgressRenderer = CreateProgressRenderer(columns);
+const ProgressRoot = ({ store }: { readonly store: ProgressRenderStore }) => {
+  const { renderSnapshot, hasRunningTasks, publication } = useProgressRenderView(store);
 
-  return ({
-    store,
-    getTerminalColumns,
-    getTerminalRows,
-  }: {
-    readonly store: ProgressRenderStore;
-    readonly getTerminalColumns: () => number | undefined;
-    readonly getTerminalRows: () => number | undefined;
-  }) => {
-    const { renderSnapshot, hasRunningTasks } = useProgressRenderView(store);
-
-    return (
-      <SpinnerProvider active={hasRunningTasks}>
-        <NowProvider active={hasRunningTasks}>
-          <ProgressRenderer
-            rows={renderSnapshot.rows}
-            terminalColumns={getTerminalColumns()}
-            terminalRows={getTerminalRows()}
-          />
-        </NowProvider>
-      </SpinnerProvider>
-    );
-  };
+  return (
+    <SpinnerProvider active={hasRunningTasks}>
+      <NowProvider active={hasRunningTasks}>
+        <ProgressRenderer rows={renderSnapshot.rows} columns={publication.snapshot.columns} />
+      </NowProvider>
+    </SpinnerProvider>
+  );
 };
 
-export const makeRendererv2InkRendererService = (
-  columns: ReadonlyArray<ProgressColumnDefinition>,
-) => {
-  const ProgressRoot = CreateProgressRoot(columns);
-
+export const makeRendererv2InkRendererService = () => {
   return {
-    run: (store: ProgressRenderStore, stdio: ProgressStdioService, isTTY: boolean) => {
-      const proot = (
-        <ProgressRoot
-          store={store}
-          getTerminalColumns={() => (isTTY ? stdio.stderr.columns : undefined)}
-          getTerminalRows={() => (isTTY ? stdio.stderr.rows : undefined)}
-        />
-      );
+    run: (store: ProgressRenderStore, stdio: ProgressStdioService, _isTTY: boolean) => {
+      const proot = <ProgressRoot store={store} />;
 
       return Effect.sync(() =>
         render(proot, {

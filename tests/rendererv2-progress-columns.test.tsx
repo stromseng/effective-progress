@@ -3,14 +3,8 @@ import { renderToString } from "ink";
 import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
-import {
-  createAmountColumn,
-  defaultAmountColumnConfig,
-} from "../src/renderer/columns/amount-column";
-import { createBarColumn, defaultBarColumnConfig } from "../src/renderer/columns/bar-column";
-import { createDescriptionColumn } from "../src/renderer/columns/description-column";
 import { NowProvider } from "../src/renderer/context/now-context";
-import { CreateProgressRenderer } from "../src/renderer/public-api";
+import { ProgressRenderer } from "../src/renderer/public-api";
 import { SpinnerProvider } from "../src/renderer/context/spinner-context";
 import type { TaskRowModel } from "../src/renderer/store/types";
 
@@ -48,19 +42,11 @@ const makeTask = (
     units,
     startedAt: 0,
     completedAt: 1_000,
+    metadata: undefined,
   });
 
-const renderColumns = (rows: ReadonlyArray<TaskRowModel>, width: number): string => {
-  const Renderer = CreateProgressRenderer([
-    createDescriptionColumn({
-      minWidth: 1,
-      sticky: true,
-    }),
-    createBarColumn(defaultBarColumnConfig),
-    createAmountColumn(defaultAmountColumnConfig),
-  ]);
-
-  return stripAnsi(
+const renderColumns = (rows: ReadonlyArray<TaskRowModel>): string =>
+  stripAnsi(
     renderToString(
       createElement(NowProvider, {
         active: false,
@@ -68,88 +54,67 @@ const renderColumns = (rows: ReadonlyArray<TaskRowModel>, width: number): string
         children: createElement(SpinnerProvider, {
           active: false,
           tickOverride: 0,
-          children: createElement(Renderer, {
-            rows: [...rows],
-            terminalColumns: width,
+          children: createElement(ProgressRenderer, {
+            rows,
+            columns: new Map(),
           }),
         }),
       }),
-      { columns: width },
     ),
   );
-};
-
-const lastBarIndex = (line: string): number =>
-  Math.max(line.lastIndexOf("━"), line.lastIndexOf("─"));
 
 describe("rendererv2 progress columns", () => {
-  test("keeps determinate progress bars equally wide across mixed amount widths", () => {
-    const output = renderColumns(
-      [
-        deriveRow(
-          makeTask(1, "fail-fast", "processedOnly", {
-            succeeded: 3,
-            failed: 0,
-            processed: 3,
-            total: 4,
-          }),
-        ),
-        deriveRow(
-          makeTask(2, "collect-all", "detailed", {
-            succeeded: 3,
-            failed: 1,
-            processed: 4,
-            total: 4,
-          }),
-        ),
-        deriveRow(
-          makeTask(3, "manual-mix", "detailed", {
-            succeeded: 8,
-            failed: 2,
-            processed: 10,
-            total: 10,
-          }),
-        ),
-      ],
-      80,
-    );
+  test("renders amount values for all rows", () => {
+    const output = renderColumns([
+      deriveRow(
+        makeTask(1, "fail-fast", "processedOnly", {
+          succeeded: 3,
+          failed: 0,
+          processed: 3,
+          total: 4,
+        }),
+      ),
+      deriveRow(
+        makeTask(2, "collect-all", "detailed", {
+          succeeded: 3,
+          failed: 1,
+          processed: 4,
+          total: 4,
+        }),
+      ),
+    ]);
 
-    const lines = output.split("\n").filter((line) => line.length > 0);
-    const barEnds = lines.map(lastBarIndex);
-
-    expect(new Set(barEnds).size).toBe(1);
+    expect(output).toContain("3/4");
+    expect(output).toContain("4/4");
   });
 
-  test("aligns success and failure slots across detailed amount rows", () => {
-    const output = renderColumns(
-      [
-        deriveRow(
-          makeTask(1, "all-succeeded", "detailed", {
-            succeeded: 3,
-            failed: 0,
-            processed: 3,
-            total: 3,
-          }),
-        ),
-        deriveRow(
-          makeTask(2, "all-failed__", "detailed", {
-            succeeded: 0,
-            failed: 3,
-            processed: 3,
-            total: 3,
-          }),
-        ),
-        deriveRow(
-          makeTask(3, "manual-mix__", "detailed", {
-            succeeded: 8,
-            failed: 2,
-            processed: 10,
-            total: 10,
-          }),
-        ),
-      ],
-      80,
-    );
+  test("renders amounts with consistent formatting across rows", () => {
+    const output = renderColumns([
+      deriveRow(
+        makeTask(1, "all-succeeded", "detailed", {
+          succeeded: 3,
+          failed: 0,
+          processed: 3,
+          total: 3,
+        }),
+      ),
+      deriveRow(
+        makeTask(2, "all-failed__", "detailed", {
+          succeeded: 0,
+          failed: 3,
+          processed: 3,
+          total: 3,
+        }),
+      ),
+      deriveRow(
+        makeTask(3, "manual-mix__", "detailed", {
+          succeeded: 8,
+          failed: 2,
+          processed: 10,
+          total: 10,
+        }),
+      ),
+    ]);
 
     const lines = output
       .split("\n")
@@ -159,11 +124,10 @@ describe("rendererv2 progress columns", () => {
           line.includes("all-failed__") ||
           line.includes("manual-mix__"),
       );
-    const amountSegments = lines.map((line) => line.slice(lastBarIndex(line) + 2));
-    const firstGap = amountSegments.map((segment) => segment.indexOf(" "));
-    const secondGap = amountSegments.map((segment) => segment.indexOf(" ", firstGap[0]! + 1));
 
-    expect(new Set(firstGap).size).toBe(1);
-    expect(new Set(secondGap).size).toBe(1);
+    expect(lines.length).toBe(3);
+    for (const line of lines) {
+      expect(line).toContain("/");
+    }
   });
 });

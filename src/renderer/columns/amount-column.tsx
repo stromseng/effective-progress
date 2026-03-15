@@ -1,19 +1,10 @@
-import { Text } from "ink";
+import { Box, Text } from "ink";
 import type { ReactNode } from "react";
 import type { TaskSnapshot } from "../../types";
 import { isDeterminate } from "../shared/determinate";
 import { formatAmount } from "../shared/format";
 import { textWidth } from "../shared/text-width";
-import type {
-  ProgressColumnDefinition,
-  ProgressColumnMeasurement,
-  ProgressColumnProps,
-} from "../public-api";
-
-interface AmountColumnConfig {
-  readonly minWidth: number;
-  readonly sticky: boolean;
-}
+import type { TaskRowModel } from "../store/types";
 
 interface AmountLayout {
   readonly hasDetailedRows: boolean;
@@ -128,37 +119,20 @@ const renderAmount = (task: TaskSnapshot, layout: AmountLayout): ReactNode => {
   );
 };
 
-export const defaultAmountColumnConfig = {
-  minWidth: 4,
-  sticky: true,
-} satisfies AmountColumnConfig;
+export const AmountColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskRowModel> }) => {
+  const amountLayout = measureAmountLayout(rows);
 
-export const createAmountColumn = (
-  config?: Partial<AmountColumnConfig>,
-): ProgressColumnDefinition => {
-  const resolvedConfig = {
-    ...defaultAmountColumnConfig,
-    ...config,
-  } satisfies AmountColumnConfig;
-  let amountLayout = emptyAmountLayout;
+  if (amountLayout.preferredWidth === 0) {
+    return null;
+  }
 
-  return {
-    Component: ({ row }: ProgressColumnProps) => (
-      <Text wrap="truncate-end">{renderAmount(row.task, amountLayout)}</Text>
-    ),
-    measure: ({ rows }): ProgressColumnMeasurement => {
-      amountLayout = measureAmountLayout(rows);
-
-      return {
-        minWidth:
-          amountLayout.preferredWidth > 0
-            ? Math.min(resolvedConfig.minWidth, amountLayout.preferredWidth)
-            : 0,
-        preferredWidth: amountLayout.preferredWidth,
-        maxWidth: amountLayout.preferredWidth,
-      };
-    },
-    noWrap: false,
-    sticky: resolvedConfig.sticky,
-  };
+  return (
+    <Box flexDirection="column" flexShrink={0}>
+      {rows.map((row) => (
+        <Box key={row.task.id as number} height={1} justifyContent="flex-end">
+          <Text wrap="truncate-end">{renderAmount(row.task, amountLayout)}</Text>
+        </Box>
+      ))}
+    </Box>
+  );
 };

@@ -7,6 +7,7 @@ import type {
   AddTaskOptions,
   ProgressService,
   TaskCountDisplay,
+  TaskHandle,
   TaskId,
   TrackOptions,
 } from "./types";
@@ -54,24 +55,82 @@ export interface ForEachExecutionOptions extends EffectExecutionOptions {
 
 export type ForEachOptions = Omit<TrackOptions, "countDisplay"> & ForEachExecutionOptions;
 
-export type TaskOptions = AddTaskOptions;
+export type TaskOptions<M = void> = AddTaskOptions<M>;
+
+const makeTaskHandle = <M>(progress: ProgressService, taskId: TaskId): TaskHandle<M> => ({
+  id: taskId,
+  getMetadata: progress.getMetadata(taskId) as Effect.Effect<M>,
+  setMetadata: (m) => progress.setMetadata(taskId, m),
+  updateMetadata: (fn) =>
+    Effect.flatMap(progress.getMetadata(taskId), (current) =>
+      progress.setMetadata(taskId, fn(current as M)),
+    ),
+  incrementSucceeded: (amount) => progress.incrementSucceeded(taskId, amount),
+  incrementFailed: (amount) => progress.incrementFailed(taskId, amount),
+  update: (options) => progress.updateTask(taskId, options),
+  complete: progress.completeTask(taskId),
+  fail: progress.failTask(taskId),
+  getSnapshot: progress.getTask(taskId).pipe(Effect.map(Option.getOrThrow)),
+});
 
 export const task: {
+  // Existing — effect + options
   <A, E, R>(
     effect: Effect.Effect<A, E, R>,
     options: TaskOptions,
   ): Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+  // Existing — curried
   <A, E, R>(
     options: TaskOptions,
   ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Progress | Task>>;
-} = dual(2, <A, E, R>(effect: Effect.Effect<A, E, R>, options: TaskOptions) => {
-  return provideProgress(
-    Effect.gen(function* () {
-      const progress = yield* Progress;
-      return yield* progress.withTask(effect, options);
-    }),
-  ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>;
-});
+  // New — callback receives typed TaskHandle<M>
+  <M, A, E, R>(
+    f: (handle: TaskHandle<M>) => Effect.Effect<A, E, R>,
+    options: TaskOptions<M> & { readonly metadata: M },
+  ): Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+} = dual(
+  2,
+  <A, E, R>(
+    effectOrCallback:
+      | Effect.Effect<A, E, R>
+      | ((handle: TaskHandle<any>) => Effect.Effect<A, E, R>),
+    options: TaskOptions<any>,
+  ) => {
+    if (typeof effectOrCallback === "function") {
+      return provideProgress(
+        Effect.gen(function* () {
+          const progress = yield* Progress;
+          return yield* progress.runTask(
+            Effect.gen(function* () {
+              const taskId = yield* Task;
+              const handle = makeTaskHandle(progress, taskId);
+              const exit = yield* Effect.exit(effectOrCallback(handle));
+
+              if (Exit.isSuccess(exit)) {
+                yield* progress.completeTask(taskId);
+              } else {
+                yield* progress.failTask(taskId);
+              }
+
+              return yield* Exit.match(exit, {
+                onFailure: Effect.failCause,
+                onSuccess: Effect.succeed,
+              });
+            }),
+            options,
+          );
+        }),
+      ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+    }
+
+    return provideProgress(
+      Effect.gen(function* () {
+        const progress = yield* Progress;
+        return yield* progress.withTask(effectOrCallback, options);
+      }),
+    ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+  },
+);
 
 type AllArg =
   | ReadonlyArray<Effect.Effect<any, any, any>>

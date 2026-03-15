@@ -11,12 +11,33 @@ export type TaskStatus = typeof TaskStatusSchema.Type;
 export const TaskCountDisplaySchema = Schema.Literal("processedOnly", "detailed");
 export type TaskCountDisplay = typeof TaskCountDisplaySchema.Type;
 
-export interface AddTaskOptions {
+export interface TaskColumnDef<M> {
+  readonly header: string;
+  readonly render: (task: TaskSnapshot & { readonly metadata: M }) => string;
+  readonly align?: "left" | "right";
+}
+
+export interface TaskHandle<M> {
+  readonly id: TaskId;
+  readonly getMetadata: Effect.Effect<M>;
+  readonly setMetadata: (metadata: M) => Effect.Effect<void>;
+  readonly updateMetadata: (f: (m: M) => M) => Effect.Effect<void>;
+  readonly incrementSucceeded: (amount?: number) => Effect.Effect<void>;
+  readonly incrementFailed: (amount?: number) => Effect.Effect<void>;
+  readonly update: (options: UpdateTaskOptions) => Effect.Effect<void>;
+  readonly complete: Effect.Effect<void>;
+  readonly fail: Effect.Effect<void>;
+  readonly getSnapshot: Effect.Effect<TaskSnapshot>;
+}
+
+export interface AddTaskOptions<M = void> {
   readonly description: string;
   readonly total?: number;
   readonly transient?: boolean;
   readonly parentId?: TaskId;
   readonly countDisplay?: TaskCountDisplay;
+  readonly metadata?: M;
+  readonly columns?: ReadonlyArray<TaskColumnDef<M>>;
 }
 
 export interface UpdateTaskOptions {
@@ -49,6 +70,7 @@ export const TaskSnapshotSchema = Schema.Struct({
   units: TaskUnitsSchema,
   startedAt: Schema.Number,
   completedAt: Schema.NullOr(Schema.Number),
+  metadata: Schema.Unknown,
 });
 
 export type TaskSnapshot = typeof TaskSnapshotSchema.Type;
@@ -63,10 +85,12 @@ export interface RenderRow {
 export interface TaskStore {
   readonly tasks: Map<TaskId, TaskSnapshot>;
   readonly renderOrder: ReadonlyArray<RenderRow>;
+  readonly columns: Map<TaskId, ReadonlyArray<TaskColumnDef<unknown>>>;
 }
 
 export interface ProgressService {
-  readonly addTask: (options: AddTaskOptions) => Effect.Effect<TaskId>;
+  // biome-ignore lint: any is needed here — the store is heterogeneous
+  readonly addTask: (options: AddTaskOptions<any>) => Effect.Effect<TaskId>;
   readonly updateTask: (taskId: TaskId, options: UpdateTaskOptions) => Effect.Effect<void>;
   readonly incrementSucceeded: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
   readonly incrementFailed: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
@@ -75,6 +99,8 @@ export interface ProgressService {
   readonly log: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>;
   readonly getTask: (taskId: TaskId) => Effect.Effect<Option.Option<TaskSnapshot>>;
   readonly listTasks: Effect.Effect<ReadonlyArray<TaskSnapshot>>;
+  readonly setMetadata: (taskId: TaskId, metadata: unknown) => Effect.Effect<void>;
+  readonly getMetadata: (taskId: TaskId) => Effect.Effect<unknown>;
   readonly runTask: {
     <A, E, R>(
       effect: Effect.Effect<A, E, R>,

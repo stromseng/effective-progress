@@ -42,6 +42,8 @@ const makeProgressService = Effect.gen(function* () {
   const failTask = store.failTask;
   const getTask = store.getTask;
   const listTasks = store.listTasks;
+  const setMetadata = store.setMetadata;
+  const getMetadata = store.getMetadata;
 
   const runTask: ProgressService["runTask"] = dual(
     2,
@@ -98,6 +100,8 @@ const makeProgressService = Effect.gen(function* () {
     log,
     getTask,
     listTasks,
+    setMetadata,
+    getMetadata,
     runTask,
     withTask,
   } satisfies ProgressService;
