@@ -319,7 +319,7 @@ export const makeProgressRenderStore = () => {
           units,
           startedAt: now,
           completedAt: null,
-          metadata: options.metadata ?? undefined,
+          metadata: options.metadata,
         });
 
         updateState((current) => {

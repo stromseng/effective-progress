@@ -65,7 +65,7 @@ export interface UpdateTaskOptions {
   readonly countDisplay?: TaskCountDisplay;
 }
 
-export type TrackOptions = Exclude<AddTaskOptions, "parentId">;
+export type TrackOptions = Omit<AddTaskOptions, "parentId">;
 
 export const TaskUnitsSchema = Schema.Struct({
   succeeded: Schema.Number,

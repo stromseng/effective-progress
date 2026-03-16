@@ -7,7 +7,6 @@ interface InkRendererService {
   readonly run: (
     store: ProgressRenderStore,
     stdio: ProgressStdioService,
-    isTTY: boolean,
   ) => import("effect").Effect.Effect<void>;
 }
 

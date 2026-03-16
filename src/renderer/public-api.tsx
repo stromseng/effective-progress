@@ -22,7 +22,7 @@ export const ProgressRenderer = ({ rows, columns }: ProgressRendererProps): Reac
   const customColumns = collectCustomColumns(rows, columns);
 
   return (
-    <Box flexDirection="row" columnGap={1}>
+    <Box flexDirection="row" columnGap={1} overflow="hidden">
       <DescriptionColumn rows={rows} />
       <BarColumn rows={rows} />
       <AmountColumn rows={rows} />

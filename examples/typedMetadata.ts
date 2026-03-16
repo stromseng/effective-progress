@@ -37,7 +37,7 @@ const runEval = (model: string, script: string) =>
 
 const evaluateModel = (model: string) =>
   Progress.task(
-    (handle) =>
+    (task) =>
       //  ^-- TaskHandle<EvalResult>
       Effect.gen(function* () {
         for (let i = 0; i < scripts.length; i++) {
@@ -49,18 +49,18 @@ const evaluateModel = (model: string) =>
           }
 
           if (exit._tag === "Success") {
-            yield* handle.incrementSucceeded();
-            yield* handle.setMetadata(exit.value);
+            yield* task.incrementSucceeded();
+            yield* task.setMetadata(exit.value);
           } else {
-            yield* handle.incrementFailed();
-            yield* handle.setMetadata({
+            yield* task.incrementFailed();
+            yield* task.setMetadata({
               model,
               script,
               score: 0,
             });
           }
 
-          yield* handle.update({
+          yield* task.update({
             description: `[eval] ${model} (${i + 1}/${scripts.length})`,
           });
         }

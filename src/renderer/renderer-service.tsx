@@ -23,7 +23,7 @@ const ProgressRoot = ({ store }: { readonly store: ProgressRenderStore }) => {
 
 export const makeRendererv2InkRendererService = () => {
   return {
-    run: (store: ProgressRenderStore, stdio: ProgressStdioService, _isTTY: boolean) => {
+    run: (store: ProgressRenderStore, stdio: ProgressStdioService) => {
       const proot = <ProgressRoot store={store} />;
 
       return Effect.sync(() =>

@@ -29,8 +29,6 @@ const makeProgressService = Effect.gen(function* () {
   const stdio = yield* ProgressStdio;
   const inkRenderer = yield* InkRenderer;
   const outerConsole = yield* Effect.console;
-  const isTTY = Boolean(stdio.stderr.isTTY);
-
   const store = makeProgressRenderStore();
   const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
   const scope = yield* Effect.scope;
@@ -38,7 +36,7 @@ const makeProgressService = Effect.gen(function* () {
   const log = (...args: ReadonlyArray<unknown>) =>
     args.length === 0 ? Effect.void : outerConsole.log(...args);
 
-  yield* Effect.forkIn(inkRenderer.run(store, stdio, isTTY), scope);
+  yield* Effect.forkIn(inkRenderer.run(store, stdio), scope);
   // Let the renderer fiber start so queued logs are reliably flushed on scope teardown.
   yield* Effect.sleep("0 millis");
 
