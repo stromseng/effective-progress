@@ -1,11 +1,30 @@
 import { Context, Effect, Exit, FiberRef, Layer, Option } from "effect";
 import { dual } from "effect/Function";
 import { makeProgressRenderStore } from "../renderer/store";
-import type { AddTaskOptions, ProgressService, TaskId } from "../types";
+import type { AddTaskOptions, ProgressService, TaskHandle, TaskId } from "../types";
 import { Task } from "../types";
 import { InkRenderer } from "./ink-renderer";
 import { ProgressStdio } from "./stdio";
 
+interface InternalTaskApi {
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+    options: AddTaskOptions,
+  ): Effect.Effect<A, E, Exclude<R, Task>>;
+  <A, E, R>(
+    options: AddTaskOptions,
+  ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Task>>;
+  <A, E, R>(
+    f: (handle: TaskHandle<void>) => Effect.Effect<A, E, R>,
+    options: AddTaskOptions<void>,
+  ): Effect.Effect<A, E, Exclude<R, Task>>;
+  <M, A, E, R>(
+    f: (handle: TaskHandle<M>) => Effect.Effect<A, E, R>,
+    options: AddTaskOptions<M> & { readonly metadata: M },
+  ): Effect.Effect<A, E, Exclude<R, Task>>;
+}
+
+/** Builds the scoped implementation used by `ProgressService.task(...)` without auto-providing services. */
 const makeProgressService = Effect.gen(function* () {
   const stdio = yield* ProgressStdio;
   const inkRenderer = yield* InkRenderer;
@@ -45,7 +64,35 @@ const makeProgressService = Effect.gen(function* () {
   const setMetadata = store.setMetadata;
   const getMetadata = store.getMetadata;
 
-  const runTask: ProgressService["runTask"] = dual(
+  const makeTaskHandle = <M>(taskId: TaskId): TaskHandle<M> => ({
+    id: taskId,
+    getMetadata: getMetadata(taskId) as Effect.Effect<M>,
+    setMetadata: (metadata) => setMetadata(taskId, metadata),
+    updateMetadata: (f) =>
+      Effect.flatMap(getMetadata(taskId), (current) => setMetadata(taskId, f(current as M))),
+    incrementSucceeded: (amount) => incrementSucceeded(taskId, amount),
+    incrementFailed: (amount) => incrementFailed(taskId, amount),
+    update: (options) => updateTask(taskId, options),
+    complete: completeTask(taskId),
+    fail: failTask(taskId),
+    getSnapshot: getTask(taskId).pipe(Effect.map(Option.getOrThrow)),
+  });
+
+  const autoFinalizeIfRunning = <E>(taskId: TaskId, exit: Exit.Exit<unknown, E>) =>
+    Effect.gen(function* () {
+      const task = yield* getTask(taskId);
+      if (Option.isNone(task) || task.value.status !== "running") {
+        return;
+      }
+
+      if (Exit.isSuccess(exit)) {
+        yield* completeTask(taskId);
+      } else {
+        yield* failTask(taskId);
+      }
+    });
+
+  const scopedTask = dual(
     2,
     <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
       Effect.gen(function* () {
@@ -65,21 +112,40 @@ const makeProgressService = Effect.gen(function* () {
           Option.some(taskId),
         );
       }),
-  );
+  ) as InternalTaskApi;
 
-  const withTask: ProgressService["withTask"] = dual(
+  const task: ProgressService["task"] = dual(
     2,
-    <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
-      runTask(
+    <A, E, R>(
+      effectOrCallback:
+        | Effect.Effect<A, E, R>
+        | ((handle: TaskHandle<any>) => Effect.Effect<A, E, R>),
+      options: AddTaskOptions<any>,
+    ) => {
+      if (typeof effectOrCallback === "function") {
+        return scopedTask(
+          Effect.gen(function* () {
+            const taskId = yield* Task;
+            const handle = makeTaskHandle(taskId);
+            const exit = yield* Effect.exit(effectOrCallback(handle));
+
+            yield* autoFinalizeIfRunning(taskId, exit);
+
+            return yield* Exit.match(exit, {
+              onFailure: Effect.failCause,
+              onSuccess: Effect.succeed,
+            });
+          }),
+          options,
+        );
+      }
+
+      return scopedTask(
         Effect.gen(function* () {
           const taskId = yield* Task;
-          const exit = yield* Effect.exit(effect);
+          const exit = yield* Effect.exit(effectOrCallback);
 
-          if (Exit.isSuccess(exit)) {
-            yield* completeTask(taskId);
-          } else {
-            yield* failTask(taskId);
-          }
+          yield* autoFinalizeIfRunning(taskId, exit);
 
           return yield* Exit.match(exit, {
             onFailure: Effect.failCause,
@@ -87,7 +153,8 @@ const makeProgressService = Effect.gen(function* () {
           });
         }),
         options,
-      ),
+      );
+    },
   );
 
   const service = {
@@ -102,8 +169,7 @@ const makeProgressService = Effect.gen(function* () {
     listTasks,
     setMetadata,
     getMetadata,
-    runTask,
-    withTask,
+    task,
   } satisfies ProgressService;
 
   return Progress.of(service);

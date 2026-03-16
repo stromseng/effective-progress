@@ -484,6 +484,9 @@ export const makeProgressRenderStore = () => {
           if (!currentTask) {
             return { state: current, events: [] };
           }
+          if (currentTask.status !== "running") {
+            return { state: current, events: [] };
+          }
 
           const nextTasks = new Map(current.tasks);
           if (currentTask.transient) {
@@ -558,6 +561,9 @@ export const makeProgressRenderStore = () => {
         updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
+            return { state: current, events: [] };
+          }
+          if (currentTask.status !== "running") {
             return { state: current, events: [] };
           }
 

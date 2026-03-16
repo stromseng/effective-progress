@@ -82,7 +82,7 @@ export const task: {
 };
 ```
 
-Same overload pattern on `runTask` and `withTask` in `ProgressService`.
+Same overload pattern on `task` in `ProgressService`.
 
 ### Type inference flow
 
@@ -559,7 +559,7 @@ The render snapshot logic stays the same. It still computes tree info, visibilit
 | --------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `src/types.ts`                          | `TaskColumnDef<M>`, `TaskHandle<M>`, generic `AddTaskOptions<M>`, `metadata` on snapshot |
 | `src/api.ts`                            | Callback overloads on `task()`                                                           |
-| `src/services/progress.ts`              | `setMetadata`/`getMetadata`, callback overloads on `runTask`/`withTask`                  |
+| `src/services/progress.ts`              | `setMetadata`/`getMetadata`, callback overloads on `task`                                 |
 | `src/renderer/store.ts`                 | `columns` map, `setMetadata`/`getMetadata`, metadata in `addTask`                        |
 | `src/renderer/store/types.ts`           | No change needed (TaskRowModel stays the same)                                           |
 | `src/renderer/store/render-snapshot.ts` | No change needed                                                                         |
@@ -585,7 +585,7 @@ The render snapshot logic stays the same. It still computes tree info, visibilit
 ### Step 2: API (callback overloads)
 
 1. Add callback overloads to `task()` in `src/api.ts`
-2. Add callback overloads to `runTask`/`withTask` on `ProgressService`
+2. Add callback overloads to `task` on `ProgressService`
 3. Implement `TaskHandle<M>` construction in the callback path
 4. Type-level tests with `expectTypeOf` / `@ts-expect-error`
 

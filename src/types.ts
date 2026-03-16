@@ -17,16 +17,32 @@ export interface TaskColumnDef<M> {
   readonly align?: "left" | "right";
 }
 
+/**
+ * A typed facade over a single task created through the callback form of `task(...)`.
+ *
+ * Use this handle to update counts, metadata, description, or to explicitly finalize the task
+ * before the callback exits. If the callback returns or fails while the task is still `running`,
+ * the library auto-finalizes it from the callback exit status instead.
+ */
 export interface TaskHandle<M> {
   readonly id: TaskId;
+  /** Reads the current metadata value for the task using the metadata type inferred at creation. */
   readonly getMetadata: Effect.Effect<M>;
+  /** Replaces the task metadata. */
   readonly setMetadata: (metadata: M) => Effect.Effect<void>;
+  /** Updates the current metadata value atomically. */
   readonly updateMetadata: (f: (m: M) => M) => Effect.Effect<void>;
+  /** Increments the succeeded counter for the task. */
   readonly incrementSucceeded: (amount?: number) => Effect.Effect<void>;
+  /** Increments the failed counter for the task. */
   readonly incrementFailed: (amount?: number) => Effect.Effect<void>;
+  /** Updates mutable task fields such as description, totals, and count display. */
   readonly update: (options: UpdateTaskOptions) => Effect.Effect<void>;
+  /** Marks the task as done immediately. Finalization is terminal once the task leaves `running`. */
   readonly complete: Effect.Effect<void>;
+  /** Marks the task as failed immediately. Finalization is terminal once the task leaves `running`. */
   readonly fail: Effect.Effect<void>;
+  /** Reads the latest task snapshot. */
   readonly getSnapshot: Effect.Effect<TaskSnapshot>;
 }
 
@@ -101,7 +117,16 @@ export interface ProgressService {
   readonly listTasks: Effect.Effect<ReadonlyArray<TaskSnapshot>>;
   readonly setMetadata: (taskId: TaskId, metadata: unknown) => Effect.Effect<void>;
   readonly getMetadata: (taskId: TaskId) => Effect.Effect<unknown>;
-  readonly runTask: {
+  /**
+   * Runs an effect inside a newly created task scope.
+   *
+   * The plain effect form auto-finalizes from the effect exit if the task is still `running`.
+   * The callback form exposes a typed `TaskHandle` for metadata and explicit lifecycle control, and
+   * also auto-finalizes from the callback exit if the handle did not already finalize the task.
+   *
+   * Use `Progress.task(...)` from `src/api.ts` when you want the service to be created automatically if needed.
+   */
+  readonly task: {
     <A, E, R>(
       effect: Effect.Effect<A, E, R>,
       options: AddTaskOptions,
@@ -109,15 +134,14 @@ export interface ProgressService {
     <A, E, R>(
       options: AddTaskOptions,
     ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Task>>;
-  };
-  readonly withTask: {
     <A, E, R>(
-      effect: Effect.Effect<A, E, R>,
-      options: AddTaskOptions,
+      f: (handle: TaskHandle<void>) => Effect.Effect<A, E, R>,
+      options: AddTaskOptions<void>,
     ): Effect.Effect<A, E, Exclude<R, Task>>;
-    <A, E, R>(
-      options: AddTaskOptions,
-    ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Task>>;
+    <M, A, E, R>(
+      f: (handle: TaskHandle<M>) => Effect.Effect<A, E, R>,
+      options: AddTaskOptions<M> & { readonly metadata: M },
+    ): Effect.Effect<A, E, Exclude<R, Task>>;
   };
 }
 
