@@ -181,25 +181,25 @@ export const all: {
               const exit = yield* Effect.exit(
                 Effect.all(
                   wrapEffects(effects, (effect) => wrapTrackedEffect(progress, taskId, effect)),
-                {
-                  concurrency: options.concurrency,
-                  batching: options.batching,
-                  discard: options.discard,
-                  mode: options.mode,
-                  concurrentFinalizers: options.concurrentFinalizers,
-                },
-              ),
-            );
+                  {
+                    concurrency: options.concurrency,
+                    batching: options.batching,
+                    discard: options.discard,
+                    mode: options.mode,
+                    concurrentFinalizers: options.concurrentFinalizers,
+                  },
+                ),
+              );
 
-            if (Exit.isSuccess(exit)) {
-              yield* progress.completeTask(taskId);
-            } else {
-              if (!isCollectAllMode(options.mode)) {
-                yield* progress.failTask(taskId);
-              } else if (yield* isTaskFullyProcessed(progress, taskId)) {
+              if (Exit.isSuccess(exit)) {
                 yield* progress.completeTask(taskId);
               } else {
-                yield* progress.failTask(taskId);
+                if (!isCollectAllMode(options.mode)) {
+                  yield* progress.failTask(taskId);
+                } else if (yield* isTaskFullyProcessed(progress, taskId)) {
+                  yield* progress.completeTask(taskId);
+                } else {
+                  yield* progress.failTask(taskId);
                 }
               }
 
@@ -250,21 +250,21 @@ export const forEach: {
               const exit = yield* Effect.exit(
                 Effect.forEach(
                   iterable,
-                (item, index) => wrapTrackedEffect(progress, taskId, f(item, index)),
-                {
-                  concurrency: options.concurrency,
-                  batching: options.batching,
-                  discard: options.discard,
-                  concurrentFinalizers: options.concurrentFinalizers,
-                },
-              ),
-            );
+                  (item, index) => wrapTrackedEffect(progress, taskId, f(item, index)),
+                  {
+                    concurrency: options.concurrency,
+                    batching: options.batching,
+                    discard: options.discard,
+                    concurrentFinalizers: options.concurrentFinalizers,
+                  },
+                ),
+              );
 
-            if (Exit.isSuccess(exit)) {
-              yield* progress.completeTask(taskId);
-            } else {
-              yield* progress.failTask(taskId);
-            }
+              if (Exit.isSuccess(exit)) {
+                yield* progress.completeTask(taskId);
+              } else {
+                yield* progress.failTask(taskId);
+              }
 
               return yield* Exit.match(exit, {
                 onFailure: Effect.failCause,

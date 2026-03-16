@@ -38,15 +38,10 @@ const runEval = (model: string, script: string) =>
 const evaluateModel = (model: string) =>
   Progress.task(
     (task) =>
-      //  ^-- TaskHandle<EvalResult>
       Effect.gen(function* () {
         for (let i = 0; i < scripts.length; i++) {
           const script = scripts[i]!;
           const exit = yield* Effect.exit(runEval(model, script));
-
-          if (Effect.isEffect(exit)) {
-            // Won't happen, just for type narrowing
-          }
 
           if (exit._tag === "Success") {
             yield* task.incrementSucceeded();
@@ -57,7 +52,7 @@ const evaluateModel = (model: string) =>
               model,
               script,
               score: 0,
-            });
+            } satisfies EvalResult);
           }
 
           yield* task.update({
@@ -72,15 +67,27 @@ const evaluateModel = (model: string) =>
         model: "",
         script: "",
         score: 0,
-      } as EvalResult,
+      },
       columns: [
-        { header: "Model", render: (t) => t.metadata.model },
-        { header: "Script", render: (t) => t.metadata.script },
+        Progress.Columns.description(),
+        Progress.Columns.bar(),
         {
-          header: "Score",
-          render: (t) => (t.metadata.score > 0 ? `${t.metadata.score}%` : "—"),
-          align: "right" as const,
+          flexShrink: 0,
+          minWidth: 12,
+          render: ({ task }) => task.metadata.model,
         },
+        {
+          flexShrink: 0,
+          minWidth: 12,
+          render: ({ task }) => task.metadata.script,
+        },
+        {
+          align: "right",
+          flexShrink: 0,
+          minWidth: 5,
+          render: ({ task }) => (task.metadata.score > 0 ? `${task.metadata.score}%` : "—"),
+        },
+        Progress.Columns.elapsed(),
       ],
     },
   );

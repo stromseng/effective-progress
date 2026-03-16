@@ -1,8 +1,8 @@
 import { Clock, Effect, Option } from "effect";
 import type {
   AddTaskOptions,
+  ColumnDef,
   ProgressTaskEvent,
-  TaskColumnDef,
   TaskId,
   TaskStore,
   UpdateTaskOptions,
@@ -198,7 +198,7 @@ export const makeProgressRenderStore = () => {
   let state: TaskStore = {
     tasks: new Map<TaskId, TaskSnapshot>(),
     renderOrder: [],
-    columns: new Map<TaskId, ReadonlyArray<TaskColumnDef<unknown>>>(),
+    columns: new Map<TaskId, ReadonlyArray<ColumnDef<any, any>>>(),
   };
   let pendingEvents: Array<ProgressTaskEvent> = [];
   let publishedPublication: RenderPublication = {
@@ -332,7 +332,7 @@ export const makeProgressRenderStore = () => {
           const nextColumns = options.columns
             ? new Map(current.columns).set(
                 taskId,
-                options.columns as ReadonlyArray<TaskColumnDef<unknown>>,
+                options.columns as ReadonlyArray<ColumnDef<any, any>>,
               )
             : current.columns;
 

@@ -3,9 +3,13 @@ import { useNow } from "../context/now-context";
 import { formatElapsed } from "../shared/format";
 import type { TaskRowModel } from "../store/types";
 
-const ElapsedCell = ({ task }: { readonly task: TaskRowModel["task"] }) => {
-  const now = useNow();
-
+export const ElapsedCell = ({
+  task,
+  now,
+}: {
+  readonly task: TaskRowModel["task"];
+  readonly now: number;
+}) => {
   return (
     <Text wrap="truncate-end" color="gray">
       {formatElapsed(task, now)}
@@ -13,12 +17,16 @@ const ElapsedCell = ({ task }: { readonly task: TaskRowModel["task"] }) => {
   );
 };
 
-export const ElapsedColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskRowModel> }) => (
-  <Box flexDirection="column" flexShrink={0}>
-    {rows.map((row) => (
-      <Box key={row.task.id as number} height={1} justifyContent="flex-end">
-        <ElapsedCell task={row.task} />
-      </Box>
-    ))}
-  </Box>
-);
+export const ElapsedColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskRowModel> }) => {
+  const now = useNow();
+
+  return (
+    <Box flexDirection="column" flexShrink={0}>
+      {rows.map((row) => (
+        <Box key={row.task.id as number} height={1} justifyContent="flex-end">
+          <ElapsedCell task={row.task} now={now} />
+        </Box>
+      ))}
+    </Box>
+  );
+};

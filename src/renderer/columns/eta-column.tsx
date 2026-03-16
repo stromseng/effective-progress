@@ -3,8 +3,14 @@ import { useNow } from "../context/now-context";
 import { formatEta } from "../shared/format";
 import type { TaskRowModel } from "../store/types";
 
-const EtaCell = ({ row, now }: { readonly row: TaskRowModel; readonly now: number }) => {
-  const eta = formatEta(row.task, now);
+export const EtaCell = ({
+  task,
+  now,
+}: {
+  readonly task: TaskRowModel["task"];
+  readonly now: number;
+}) => {
+  const eta = formatEta(task, now);
 
   if (eta === "") {
     return null;
@@ -29,7 +35,7 @@ export const EtaColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskRowModel>
     <Box flexDirection="column" flexShrink={0}>
       {rows.map((row) => (
         <Box key={row.task.id as number} height={1} justifyContent="flex-end">
-          <EtaCell row={row} now={now} />
+          <EtaCell task={row.task} now={now} />
         </Box>
       ))}
     </Box>

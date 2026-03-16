@@ -1,7 +1,7 @@
 import cliSpinners, { type SpinnerName } from "cli-spinners";
 import { Box, Text, useBoxMetrics, type DOMElement } from "ink";
 import { useRef } from "react";
-import type { TaskSnapshot } from "../../types";
+import type { CellInfo, TaskSnapshot } from "../../types";
 import { useSpinnerTick } from "../context/spinner-context";
 import type { TaskRowModel } from "../store/types";
 
@@ -60,39 +60,55 @@ export const getTaskIndicator = (
   return { symbol: "✓", color: "green" };
 };
 
+export interface DescriptionPrepared {
+  readonly minTreeWidth: number;
+}
+
+export const prepareDescription = (
+  rows: ReadonlyArray<CellInfo<unknown>>,
+): DescriptionPrepared => ({
+  minTreeWidth: rows.reduce(
+    (max, row) => Math.max(max, row.derived.treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
+    MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2,
+  ),
+});
+
 const TaskIndicatorGlyph = ({
   task,
+  tick,
   spinnerType = DEFAULT_SPINNER_TYPE,
 }: {
   readonly task: TaskSnapshot;
+  readonly tick: number;
   readonly spinnerType?: SpinnerName;
 }) => {
-  const tick = useSpinnerTick();
   const indicator = getTaskIndicator(task, tick, spinnerType);
 
   return <Text color={indicator.color}>{indicator.symbol}</Text>;
 };
 
-const DescriptionCell = ({
-  row,
+export const DescriptionCell = ({
+  cell,
   width,
   minTreeWidth,
+  spinnerTick,
 }: {
-  readonly row: TaskRowModel;
+  readonly cell: CellInfo<unknown>;
   readonly width: number | undefined;
   readonly minTreeWidth: number;
+  readonly spinnerTick: number;
 }) => {
   const showTree = width === undefined || width >= minTreeWidth;
-  const treePrefix = showTree ? row.derived.treePrefix : "";
+  const treePrefix = showTree ? cell.derived.treePrefix : "";
 
   if (!showTree && width !== undefined && width <= 1) {
-    return <TaskIndicatorGlyph task={row.task} />;
+    return <TaskIndicatorGlyph task={cell.task} tick={spinnerTick} />;
   }
 
   if (!showTree && width !== undefined && width === 2) {
     return (
       <Text wrap="truncate-end">
-        <TaskIndicatorGlyph task={row.task} />…
+        <TaskIndicatorGlyph task={cell.task} tick={spinnerTick} />…
       </Text>
     );
   }
@@ -100,8 +116,8 @@ const DescriptionCell = ({
   return (
     <Text wrap="truncate-end">
       {treePrefix}
-      <TaskIndicatorGlyph task={row.task} />
-      {` ${row.task.description}`}
+      <TaskIndicatorGlyph task={cell.task} tick={spinnerTick} />
+      {` ${cell.task.description}`}
     </Text>
   );
 };
@@ -109,6 +125,7 @@ const DescriptionCell = ({
 export const DescriptionColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskRowModel> }) => {
   const ref = useRef<DOMElement>(null);
   const { width, hasMeasured } = useBoxMetrics(ref);
+  const spinnerTick = useSpinnerTick();
 
   const minTreeWidth = rows.reduce(
     (max, row) => Math.max(max, row.derived.treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
@@ -120,9 +137,10 @@ export const DescriptionColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskR
       {rows.map((row) => (
         <Box key={row.task.id as number} height={1}>
           <DescriptionCell
-            row={row}
+            cell={row}
             width={hasMeasured ? width : undefined}
             minTreeWidth={minTreeWidth}
+            spinnerTick={spinnerTick}
           />
         </Box>
       ))}

@@ -90,26 +90,24 @@ const makeProgressService = Effect.gen(function* () {
       }
     });
 
-  const scopedTask = dual(
-    2,
-    <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
-      Effect.gen(function* () {
-        const inheritedParentId = yield* FiberRef.get(currentParentRef);
-        const resolvedParentId =
-          options.parentId === undefined ? inheritedParentId : Option.some(options.parentId);
+  const scopedTask = dual(2, <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
+    Effect.gen(function* () {
+      const inheritedParentId = yield* FiberRef.get(currentParentRef);
+      const resolvedParentId =
+        options.parentId === undefined ? inheritedParentId : Option.some(options.parentId);
 
-        const taskId = yield* addTask({
-          ...options,
-          parentId: Option.isSome(resolvedParentId) ? resolvedParentId.value : undefined,
-          transient: options.transient,
-        });
+      const taskId = yield* addTask({
+        ...options,
+        parentId: Option.isSome(resolvedParentId) ? resolvedParentId.value : undefined,
+        transient: options.transient,
+      });
 
-        return yield* Effect.locally(
-          Effect.provideService(effect, Task, taskId),
-          currentParentRef,
-          Option.some(taskId),
-        );
-      }),
+      return yield* Effect.locally(
+        Effect.provideService(effect, Task, taskId),
+        currentParentRef,
+        Option.some(taskId),
+      );
+    }),
   ) as InternalTaskApi;
 
   const task: ProgressService["task"] = dual(
