@@ -1,21 +1,12 @@
-import { Text } from "ink";
+import { Box, Text } from "ink";
 import type { ReactNode } from "react";
-import type { TaskSnapshot } from "../../types";
+import type { CellInfo, TaskSnapshot } from "../../types";
 import { isDeterminate } from "../shared/determinate";
 import { formatAmount } from "../shared/format";
 import { textWidth } from "../shared/text-width";
-import type {
-  ProgressColumnDefinition,
-  ProgressColumnMeasurement,
-  ProgressColumnProps,
-} from "../public-api";
+import type { TaskRowModel } from "../store/types";
 
-interface AmountColumnConfig {
-  readonly minWidth: number;
-  readonly sticky: boolean;
-}
-
-interface AmountLayout {
+export interface AmountLayout {
   readonly hasDetailedRows: boolean;
   readonly countWidth: number;
   readonly processedWidth: number;
@@ -40,9 +31,7 @@ const emptyAmountLayout: AmountLayout = {
   preferredWidth: 0,
 };
 
-const measureAmountLayout = (
-  rows: ReadonlyArray<{ readonly task: TaskSnapshot }>,
-): AmountLayout => {
+export const measureAmountLayout = (rows: ReadonlyArray<CellInfo<unknown>>): AmountLayout => {
   const countedTasks = rows.flatMap((row) => (hasCountedAmount(row.task) ? [row.task] : []));
   const hasDetailedRows = countedTasks.some((task) => task.countDisplay === "detailed");
 
@@ -99,7 +88,7 @@ const measureAmountLayout = (
   };
 };
 
-const renderAmount = (task: TaskSnapshot, layout: AmountLayout): ReactNode => {
+export const renderAmount = (task: TaskSnapshot, layout: AmountLayout): ReactNode => {
   if (!hasCountedAmount(task)) {
     return formatAmount(task, 0);
   }
@@ -128,37 +117,28 @@ const renderAmount = (task: TaskSnapshot, layout: AmountLayout): ReactNode => {
   );
 };
 
-export const defaultAmountColumnConfig = {
-  minWidth: 4,
-  sticky: true,
-} satisfies AmountColumnConfig;
+export const AmountCell = ({
+  task,
+  layout,
+}: {
+  readonly task: TaskSnapshot;
+  readonly layout: AmountLayout;
+}) => <Text wrap="truncate-end">{renderAmount(task, layout)}</Text>;
 
-export const createAmountColumn = (
-  config?: Partial<AmountColumnConfig>,
-): ProgressColumnDefinition => {
-  const resolvedConfig = {
-    ...defaultAmountColumnConfig,
-    ...config,
-  } satisfies AmountColumnConfig;
-  let amountLayout = emptyAmountLayout;
+export const AmountColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskRowModel> }) => {
+  const amountLayout = measureAmountLayout(rows);
 
-  return {
-    Component: ({ row }: ProgressColumnProps) => (
-      <Text wrap="truncate-end">{renderAmount(row.task, amountLayout)}</Text>
-    ),
-    measure: ({ rows }): ProgressColumnMeasurement => {
-      amountLayout = measureAmountLayout(rows);
+  if (amountLayout.preferredWidth === 0) {
+    return null;
+  }
 
-      return {
-        minWidth:
-          amountLayout.preferredWidth > 0
-            ? Math.min(resolvedConfig.minWidth, amountLayout.preferredWidth)
-            : 0,
-        preferredWidth: amountLayout.preferredWidth,
-        maxWidth: amountLayout.preferredWidth,
-      };
-    },
-    noWrap: false,
-    sticky: resolvedConfig.sticky,
-  };
+  return (
+    <Box flexDirection="column" flexShrink={0}>
+      {rows.map((row) => (
+        <Box key={row.task.id as number} height={1} justifyContent="flex-end">
+          <AmountCell task={row.task} layout={amountLayout} />
+        </Box>
+      ))}
+    </Box>
+  );
 };

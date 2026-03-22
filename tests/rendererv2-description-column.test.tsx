@@ -1,12 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import type { SpinnerName } from "cli-spinners";
 import { renderToString } from "ink";
 import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
-import { createDescriptionColumn } from "../src/renderer/columns/description-column";
+import { DescriptionColumn } from "../src/renderer/columns/description-column";
 import { NowProvider } from "../src/renderer/context/now-context";
-import { CreateProgressRenderer } from "../src/renderer/public-api";
 import { SpinnerProvider } from "../src/renderer/context/spinner-context";
 import type { TaskRowModel } from "../src/renderer/store/types";
 
@@ -58,23 +56,11 @@ const makeTask = (
     },
     startedAt: 0,
     completedAt: status === "running" ? null : 1_000,
+    metadata: undefined,
   });
 
-const renderDescriptionColumn = (
-  rows: ReadonlyArray<TaskRowModel>,
-  terminalColumns: number,
-  spinnerTick?: number,
-  spinnerType?: SpinnerName,
-): string => {
-  const Renderer = CreateProgressRenderer([
-    createDescriptionColumn({
-      minWidth: 1,
-      spinnerType,
-      sticky: false,
-    }),
-  ]);
-
-  return stripAnsi(
+const renderDescriptionColumn = (rows: ReadonlyArray<TaskRowModel>, spinnerTick?: number): string =>
+  stripAnsi(
     renderToString(
       createElement(NowProvider, {
         active: false,
@@ -82,16 +68,11 @@ const renderDescriptionColumn = (
         children: createElement(SpinnerProvider, {
           active: false,
           tickOverride: spinnerTick,
-          children: createElement(Renderer, {
-            rows,
-            terminalColumns,
-          }),
+          children: createElement(DescriptionColumn, { rows }),
         }),
       }),
-      { columns: terminalColumns },
     ),
   );
-};
 
 describe("rendererv2 description tree planning", () => {
   test("renders the spinner after the tree prefix", () => {
@@ -110,7 +91,7 @@ describe("rendererv2 description tree planning", () => {
       }),
     ];
 
-    const output = renderDescriptionColumn(rows, 20);
+    const output = renderDescriptionColumn(rows);
 
     expect(output.includes("⠋ root")).toBeTrue();
     expect(output.includes("└─ ⠋ child")).toBeTrue();
@@ -127,29 +108,13 @@ describe("rendererv2 description tree planning", () => {
       }),
     ];
 
-    const output = renderDescriptionColumn(rows, 20, 2);
+    const output = renderDescriptionColumn(rows, 2);
 
     expect(output.includes("⠹ root")).toBeTrue();
     expect(output.includes("⠋ root")).toBeFalse();
   });
 
-  test("renders the configured cli-spinners type", () => {
-    const rows = [
-      deriveRow(makeTask(1, "root", "running"), {
-        depth: 0,
-        hasChildren: false,
-        hasNextSibling: false,
-        ancestorHasNextSibling: [],
-      }),
-    ];
-
-    const output = renderDescriptionColumn(rows, 20, 1, "line");
-
-    expect(output.includes("\\ root")).toBeTrue();
-    expect(output.includes("⠙ root")).toBeFalse();
-  });
-
-  test("plans tree prefixes globally for the whole column", () => {
+  test("renders tree prefixes for nested tasks", () => {
     const rows = [
       deriveRow(makeTask(1, "root"), {
         depth: 0,
@@ -171,12 +136,10 @@ describe("rendererv2 description tree planning", () => {
       }),
     ];
 
-    const mixedThresholdWidth = 11;
-    const narrow = renderDescriptionColumn(rows, mixedThresholdWidth);
-    const wide = renderDescriptionColumn(rows, 20);
+    const output = renderDescriptionColumn(rows);
 
-    expect(wide.includes("└─ ")).toBeTrue();
-    expect(narrow.includes("└─ ")).toBeFalse();
-    expect(narrow.includes("│")).toBeFalse();
+    expect(output).toContain("✓ root");
+    expect(output).toContain("└─ ✓ child");
+    expect(output).toContain("└─ ✓ grandchild");
   });
 });

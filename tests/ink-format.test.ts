@@ -17,6 +17,7 @@ const makeTask = (
     units,
     startedAt: 0,
     completedAt: status === "running" ? null : 1_000,
+    metadata: undefined,
   });
 
 describe("determinate processed amount color", () => {

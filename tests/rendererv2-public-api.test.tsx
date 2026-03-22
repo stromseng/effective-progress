@@ -1,16 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { render, Text } from "ink";
+import { renderToString } from "ink";
 import { createElement } from "react";
+import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
-import { NowProvider, useNow } from "../src/renderer/context/now-context";
-import {
-  CreateProgressRenderer,
-  type ProgressColumnDefinition,
-  type ProgressColumnMeasurement,
-  type ProgressColumnProps,
-} from "../src/renderer/public-api";
+import { NowProvider } from "../src/renderer/context/now-context";
+import { ProgressRenderer } from "../src/renderer/public-api";
+import { SpinnerProvider } from "../src/renderer/context/spinner-context";
 import type { TaskRowModel } from "../src/renderer/store/types";
-import { createMockStdio } from "./helpers/mock-stdio";
 
 const deriveRow = (task: Progress.TaskSnapshot): TaskRowModel => ({
   task,
@@ -30,11 +26,11 @@ const deriveRow = (task: Progress.TaskSnapshot): TaskRowModel => ({
   },
 });
 
-const makeTask = (): Progress.TaskSnapshot =>
+const makeTask = (id: number, description: string, metadata?: unknown): Progress.TaskSnapshot =>
   Progress.TaskSnapshot({
-    id: Progress.TaskId(1),
+    id: Progress.TaskId(id),
     parentId: null,
-    description: "row",
+    description,
     status: "running",
     countDisplay: "processedOnly",
     transient: false,
@@ -46,137 +42,196 @@ const makeTask = (): Progress.TaskSnapshot =>
     },
     startedAt: 0,
     completedAt: null,
+    metadata,
   });
 
-const fixedMeasurement = (width: number): ProgressColumnMeasurement => ({
-  minWidth: width,
-  preferredWidth: width,
-  maxWidth: width,
-});
+const renderWithColumns = (
+  rows: ReadonlyArray<TaskRowModel>,
+  columns: Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>,
+): string =>
+  stripAnsi(
+    renderToString(
+      createElement(NowProvider, {
+        active: false,
+        nowOverride: 1_000,
+        children: createElement(SpinnerProvider, {
+          active: false,
+          tickOverride: 0,
+          children: createElement(ProgressRenderer, {
+            rows,
+            columns,
+          }),
+        }),
+      }),
+    ),
+  );
 
 describe("rendererv2 public api", () => {
-  test("does not rerender static cells when only now changes", () => {
-    let staticRenderCount = 0;
-    let dynamicRenderCount = 0;
-
-    const staticColumn: ProgressColumnDefinition = {
-      Component: ({ row }: ProgressColumnProps) => {
-        staticRenderCount += 1;
-        return <Text>{row.task.description}</Text>;
-      },
-      measure: () => fixedMeasurement(6),
-      sticky: false,
-    };
-
-    const dynamicColumn: ProgressColumnDefinition = {
-      Component: () => {
-        dynamicRenderCount += 1;
-        const now = useNow();
-        return <Text>{`${now}`}</Text>;
-      },
-      measure: () => fixedMeasurement(5),
-      sticky: false,
-    };
-
-    const Renderer = CreateProgressRenderer([staticColumn, dynamicColumn]);
-    const stdio = createMockStdio({
-      stdout: { isTTY: true, columns: 40, rows: 10 },
-      stderr: { isTTY: true, columns: 40, rows: 10 },
-    });
-    const rows = [deriveRow(makeTask())];
-
-    const instance = render(
-      createElement(NowProvider, {
-        active: false,
-        nowOverride: 1_000,
-        children: createElement(Renderer, {
-          rows,
-          terminalColumns: 40,
-          terminalRows: 10,
-        }),
-      }),
-      { stdout: stdio.stdout.stream, stderr: stdio.stderr.stream, debug: false },
-    );
-
-    instance.rerender(
-      createElement(NowProvider, {
-        active: false,
-        nowOverride: 2_000,
-        children: createElement(Renderer, {
-          rows,
-          terminalColumns: 40,
-          terminalRows: 10,
-        }),
-      }),
-    );
-    instance.unmount();
-
-    expect(staticRenderCount).toBe(1);
-    expect(dynamicRenderCount).toBe(2);
+  test("renders null when there are no rows", () => {
+    const output = renderWithColumns([], new Map());
+    expect(output).toBe("");
   });
 
-  test("only recomputes layout when the column layout dependency changes", () => {
-    let measureCount = 0;
+  test("renders basic rows with default columns", () => {
+    const output = renderWithColumns(
+      [deriveRow(makeTask(1, "task-a")), deriveRow(makeTask(2, "task-b"))],
+      new Map(),
+    );
 
-    const column: ProgressColumnDefinition = {
-      Component: () => <Text>value</Text>,
-      measure: () => {
-        measureCount += 1;
-        return fixedMeasurement(5);
-      },
-      getLayoutDependency: ({ now }) => Math.floor(now / 10_000),
-      sticky: false,
+    expect(output).toContain("task-a");
+    expect(output).toContain("task-b");
+  });
+
+  test("renders different cells in the same visual column at the same index", () => {
+    interface EvalMeta {
+      readonly model: string;
+      readonly score: number;
+    }
+
+    const columns = new Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>([
+      [
+        Progress.TaskId(1),
+        [
+          Progress.Columns.description(),
+          {
+            flexShrink: 0,
+            minWidth: 6,
+            render: ({ task }) => task.metadata.model,
+          },
+        ],
+      ],
+      [
+        Progress.TaskId(2),
+        [
+          Progress.Columns.description(),
+          {
+            align: "center",
+            flexShrink: 0,
+            minWidth: 6,
+            render: ({ task }) => `${task.metadata.score}%`,
+          },
+        ],
+      ],
+    ]);
+
+    const output = renderWithColumns(
+      [
+        deriveRow(makeTask(1, "model-task", { model: "gpt-4", score: 0 } satisfies EvalMeta)),
+        deriveRow(makeTask(2, "score-task", { model: "", score: 97 } satisfies EvalMeta)),
+      ],
+      columns,
+    );
+
+    expect(output).toContain("model-task");
+    expect(output).toContain("score-task");
+    expect(output).toContain("gpt-4");
+    expect(output).toContain("97%");
+  });
+
+  test("renders empty cells when a task has fewer positional columns", () => {
+    const columns = new Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>([
+      [
+        Progress.TaskId(1),
+        [
+          Progress.Columns.description(),
+          {
+            flexShrink: 0,
+            minWidth: 6,
+            render: () => "extra",
+          },
+        ],
+      ],
+      [Progress.TaskId(2), [Progress.Columns.description()]],
+    ]);
+
+    const output = renderWithColumns(
+      [deriveRow(makeTask(1, "task-with-extra")), deriveRow(makeTask(2, "task-without-extra"))],
+      columns,
+    );
+
+    expect(output).toContain("task-with-extra");
+    expect(output).toContain("task-without-extra");
+    expect(output).toContain("extra");
+  });
+
+  test("supports combining defaults with appended custom columns", () => {
+    const columns = new Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>([
+      [
+        Progress.TaskId(1),
+        [
+          ...Progress.Columns.defaults(),
+          {
+            flexShrink: 0,
+            minWidth: 4,
+            render: () => "tag",
+          },
+        ],
+      ],
+    ]);
+
+    const output = renderWithColumns([deriveRow(makeTask(1, "tagged-task"))], columns);
+
+    expect(output).toContain("tagged-task");
+    expect(output).toContain("tag");
+  });
+
+  test("keeps prepared values isolated by prepare function at the same index", () => {
+    const uppercase: Progress.ColumnDef<{ label: string }, string> = {
+      prepare: (rows) =>
+        rows
+          .map((row) => row.task.metadata.label)
+          .join(",")
+          .toUpperCase(),
+      render: ({ task }, { prepared }) => `${task.metadata.label}:${prepared}`,
+    };
+    const lengths: Progress.ColumnDef<{ count: number }, number> = {
+      prepare: (rows) => rows.reduce((total, row) => total + row.task.metadata.count, 0),
+      render: ({ task }, { prepared }) => `${task.metadata.count}/${prepared}`,
     };
 
-    const Renderer = CreateProgressRenderer([column]);
-    const stdio = createMockStdio({
-      stdout: { isTTY: true, columns: 20, rows: 10 },
-      stderr: { isTTY: true, columns: 20, rows: 10 },
-    });
-    const rows = [deriveRow(makeTask())];
-
-    const instance = render(
-      createElement(NowProvider, {
-        active: false,
-        nowOverride: 1_000,
-        children: createElement(Renderer, {
-          rows,
-          terminalColumns: 20,
-          terminalRows: 10,
-        }),
-      }),
-      { stdout: stdio.stdout.stream, stderr: stdio.stderr.stream, debug: false },
+    const output = renderWithColumns(
+      [
+        deriveRow(makeTask(1, "task-a", { label: "alpha" })),
+        deriveRow(makeTask(2, "task-b", { count: 7 })),
+      ],
+      new Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>([
+        [Progress.TaskId(1), [Progress.Columns.description(), uppercase]],
+        [Progress.TaskId(2), [Progress.Columns.description(), lengths]],
+      ]),
     );
 
-    expect(measureCount).toBe(1);
+    expect(output).toContain("alpha:ALPHA");
+    expect(output).toContain("7/7");
+  });
 
-    instance.rerender(
-      createElement(NowProvider, {
-        active: false,
-        nowOverride: 2_000,
-        children: createElement(Renderer, {
-          rows,
-          terminalColumns: 20,
-          terminalRows: 10,
-        }),
-      }),
+  test("aggregates numeric sizing hints across different columns at the same index", () => {
+    const output = renderWithColumns(
+      [deriveRow(makeTask(1, "wide-a")), deriveRow(makeTask(2, "wide-b"))],
+      new Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>([
+        [
+          Progress.TaskId(1),
+          [
+            Progress.Columns.description(),
+            {
+              minWidth: 4,
+              render: () => "a",
+            },
+          ],
+        ],
+        [
+          Progress.TaskId(2),
+          [
+            Progress.Columns.description(),
+            {
+              minWidth: 8,
+              render: () => "b",
+            },
+          ],
+        ],
+      ]),
     );
 
-    expect(measureCount).toBe(1);
-
-    instance.rerender(
-      createElement(NowProvider, {
-        active: false,
-        nowOverride: 11_000,
-        children: createElement(Renderer, {
-          rows,
-          terminalColumns: 20,
-          terminalRows: 10,
-        }),
-      }),
-    );
-    instance.unmount();
-
-    expect(measureCount).toBe(2);
+    expect(output).toContain("wide-a");
+    expect(output).toContain("wide-b");
   });
 });

@@ -75,23 +75,59 @@ Effect.runPromise(program);
 
 ### Effect.all modes
 
-Support for `either`/`validate` modes of `Effect.all` and render the amount of sucesses/failures.
+Support for `either`/`validate` modes of `Effect.all` and render the amount of successes/failures.
 
 <img alt="Mixed outcomes modes output" src="docs/images/mixedOutcomes.gif" width="600" />
 
 - `Progress.all` in default mode (`mode: "default"`) remains fail-fast.
 - In fail-fast runs, unresolved units remain unprocessed.
 - `mode: "either"` and `mode: "validate"` run all effects and keep mixed outcomes in the task counters.
-- Mixed outcomes can still finalize as `done` when all units are accounted for.
+- Mixed outcomes can finalize as `done` when all units are accounted for.
 - Empty collections are valid inputs for `Progress.all` / `Progress.forEach` and render as `0/0` instead of failing.
+
+### Single task with a typed handle
+
+Use `Progress.task(...)` when you want one progress bar around a custom effect. The callback form gives you a task-local handle, so you can update counts, descriptions, and metadata without fetching the current task ID first.
+
+```ts
+import { Console, Effect } from "effect";
+import * as Progress from "effective-progress";
+
+const program = Progress.task(
+  (task) =>
+    Effect.gen(function* () {
+      yield* Console.log("Starting deployment");
+      yield* task.incrementSucceeded();
+      yield* task.update({
+        description: "Uploading release bundle",
+      });
+      yield* Effect.sleep("1 second");
+      yield* task.incrementSucceeded(2);
+    }),
+  {
+    description: "Deploy release",
+    total: 3,
+  },
+);
+
+Effect.runPromise(program);
+```
+
+- The plain `Progress.task(effect, options)` form auto-finalizes from the effect exit.
+- The callback form also auto-finalizes from the callback exit unless you explicitly `yield* task.complete` or `yield* task.fail` first.
+- `yield* Progress.Task` exposes the current task ID when you need it.
 
 ### Other examples
 
 - `examples/simpleExample.ts` - low-boilerplate real-world flow
-- `examples/advancedExample.ts` - full API usage and manual task control
+- `examples/advancedExample.ts` - mixed high-level and low-level Progress service usage
+- `examples/basic.ts` - minimal `Progress.all` usage
+- `examples/nesting.ts` - nested tree rendering with parent and child tasks
 - `examples/mixedOutcomes.ts` - fail-fast vs `either`/`validate` with mixed success/failure counters
 - `examples/cliProgressSemantics.ts` - zero totals, negative totals clearing to unknown totals, overflow counts, and empty `all` / `forEach`
 - `examples/unknownTotalCounting.ts` - count successes/failures without a known total and render `processed/?`
+- `examples/typedMetadata.ts` - typed task metadata rendered through custom columns
+- `examples/mixedNestedColumns.ts` - different column sets aligned across mixed task types
 - `examples/showcase.ts` - nested concurrent tasks, spinner workloads, and mixed Effect/Console logging
 - `examples/performance.ts` - stress-style run with high log volume and deeply nested progress updates
 - `examples/performanceLong.ts` - longer-running stress run with roughly 10x the work of `performance.ts`
@@ -109,21 +145,40 @@ Support for `either`/`validate` modes of `Effect.all` and render the amount of s
 ### Ink renderer behavior
 
 - Rendering is powered by [Ink](https://github.com/vadimdemedes/ink).
-- Built-in columns are: description, bar, amount/spinner, elapsed, and ETA.
+- Built-in columns are exposed as `Progress.Columns.description()`, `bar()`, `amount()`, `elapsed()`, `eta()`, `spacer()`, and `defaults()`.
 - Determinate bars are segmented by outcome: succeeded (green), failed (red), and remaining (neutral).
 - Determinate amount text shows counters without prefixes: `<succeeded> <failed> <processed>/<total>`.
 - Counts can exceed `total`; the amount text keeps those raw values (for example `12/10`) while the bar stays visually clamped at full.
 - `total: 0` is valid for determinate tasks and renders as a full bar by default.
-- Column widths are measured and allocated per frame from a shared column tree, so rows stay aligned.
-- Elapsed and ETA reserve stable widths to reduce jitter while tasks transition states.
-- Sticky width can keep selected columns stable until the frame empties.
+- Column widths are resolved per visual column index, so rows with different column definitions can still align with each other.
+- Column `prepare(...)` functions can compute shared layout data once for all rows using the same column definition at a given index.
 - On narrow terminals, layout compacts to fit available width and tree prefixes are suppressed when description space is too tight.
 
-## Manual task control
+## Task API
 
-For manual usage, `task` still provides the current `Task` context, while logs continue through your outer `Console`:
+`Progress.task(...)` supports two styles:
+
+- `Progress.task(effect, options)` for the simple "wrap this effect in a task" case.
+- `Progress.task((task) => effect, options)` when you want a typed handle for task-local control.
+
+The handle exposes:
+
+- `incrementSucceeded(amount?)`
+- `incrementFailed(amount?)`
+- `update({ description, total, countDisplay, transient, succeeded, failed })`
+- `getMetadata`, `setMetadata`, `updateMetadata`
+- `getSnapshot`
+- `complete`
+- `fail`
+
+When you need lower-level control, the `Progress` service is available inside the effect and exposes APIs like `addTask`, `updateTask`, `incrementSucceeded(taskId, amount)`, and `completeTask(taskId)`.
+
+Example using the lower-level service API:
 
 ```ts
+import { Console, Effect } from "effect";
+import * as Progress from "effective-progress";
+
 const program = Progress.task(
   Effect.gen(function* () {
     const progress = yield* Progress.Progress;
@@ -145,9 +200,59 @@ Manual total behavior:
 - negative totals on later `updateTask` calls also clear the total
 - explicit `total: undefined` on `updateTask` clears the total and switches back to indeterminate rendering
 
-## Column customization
+## Typed metadata and custom columns
 
-Custom column APIs are not part of the first Ink release. The renderer ships with built-in columns only, and old renderer config APIs (`RendererConfig`, `ProgressBarConfig`, custom column definitions) are intentionally removed in this iteration.
+Tasks can carry typed metadata, and that metadata type flows into custom column renderers.
+
+```ts
+import { Effect } from "effect";
+import * as Progress from "effective-progress";
+
+interface EvalMeta {
+  readonly model: string;
+  readonly score: number;
+}
+
+const scoreColumn = (): Progress.ColumnDef<EvalMeta> => ({
+  align: "right",
+  flexShrink: 0,
+  minWidth: 5,
+  render: ({ task }) => `${task.metadata.score}%`,
+});
+
+const program = Progress.task(
+  (task) =>
+    Effect.gen(function* () {
+      yield* task.setMetadata({ model: "gpt-5.4", score: 91 });
+      yield* task.incrementSucceeded();
+    }),
+  {
+    description: "Run evaluation",
+    total: 1,
+    metadata: { model: "gpt-5.4", score: 0 },
+    columns: [
+      Progress.Columns.description(),
+      Progress.Columns.bar(),
+      {
+        flexShrink: 0,
+        minWidth: 10,
+        render: ({ task }) => task.metadata.model,
+      },
+      scoreColumn(),
+      Progress.Columns.elapsed(),
+    ],
+  },
+);
+```
+
+`ColumnDef<M, P>` supports:
+
+- `prepare(rows)` to derive shared data for all matching rows at that column index
+- `render(cell, ctx)` to render the cell
+- sizing hints with `flexGrow`, `flexShrink`, `flexBasis`, and `minWidth`
+- `align` with `"left"`, `"center"`, or `"right"`
+
+If a task does not provide `columns`, the renderer falls back to `Progress.Columns.defaults()`.
 
 ## Notes
 

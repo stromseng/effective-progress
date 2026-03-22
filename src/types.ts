@@ -1,4 +1,5 @@
 import { Brand, Context, Effect, Option, Schema } from "effect";
+import type { ReactNode } from "react";
 
 const TaskIdSchema = Schema.Number.pipe(Schema.brand("TaskId"));
 
@@ -10,13 +11,91 @@ export const TaskStatusSchema = Schema.Literal("running", "done", "failed");
 export type TaskStatus = typeof TaskStatusSchema.Type;
 export const TaskCountDisplaySchema = Schema.Literal("processedOnly", "detailed");
 export type TaskCountDisplay = typeof TaskCountDisplaySchema.Type;
+export type ColumnAlign = "left" | "center" | "right";
 
-export interface AddTaskOptions {
+export interface TaskTreeInfo {
+  readonly depth: number;
+  readonly hasNextSibling: boolean;
+  readonly hasChildren: boolean;
+  readonly ancestorHasNextSibling: ReadonlyArray<boolean>;
+}
+
+export interface TaskRowDerived {
+  readonly treePrefix: string;
+  readonly treePrefixWidth: number;
+  readonly descriptionWidth: number;
+  readonly treePrefixedDescriptionWidth: number;
+  readonly hasRenderableProgress: boolean;
+  readonly isDeterminate: boolean;
+}
+
+/** All data available to a column cell. */
+export interface CellInfo<M = unknown> {
+  readonly task: TaskSnapshot & { readonly metadata: M };
+  readonly tree: TaskTreeInfo;
+  readonly derived: TaskRowDerived;
+}
+
+export interface ColumnRenderContext<P = void> {
+  readonly width?: number;
+  readonly now: number;
+  readonly spinnerTick: number;
+  readonly prepared: P;
+}
+
+export type ColumnSizeValue<P = void> = number | ((prepared: P) => number | undefined);
+
+type BivariantCallback<Args extends ReadonlyArray<unknown>, R> = {
+  bivarianceHack: (...args: Args) => R;
+}["bivarianceHack"];
+
+export interface ColumnDef<M = unknown, P = void> {
+  readonly prepare?: BivariantCallback<[rows: ReadonlyArray<CellInfo<M>>], P>;
+  readonly render: BivariantCallback<[cell: CellInfo<M>, ctx: ColumnRenderContext<P>], ReactNode>;
+  readonly align?: ColumnAlign;
+  readonly flexGrow?: ColumnSizeValue<P>;
+  readonly flexShrink?: ColumnSizeValue<P>;
+  readonly flexBasis?: ColumnSizeValue<P>;
+  readonly minWidth?: ColumnSizeValue<P>;
+}
+
+/**
+ * A typed facade over a single task created through the callback form of `task(...)`.
+ *
+ * Use this handle to update counts, metadata, description, or to explicitly finalize the task
+ * before the callback exits. If the callback returns or fails while the task is still `running`,
+ * the library auto-finalizes it from the callback exit status instead.
+ */
+export interface TaskHandle<M> {
+  readonly id: TaskId;
+  /** Reads the current metadata value for the task using the metadata type inferred at creation. */
+  readonly getMetadata: Effect.Effect<M>;
+  /** Replaces the task metadata. */
+  readonly setMetadata: (metadata: M) => Effect.Effect<void>;
+  /** Updates the current metadata value atomically. */
+  readonly updateMetadata: (f: (m: M) => M) => Effect.Effect<void>;
+  /** Increments the succeeded counter for the task. */
+  readonly incrementSucceeded: (amount?: number) => Effect.Effect<void>;
+  /** Increments the failed counter for the task. */
+  readonly incrementFailed: (amount?: number) => Effect.Effect<void>;
+  /** Updates mutable task fields such as description, totals, and count display. */
+  readonly update: (options: UpdateTaskOptions) => Effect.Effect<void>;
+  /** Marks the task as done immediately. Finalization is terminal once the task leaves `running`. */
+  readonly complete: Effect.Effect<void>;
+  /** Marks the task as failed immediately. Finalization is terminal once the task leaves `running`. */
+  readonly fail: Effect.Effect<void>;
+  /** Reads the latest task snapshot. */
+  readonly getSnapshot: Effect.Effect<TaskSnapshot>;
+}
+
+export interface AddTaskOptions<M = void> {
   readonly description: string;
   readonly total?: number;
   readonly transient?: boolean;
   readonly parentId?: TaskId;
   readonly countDisplay?: TaskCountDisplay;
+  readonly metadata?: M;
+  readonly columns?: ReadonlyArray<ColumnDef<M, any>>;
 }
 
 export interface UpdateTaskOptions {
@@ -28,7 +107,7 @@ export interface UpdateTaskOptions {
   readonly countDisplay?: TaskCountDisplay;
 }
 
-export type TrackOptions = Exclude<AddTaskOptions, "parentId">;
+export type TrackOptions = Omit<AddTaskOptions, "parentId">;
 
 export const TaskUnitsSchema = Schema.Struct({
   succeeded: Schema.Number,
@@ -49,6 +128,7 @@ export const TaskSnapshotSchema = Schema.Struct({
   units: TaskUnitsSchema,
   startedAt: Schema.Number,
   completedAt: Schema.NullOr(Schema.Number),
+  metadata: Schema.Unknown,
 });
 
 export type TaskSnapshot = typeof TaskSnapshotSchema.Type;
@@ -63,10 +143,12 @@ export interface RenderRow {
 export interface TaskStore {
   readonly tasks: Map<TaskId, TaskSnapshot>;
   readonly renderOrder: ReadonlyArray<RenderRow>;
+  readonly columns: Map<TaskId, ReadonlyArray<ColumnDef<any, any>>>;
 }
 
 export interface ProgressService {
-  readonly addTask: (options: AddTaskOptions) => Effect.Effect<TaskId>;
+  // biome-ignore lint: any is needed here — the store is heterogeneous
+  readonly addTask: (options: AddTaskOptions<any>) => Effect.Effect<TaskId>;
   readonly updateTask: (taskId: TaskId, options: UpdateTaskOptions) => Effect.Effect<void>;
   readonly incrementSucceeded: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
   readonly incrementFailed: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
@@ -75,7 +157,18 @@ export interface ProgressService {
   readonly log: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>;
   readonly getTask: (taskId: TaskId) => Effect.Effect<Option.Option<TaskSnapshot>>;
   readonly listTasks: Effect.Effect<ReadonlyArray<TaskSnapshot>>;
-  readonly runTask: {
+  readonly setMetadata: (taskId: TaskId, metadata: unknown) => Effect.Effect<void>;
+  readonly getMetadata: (taskId: TaskId) => Effect.Effect<unknown>;
+  /**
+   * Runs an effect inside a newly created task scope.
+   *
+   * The plain effect form auto-finalizes from the effect exit if the task is still `running`.
+   * The callback form exposes a typed `TaskHandle` for metadata and explicit lifecycle control, and
+   * also auto-finalizes from the callback exit if the handle did not already finalize the task.
+   *
+   * Use `Progress.task(...)` from `src/api.ts` when you want the service to be created automatically if needed.
+   */
+  readonly task: {
     <A, E, R>(
       effect: Effect.Effect<A, E, R>,
       options: AddTaskOptions,
@@ -83,15 +176,14 @@ export interface ProgressService {
     <A, E, R>(
       options: AddTaskOptions,
     ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Task>>;
-  };
-  readonly withTask: {
     <A, E, R>(
-      effect: Effect.Effect<A, E, R>,
-      options: AddTaskOptions,
+      f: (handle: TaskHandle<void>) => Effect.Effect<A, E, R>,
+      options: AddTaskOptions<void>,
     ): Effect.Effect<A, E, Exclude<R, Task>>;
-    <A, E, R>(
-      options: AddTaskOptions,
-    ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Task>>;
+    <M, A, E, R>(
+      f: (handle: TaskHandle<M>) => Effect.Effect<A, E, R>,
+      options: AddTaskOptions<M> & { readonly metadata: M },
+    ): Effect.Effect<A, E, Exclude<R, Task>>;
   };
 }
 

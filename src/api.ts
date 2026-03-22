@@ -7,10 +7,29 @@ import type {
   AddTaskOptions,
   ProgressService,
   TaskCountDisplay,
+  TaskHandle,
   TaskId,
   TrackOptions,
 } from "./types";
 import { inferTotal } from "./utils";
+
+interface PublicTaskApi {
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+    options: AddTaskOptions,
+  ): Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+  <A, E, R>(
+    options: AddTaskOptions,
+  ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+  <A, E, R>(
+    f: (handle: TaskHandle<void>) => Effect.Effect<A, E, R>,
+    options: AddTaskOptions<void>,
+  ): Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+  <M, A, E, R>(
+    f: (handle: TaskHandle<M>) => Effect.Effect<A, E, R>,
+    options: AddTaskOptions<M> & { readonly metadata: M },
+  ): Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+}
 
 const provideProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
@@ -54,24 +73,32 @@ export interface ForEachExecutionOptions extends EffectExecutionOptions {
 
 export type ForEachOptions = Omit<TrackOptions, "countDisplay"> & ForEachExecutionOptions;
 
-export type TaskOptions = AddTaskOptions;
+export type TaskOptions<M = void> = AddTaskOptions<M>;
 
-export const task: {
+/**
+ * Runs an effect inside a task, creating and providing a `Progress` service automatically when one
+ * is not already present in the environment.
+ *
+ * The effect form tracks success and failure from the effect exit. The callback form exposes a
+ * typed `TaskHandle` for task-local updates, typed metadata, and explicit completion or failure,
+ * and otherwise auto-finalizes from the callback exit if the task is still `running`.
+ */
+export const task: PublicTaskApi = dual(
+  2,
   <A, E, R>(
-    effect: Effect.Effect<A, E, R>,
-    options: TaskOptions,
-  ): Effect.Effect<A, E, Exclude<R, Progress | Task>>;
-  <A, E, R>(
-    options: TaskOptions,
-  ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Progress | Task>>;
-} = dual(2, <A, E, R>(effect: Effect.Effect<A, E, R>, options: TaskOptions) => {
-  return provideProgress(
-    Effect.gen(function* () {
-      const progress = yield* Progress;
-      return yield* progress.withTask(effect, options);
-    }),
-  ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>;
-});
+    effectOrCallback:
+      | Effect.Effect<A, E, R>
+      | ((handle: TaskHandle<any>) => Effect.Effect<A, E, R>),
+    options: TaskOptions<any>,
+  ) => {
+    return provideProgress(
+      Effect.gen(function* () {
+        const progress = yield* Progress;
+        return yield* progress.task(effectOrCallback as any, options);
+      }),
+    ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>;
+  },
+);
 
 type AllArg =
   | ReadonlyArray<Effect.Effect<any, any, any>>
@@ -126,6 +153,10 @@ const isTaskFullyProcessed = (progress: ProgressService, taskId: TaskId) =>
     return total !== undefined && processed >= total;
   });
 
+/**
+ * Runs multiple effects under a single parent task and keeps the task counters in sync with the
+ * child effect outcomes.
+ */
 export const all: {
   <const Arg extends AllArg, O extends EffectAllExecutionOptions>(
     effects: Arg,
@@ -143,39 +174,40 @@ export const all: {
     provideProgress(
       Effect.gen(function* () {
         const progress = yield* Progress;
-        return yield* progress.runTask(
-          Effect.gen(function* () {
-            const taskId = yield* Task;
-            const exit = yield* Effect.exit(
-              Effect.all(
-                wrapEffects(effects, (effect) => wrapTrackedEffect(progress, taskId, effect)),
-                {
-                  concurrency: options.concurrency,
-                  batching: options.batching,
-                  discard: options.discard,
-                  mode: options.mode,
-                  concurrentFinalizers: options.concurrentFinalizers,
-                },
-              ),
-            );
+        return yield* progress.task(
+          (handle) =>
+            Effect.gen(function* () {
+              const taskId = handle.id;
+              const exit = yield* Effect.exit(
+                Effect.all(
+                  wrapEffects(effects, (effect) => wrapTrackedEffect(progress, taskId, effect)),
+                  {
+                    concurrency: options.concurrency,
+                    batching: options.batching,
+                    discard: options.discard,
+                    mode: options.mode,
+                    concurrentFinalizers: options.concurrentFinalizers,
+                  },
+                ),
+              );
 
-            if (Exit.isSuccess(exit)) {
-              yield* progress.completeTask(taskId);
-            } else {
-              if (!isCollectAllMode(options.mode)) {
-                yield* progress.failTask(taskId);
-              } else if (yield* isTaskFullyProcessed(progress, taskId)) {
+              if (Exit.isSuccess(exit)) {
                 yield* progress.completeTask(taskId);
               } else {
-                yield* progress.failTask(taskId);
+                if (!isCollectAllMode(options.mode)) {
+                  yield* progress.failTask(taskId);
+                } else if (yield* isTaskFullyProcessed(progress, taskId)) {
+                  yield* progress.completeTask(taskId);
+                } else {
+                  yield* progress.failTask(taskId);
+                }
               }
-            }
 
-            return yield* Exit.match(exit, {
-              onFailure: Effect.failCause,
-              onSuccess: Effect.succeed,
-            });
-          }),
+              return yield* Exit.match(exit, {
+                onFailure: Effect.failCause,
+                onSuccess: Effect.succeed,
+              });
+            }),
           {
             description: options.description,
             total: countEffects(effects),
@@ -187,6 +219,9 @@ export const all: {
     ) as AllReturn<Arg, O>,
 );
 
+/**
+ * Runs `Effect.forEach` under a single parent task and advances the task counters as items finish.
+ */
 export const forEach: {
   <A, B, E, R>(
     iterable: Iterable<A>,
@@ -208,33 +243,34 @@ export const forEach: {
       Effect.gen(function* () {
         const progress = yield* Progress;
 
-        return yield* progress.runTask(
-          Effect.gen(function* () {
-            const taskId = yield* Task;
-            const exit = yield* Effect.exit(
-              Effect.forEach(
-                iterable,
-                (item, index) => wrapTrackedEffect(progress, taskId, f(item, index)),
-                {
-                  concurrency: options.concurrency,
-                  batching: options.batching,
-                  discard: options.discard,
-                  concurrentFinalizers: options.concurrentFinalizers,
-                },
-              ),
-            );
+        return yield* progress.task(
+          (handle) =>
+            Effect.gen(function* () {
+              const taskId = handle.id;
+              const exit = yield* Effect.exit(
+                Effect.forEach(
+                  iterable,
+                  (item, index) => wrapTrackedEffect(progress, taskId, f(item, index)),
+                  {
+                    concurrency: options.concurrency,
+                    batching: options.batching,
+                    discard: options.discard,
+                    concurrentFinalizers: options.concurrentFinalizers,
+                  },
+                ),
+              );
 
-            if (Exit.isSuccess(exit)) {
-              yield* progress.completeTask(taskId);
-            } else {
-              yield* progress.failTask(taskId);
-            }
+              if (Exit.isSuccess(exit)) {
+                yield* progress.completeTask(taskId);
+              } else {
+                yield* progress.failTask(taskId);
+              }
 
-            return yield* Exit.match(exit, {
-              onFailure: Effect.failCause,
-              onSuccess: Effect.succeed,
-            });
-          }),
+              return yield* Exit.match(exit, {
+                onFailure: Effect.failCause,
+                onSuccess: Effect.succeed,
+              });
+            }),
           {
             description: options.description,
             total: options.total ?? inferTotal(iterable),

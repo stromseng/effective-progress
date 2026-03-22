@@ -3,9 +3,9 @@ import { renderToString } from "ink";
 import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
-import { createDescriptionColumn } from "../src/renderer/columns/description-column";
 import { NowProvider } from "../src/renderer/context/now-context";
-import { CreateProgressRenderer } from "../src/renderer/public-api";
+import { SpinnerProvider } from "../src/renderer/context/spinner-context";
+import { ProgressRenderer } from "../src/renderer/public-api";
 import type { TaskRowModel } from "../src/renderer/store/types";
 
 const deriveRow = (task: Progress.TaskSnapshot): TaskRowModel => ({
@@ -42,48 +42,35 @@ const makeTask = (id: number): Progress.TaskSnapshot =>
     },
     startedAt: 0,
     completedAt: 1_000,
+    metadata: undefined,
   });
 
-const renderDescriptionList = (
-  rows: ReadonlyArray<TaskRowModel>,
-  terminalRows?: number,
-): string => {
-  const Renderer = CreateProgressRenderer([
-    createDescriptionColumn({
-      minWidth: 1,
-      sticky: false,
-    }),
-  ]);
-
-  return stripAnsi(
+const renderRows = (rows: ReadonlyArray<TaskRowModel>): string =>
+  stripAnsi(
     renderToString(
       createElement(NowProvider, {
         active: false,
         nowOverride: 0,
-        children: createElement(Renderer, {
-          rows,
-          terminalColumns: 20,
-          terminalRows,
+        children: createElement(SpinnerProvider, {
+          active: false,
+          tickOverride: 0,
+          children: createElement(ProgressRenderer, {
+            rows,
+            columns: new Map(),
+          }),
         }),
       }),
-      { columns: 20 },
     ),
   ).trimEnd();
-};
 
-describe("rendererv2 virtual list", () => {
-  test("keeps all rows visible when terminal row count is unavailable", () => {
+describe("rendererv2 row rendering", () => {
+  test("renders all rows directly without virtual scrolling", () => {
     const rows = Array.from({ length: 12 }, (_, index) => deriveRow(makeTask(index + 1)));
-    const output = renderDescriptionList(rows);
+    const output = renderRows(rows);
 
     expect(output).toContain("task-1");
+    expect(output).toContain("task-6");
     expect(output).toContain("task-12");
-  });
-
-  test("shows the bottom of the list when rows exceed the terminal height", () => {
-    const rows = Array.from({ length: 12 }, (_, index) => deriveRow(makeTask(index + 1)));
-    const output = renderDescriptionList(rows, 5);
-
-    expect(output.split("\n")).toEqual(["  ▲ 9 more", "✓ task-10", "✓ task-11", "✓ task-12"]);
+    expect(output.split("\n").length).toBe(12);
   });
 });

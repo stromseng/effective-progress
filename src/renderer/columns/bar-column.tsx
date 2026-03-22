@@ -1,24 +1,24 @@
-import { Text } from "ink";
+import { Box, Text, useBoxMetrics, type DOMElement } from "ink";
+import { useRef } from "react";
 import type { ReactNode } from "react";
+import type { CellInfo } from "../../types";
 import { isDeterminate } from "../shared/determinate";
-import type {
-  ProgressColumnDefinition,
-  ProgressColumnMeasurement,
-  ProgressColumnProps,
-} from "../public-api";
-
-interface BarColumnConfig {
-  readonly minWidth: number;
-  readonly barWidth: number;
-  readonly sticky: boolean;
-}
-
-const DEFAULT_BAR_WIDTH = 30;
+import type { TaskRowModel } from "../store/types";
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));
 
-const renderProgressBar = (task: ProgressColumnProps["row"]["task"], width: number): ReactNode => {
+export interface BarPrepared {
+  readonly hasDeterminateRows: boolean;
+}
+
+export const prepareBar = (rows: ReadonlyArray<CellInfo<unknown>>): BarPrepared => {
+  return {
+    hasDeterminateRows: rows.some((row) => row.derived.isDeterminate),
+  };
+};
+
+export const renderProgressBar = (task: TaskRowModel["task"], width: number): ReactNode => {
   if (!isDeterminate(task)) {
     return <Text>{` `.repeat(Math.max(0, width))}</Text>;
   }
@@ -43,33 +43,30 @@ const renderProgressBar = (task: ProgressColumnProps["row"]["task"], width: numb
   );
 };
 
-export const defaultBarColumnConfig = {
-  minWidth: 4,
-  barWidth: DEFAULT_BAR_WIDTH,
-  sticky: true,
-} satisfies BarColumnConfig;
+export const BarCell = ({
+  task,
+  width,
+}: {
+  readonly task: TaskRowModel["task"];
+  readonly width?: number;
+}) => <Text wrap="truncate-end">{renderProgressBar(task, width ?? 0)}</Text>;
 
-export const createBarColumn = (config?: Partial<BarColumnConfig>): ProgressColumnDefinition => {
-  const resolvedConfig = {
-    ...defaultBarColumnConfig,
-    ...config,
-  } satisfies BarColumnConfig;
+export const BarColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskRowModel> }) => {
+  const ref = useRef<DOMElement>(null);
+  const { width, hasMeasured } = useBoxMetrics(ref);
+  const hasDeterminateRows = rows.some((row) => row.derived.isDeterminate);
 
-  return {
-    Component: ({ row, width }: ProgressColumnProps) => (
-      <Text wrap="truncate-end">{renderProgressBar(row.task, width)}</Text>
-    ),
-    measure: ({ rows }): ProgressColumnMeasurement => {
-      const hasDeterminateRows = rows.some((row) => row.derived.isDeterminate);
-      const preferredWidth = hasDeterminateRows ? resolvedConfig.barWidth : 0;
+  if (!hasDeterminateRows) {
+    return null;
+  }
 
-      return {
-        minWidth: hasDeterminateRows ? Math.min(resolvedConfig.minWidth, preferredWidth) : 0,
-        preferredWidth,
-        maxWidth: preferredWidth,
-      };
-    },
-    noWrap: false,
-    sticky: resolvedConfig.sticky,
-  };
+  return (
+    <Box ref={ref} flexDirection="column" flexShrink={1} flexBasis={30} minWidth={4}>
+      {rows.map((row) => (
+        <Box key={row.task.id as number} height={1}>
+          <BarCell task={row.task} width={hasMeasured ? width : 0} />
+        </Box>
+      ))}
+    </Box>
+  );
 };

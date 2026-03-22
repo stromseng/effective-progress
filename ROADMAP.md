@@ -4,14 +4,11 @@
 
 ## Next up
 
-- make it easy to configure order of, and which cells are included
 - configurable transient/cleanup mode, clear fully on completion, leave completion message, leave full bar
 - add speed calculation column, I.e 100/s or download speed 200Mbit/s etc.
 - allow precreating tasks then passing them to the public APIs, `.all` `.foreach` to have them use an existing task instead of creating a new one, to allow for showing the upcoming tasks, even though they are executed lazily.
 - make `SNAPSHOT_PUBLISH_INTERVAL_MILLIS` and other rendering constants etc be effect Configs.
 - make preallocated task description space configurable
-- look into making composable components like shadcn for the progress bar columns.
-- update task api to have methods on the tasks instead of having to pass the ids to functions. i.e `task.incrementSuccess`
 
 ## Customization
 
@@ -19,11 +16,9 @@
 - [ ] Spinner frame interval as config/service.
 - [ ] Theme presets (`Oldschool`, `Minimal`, `Rainbow`) as ready-made layers.
 - [ ] High-level config helper API (`Progress.withConfig(...)`).
-- [ ] Pluggable column composition API on top of typed segments.
 
 ## Data model / behavior
 
-- [ ] Unify determinate/indeterminate internals (`total?: number` as primary switch).
 - [ ] Smoothed ETA (rolling window/deque) instead of lifetime-average rate.
   - Currently `formatEta` computes speed as `completed / (now - startedAt)` - the lifetime average. If the first 10% is slow (cold start, initial IO) the ETA stays pessimistically inflated for the entire run; conversely, if early progress is fast then slows, the ETA is optimistically wrong.
   - Store a ring buffer of `{ timestamp: number; completed: number }` samples on each task (capped at ~1000 entries). On each `advanceTask` call, push a new sample and evict entries older than `speedEstimatePeriod` (default 30s, configurable).
@@ -61,3 +56,7 @@
 - [ ] Rich-style iterator helpers (`Progress.track(...)`).
 - [ ] Non-Effect API surface for plain async usage.
 - [ ] Better output capture for forked fibers/daemons to prevent frame collisions.
+
+## Future development
+
+- allow for arbitrary rendering/output API, so we can use it for general task tracking in a backend for example. Could allow backends to easily track task progress and report through a web api.

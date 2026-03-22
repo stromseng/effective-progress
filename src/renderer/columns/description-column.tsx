@@ -1,19 +1,9 @@
 import cliSpinners, { type SpinnerName } from "cli-spinners";
-import { Text } from "ink";
-import type { TaskSnapshot } from "../../types";
+import { Box, Text, useBoxMetrics, type DOMElement } from "ink";
+import { useRef } from "react";
+import type { CellInfo, TaskSnapshot } from "../../types";
 import { useSpinnerTick } from "../context/spinner-context";
-import type {
-  ProgressColumnDefinition,
-  ProgressColumnMeasurement,
-  ProgressColumnProps,
-} from "../public-api";
-
-interface DescriptionColumnConfig {
-  readonly minWidth: number;
-  readonly spinnerType: SpinnerName;
-  readonly sticky: boolean;
-  readonly stickyMaxWidth?: number;
-}
+import type { TaskRowModel } from "../store/types";
 
 const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
 type TaskIndicatorColor = "green" | "yellow" | "red";
@@ -23,11 +13,7 @@ interface TaskIndicator {
   readonly color: TaskIndicatorColor;
 }
 
-const defaultDescriptionColumnConfig = {
-  minWidth: 1,
-  spinnerType: "dots",
-  sticky: true,
-} satisfies DescriptionColumnConfig;
+const DEFAULT_SPINNER_TYPE: SpinnerName = "dots";
 
 const isDeterminate = (
   task: TaskSnapshot,
@@ -43,7 +29,7 @@ const getSpinnerFrame = (tick: number, spinnerType: SpinnerName): string => {
 export const getTaskIndicator = (
   task: TaskSnapshot,
   tick: number,
-  spinnerType: SpinnerName = defaultDescriptionColumnConfig.spinnerType,
+  spinnerType: SpinnerName = DEFAULT_SPINNER_TYPE,
 ): TaskIndicator => {
   if (task.status === "running") {
     return {
@@ -74,79 +60,90 @@ export const getTaskIndicator = (
   return { symbol: "✓", color: "green" };
 };
 
+export interface DescriptionPrepared {
+  readonly minTreeWidth: number;
+}
+
+export const prepareDescription = (
+  rows: ReadonlyArray<CellInfo<unknown>>,
+): DescriptionPrepared => ({
+  minTreeWidth: rows.reduce(
+    (max, row) => Math.max(max, row.derived.treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
+    MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2,
+  ),
+});
+
 const TaskIndicatorGlyph = ({
   task,
-  spinnerType = defaultDescriptionColumnConfig.spinnerType,
+  tick,
+  spinnerType = DEFAULT_SPINNER_TYPE,
 }: {
   readonly task: TaskSnapshot;
+  readonly tick: number;
   readonly spinnerType?: SpinnerName;
 }) => {
-  const tick = useSpinnerTick();
   const indicator = getTaskIndicator(task, tick, spinnerType);
 
   return <Text color={indicator.color}>{indicator.symbol}</Text>;
 };
 
-export const createDescriptionColumn = (
-  config?: Partial<DescriptionColumnConfig>,
-): ProgressColumnDefinition => {
-  const resolvedConfig = {
-    ...defaultDescriptionColumnConfig,
-    ...config,
-    spinnerType: config?.spinnerType ?? defaultDescriptionColumnConfig.spinnerType,
-  } satisfies DescriptionColumnConfig;
-  let minTreeWidth = MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2;
+export const DescriptionCell = ({
+  cell,
+  width,
+  minTreeWidth,
+  spinnerTick,
+}: {
+  readonly cell: CellInfo<unknown>;
+  readonly width: number | undefined;
+  readonly minTreeWidth: number;
+  readonly spinnerTick: number;
+}) => {
+  const showTree = width === undefined || width >= minTreeWidth;
+  const treePrefix = showTree ? cell.derived.treePrefix : "";
 
-  const Component = ({ row, width }: ProgressColumnProps) => {
-    const showTree = width >= minTreeWidth;
-    const treePrefix = showTree ? row.derived.treePrefix : "";
+  if (!showTree && width !== undefined && width <= 1) {
+    return <TaskIndicatorGlyph task={cell.task} tick={spinnerTick} />;
+  }
 
-    if (!showTree && width <= 1) {
-      return <TaskIndicatorGlyph task={row.task} spinnerType={resolvedConfig.spinnerType} />;
-    }
-
-    if (!showTree && width === 2) {
-      return (
-        <Text wrap="truncate-end">
-          <TaskIndicatorGlyph task={row.task} spinnerType={resolvedConfig.spinnerType} />…
-        </Text>
-      );
-    }
-
+  if (!showTree && width !== undefined && width === 2) {
     return (
       <Text wrap="truncate-end">
-        {treePrefix}
-        <TaskIndicatorGlyph task={row.task} spinnerType={resolvedConfig.spinnerType} />
-        {` ${row.task.description}`}
+        <TaskIndicatorGlyph task={cell.task} tick={spinnerTick} />…
       </Text>
     );
-  };
+  }
 
-  return {
-    Component,
-    measure: ({ rows }): ProgressColumnMeasurement => {
-      const hasNestedRows = rows.some((row) => row.tree.depth > 0);
+  return (
+    <Text wrap="truncate-end">
+      {treePrefix}
+      <TaskIndicatorGlyph task={cell.task} tick={spinnerTick} />
+      {` ${cell.task.description}`}
+    </Text>
+  );
+};
 
-      minTreeWidth = rows.reduce(
-        (max, row) =>
-          Math.max(max, row.derived.treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
-        MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2,
-      );
+export const DescriptionColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskRowModel> }) => {
+  const ref = useRef<DOMElement>(null);
+  const { width, hasMeasured } = useBoxMetrics(ref);
+  const spinnerTick = useSpinnerTick();
 
-      return {
-        minWidth: resolvedConfig.minWidth,
-        preferredWidth: Math.max(
-          rows.reduce(
-            (max, row) => Math.max(max, row.derived.treePrefixedDescriptionWidth + 2),
-            resolvedConfig.minWidth,
-          ),
-          hasNestedRows ? minTreeWidth : resolvedConfig.minWidth,
-        ),
-        maxWidth: undefined,
-      };
-    },
-    noWrap: false,
-    sticky: resolvedConfig.sticky,
-    stickyMaxWidth: resolvedConfig.stickyMaxWidth,
-  };
+  const minTreeWidth = rows.reduce(
+    (max, row) => Math.max(max, row.derived.treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
+    MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2,
+  );
+
+  return (
+    <Box ref={ref} flexDirection="column" flexGrow={1} flexShrink={1} minWidth={1}>
+      {rows.map((row) => (
+        <Box key={row.task.id as number} height={1}>
+          <DescriptionCell
+            cell={row}
+            width={hasMeasured ? width : undefined}
+            minTreeWidth={minTreeWidth}
+            spinnerTick={spinnerTick}
+          />
+        </Box>
+      ))}
+    </Box>
+  );
 };

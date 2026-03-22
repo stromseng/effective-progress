@@ -1,6 +1,7 @@
 import { Clock, Effect, Option } from "effect";
 import type {
   AddTaskOptions,
+  ColumnDef,
   ProgressTaskEvent,
   TaskId,
   TaskStore,
@@ -31,7 +32,8 @@ export interface ProgressRenderStore {
   readonly getSnapshot: () => RenderPublication;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
-  readonly addTask: (options: AddTaskOptions) => Effect.Effect<TaskId>;
+  // biome-ignore lint: any is needed here — the store is heterogeneous
+  readonly addTask: (options: AddTaskOptions<any>) => Effect.Effect<TaskId>;
   readonly updateTask: (taskId: TaskId, options: UpdateTaskOptions) => Effect.Effect<void>;
   readonly incrementSucceeded: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
   readonly incrementFailed: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
@@ -39,6 +41,8 @@ export interface ProgressRenderStore {
   readonly failTask: (taskId: TaskId) => Effect.Effect<void>;
   readonly getTask: (taskId: TaskId) => Effect.Effect<Option.Option<TaskSnapshot>>;
   readonly listTasks: Effect.Effect<ReadonlyArray<TaskSnapshot>>;
+  readonly setMetadata: (taskId: TaskId, metadata: unknown) => Effect.Effect<void>;
+  readonly getMetadata: (taskId: TaskId) => Effect.Effect<unknown>;
 }
 
 const hasExplicitTotal = (options: Pick<AddTaskOptions | UpdateTaskOptions, "total">) =>
@@ -104,6 +108,7 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => 
     units,
     startedAt: snapshot.startedAt,
     completedAt: snapshot.completedAt,
+    metadata: snapshot.metadata,
   });
 };
 
@@ -118,6 +123,7 @@ const withTransient = (snapshot: TaskSnapshot, transient: boolean) =>
     units: snapshot.units,
     startedAt: snapshot.startedAt,
     completedAt: snapshot.completedAt,
+    metadata: snapshot.metadata,
   });
 
 const findInsertionIndex = (
@@ -192,6 +198,7 @@ export const makeProgressRenderStore = () => {
   let state: TaskStore = {
     tasks: new Map<TaskId, TaskSnapshot>(),
     renderOrder: [],
+    columns: new Map<TaskId, ReadonlyArray<ColumnDef<any, any>>>(),
   };
   let pendingEvents: Array<ProgressTaskEvent> = [];
   let publishedPublication: RenderPublication = {
@@ -312,6 +319,7 @@ export const makeProgressRenderStore = () => {
           units,
           startedAt: now,
           completedAt: null,
+          metadata: options.metadata,
         });
 
         updateState((current) => {
@@ -321,8 +329,15 @@ export const makeProgressRenderStore = () => {
           const nextRenderOrder = [...current.renderOrder];
           nextRenderOrder.splice(index, 0, { id: taskId, depth });
 
+          const nextColumns = options.columns
+            ? new Map(current.columns).set(
+                taskId,
+                options.columns as ReadonlyArray<ColumnDef<any, any>>,
+              )
+            : current.columns;
+
           return {
-            state: { tasks: nextTasks, renderOrder: nextRenderOrder },
+            state: { tasks: nextTasks, renderOrder: nextRenderOrder, columns: nextColumns },
             events: [
               new TaskAddedEvent({
                 taskId,
@@ -385,7 +400,7 @@ export const makeProgressRenderStore = () => {
           }
 
           return {
-            state: { tasks: nextTasks, renderOrder: current.renderOrder },
+            state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
             events,
           };
         });
@@ -415,11 +430,12 @@ export const makeProgressRenderStore = () => {
               }),
               startedAt: currentTask.startedAt,
               completedAt: currentTask.completedAt,
+              metadata: currentTask.metadata,
             }),
           );
 
           return {
-            state: { tasks: nextTasks, renderOrder: current.renderOrder },
+            state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
             events: [new TaskAdvancedEvent({ taskId, amount, kind: "succeeded" })],
           };
         });
@@ -449,11 +465,12 @@ export const makeProgressRenderStore = () => {
               }),
               startedAt: currentTask.startedAt,
               completedAt: currentTask.completedAt,
+              metadata: currentTask.metadata,
             }),
           );
 
           return {
-            state: { tasks: nextTasks, renderOrder: current.renderOrder },
+            state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
             events: [new TaskAdvancedEvent({ taskId, amount, kind: "failed" })],
           };
         });
@@ -467,6 +484,9 @@ export const makeProgressRenderStore = () => {
           if (!currentTask) {
             return { state: current, events: [] };
           }
+          if (currentTask.status !== "running") {
+            return { state: current, events: [] };
+          }
 
           const nextTasks = new Map(current.tasks);
           if (currentTask.transient) {
@@ -475,10 +495,16 @@ export const makeProgressRenderStore = () => {
               nextTasks.delete(removedTaskId);
             }
 
+            const nextColumns = new Map(current.columns);
+            for (const removedTaskId of removedTaskIds) {
+              nextColumns.delete(removedTaskId);
+            }
+
             return {
               state: {
                 tasks: nextTasks,
                 renderOrder: removeFromRenderOrder(current.renderOrder, taskId),
+                columns: nextColumns,
               },
               events: [
                 new TaskCompletedEvent({ taskId }),
@@ -518,11 +544,12 @@ export const makeProgressRenderStore = () => {
                     : currentTask.units,
               startedAt: currentTask.startedAt,
               completedAt: now,
+              metadata: currentTask.metadata,
             }),
           );
 
           return {
-            state: { tasks: nextTasks, renderOrder: current.renderOrder },
+            state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
             events: [new TaskCompletedEvent({ taskId })],
           };
         });
@@ -536,6 +563,9 @@ export const makeProgressRenderStore = () => {
           if (!currentTask) {
             return { state: current, events: [] };
           }
+          if (currentTask.status !== "running") {
+            return { state: current, events: [] };
+          }
 
           const nextTasks = new Map(current.tasks);
           if (currentTask.transient) {
@@ -544,10 +574,16 @@ export const makeProgressRenderStore = () => {
               nextTasks.delete(removedTaskId);
             }
 
+            const nextColumns = new Map(current.columns);
+            for (const removedTaskId of removedTaskIds) {
+              nextColumns.delete(removedTaskId);
+            }
+
             return {
               state: {
                 tasks: nextTasks,
                 renderOrder: removeFromRenderOrder(current.renderOrder, taskId),
+                columns: nextColumns,
               },
               events: [
                 new TaskFailedEvent({ taskId }),
@@ -570,17 +606,54 @@ export const makeProgressRenderStore = () => {
               units: currentTask.units,
               startedAt: currentTask.startedAt,
               completedAt: now,
+              metadata: currentTask.metadata,
             }),
           );
 
           return {
-            state: { tasks: nextTasks, renderOrder: current.renderOrder },
+            state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
             events: [new TaskFailedEvent({ taskId })],
           };
         });
       }),
     getTask: (taskId) => Effect.sync(() => Option.fromNullable(state.tasks.get(taskId))),
     listTasks: Effect.sync(() => Array.from(state.tasks.values())),
+    setMetadata: (taskId, metadata) =>
+      Effect.sync(() => {
+        updateState((current) => {
+          const currentTask = current.tasks.get(taskId);
+          if (!currentTask) {
+            return { state: current, events: [] };
+          }
+
+          const nextTasks = new Map(current.tasks);
+          nextTasks.set(
+            taskId,
+            TaskSnapshot({
+              id: currentTask.id,
+              parentId: currentTask.parentId,
+              description: currentTask.description,
+              status: currentTask.status,
+              countDisplay: currentTask.countDisplay,
+              transient: currentTask.transient,
+              units: currentTask.units,
+              startedAt: currentTask.startedAt,
+              completedAt: currentTask.completedAt,
+              metadata,
+            }),
+          );
+
+          return {
+            state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
+            events: [],
+          };
+        });
+      }),
+    getMetadata: (taskId) =>
+      Effect.sync(() => {
+        const task = state.tasks.get(taskId);
+        return task?.metadata;
+      }),
   } satisfies ProgressRenderStore;
 
   return store;

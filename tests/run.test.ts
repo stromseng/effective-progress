@@ -81,7 +81,7 @@ describe("Progress.run", () => {
             Effect.gen(function* () {
               const progress = yield* Progress.Progress;
 
-              const taskIdFromContext = yield* progress.withTask(
+              const taskIdFromContext = yield* progress.task(
                 Effect.gen(function* () {
                   yield* Console.log(capturedMessage);
                   return yield* Progress.Task;
@@ -430,5 +430,101 @@ describe("Progress.run", () => {
     expect(result.task.units.failed).toBe(1);
     expect(result.task.units.processed).toBe(2);
     expect(result.task.units.total).toBe(3);
+  });
+
+  test("typed callback preserves explicit failure when the effect succeeds", async () => {
+    const result = await Effect.runPromise(
+      withStdio(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const description = "typed-callback-explicit-fail";
+            const value = yield* Progress.task(
+              (handle) =>
+                Effect.gen(function* () {
+                  yield* handle.fail;
+                  return "ok";
+                }),
+              {
+                description,
+                transient: false,
+                metadata: { mode: "fail" as const },
+              },
+            );
+            const task = getTaskByDescription(yield* progress.listTasks, description);
+            return { value, task };
+          }).pipe(Effect.provide(Progress.Progress.Default)),
+        ),
+      ),
+    );
+
+    expect(result.value).toBe("ok");
+    expect(result.task.status).toBe("failed");
+  });
+
+  test("typed callback preserves explicit completion when the effect fails", async () => {
+    const result = await Effect.runPromise(
+      withStdio(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+            const description = "typed-callback-explicit-complete";
+            const exit = yield* Effect.exit(
+              Progress.task(
+                (handle) =>
+                  Effect.gen(function* () {
+                    yield* handle.complete;
+                    return yield* Effect.fail("boom");
+                  }),
+                {
+                  description,
+                  transient: false,
+                  metadata: { mode: "complete" as const },
+                },
+              ),
+            );
+            const task = getTaskByDescription(yield* progress.listTasks, description);
+            return { exit, task };
+          }).pipe(Effect.provide(Progress.Progress.Default)),
+        ),
+      ),
+    );
+
+    expect(Exit.isFailure(result.exit)).toBeTrue();
+    expect(result.task.status).toBe("done");
+  });
+
+  test("explicit finalization is terminal once a task leaves running", async () => {
+    const result = await Effect.runPromise(
+      withStdio(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const progress = yield* Progress.Progress;
+
+            const completedId = yield* progress.addTask({
+              description: "terminal-complete",
+              transient: false,
+            });
+            yield* progress.completeTask(completedId);
+            yield* progress.failTask(completedId);
+
+            const failedId = yield* progress.addTask({
+              description: "terminal-fail",
+              transient: false,
+            });
+            yield* progress.failTask(failedId);
+            yield* progress.completeTask(failedId);
+
+            return {
+              completed: getTaskByDescription(yield* progress.listTasks, "terminal-complete"),
+              failed: getTaskByDescription(yield* progress.listTasks, "terminal-fail"),
+            };
+          }).pipe(Effect.provide(Progress.Progress.Default)),
+        ),
+      ),
+    );
+
+    expect(result.completed.status).toBe("done");
+    expect(result.failed.status).toBe("failed");
   });
 });

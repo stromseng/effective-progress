@@ -74,7 +74,7 @@ const bareProgram = Effect.gen(function* () {
 const progressProgram = Effect.gen(function* () {
   const progress = yield* Progress.Progress;
 
-  yield* progress.withTask(
+  yield* progress.task(
     Effect.forEach(
       Array.from({ length: BURST_LOG_LINES }, (_, i) => i + 1),
       (line) => Console.log(`warmup log ${line}/${BURST_LOG_LINES}`),
