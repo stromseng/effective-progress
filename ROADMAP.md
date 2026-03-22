@@ -19,7 +19,6 @@
 
 ## Data model / behavior
 
-- [ ] Unify determinate/indeterminate internals (`total?: number` as primary switch).
 - [ ] Smoothed ETA (rolling window/deque) instead of lifetime-average rate.
   - Currently `formatEta` computes speed as `completed / (now - startedAt)` - the lifetime average. If the first 10% is slow (cold start, initial IO) the ETA stays pessimistically inflated for the entire run; conversely, if early progress is fast then slows, the ETA is optimistically wrong.
   - Store a ring buffer of `{ timestamp: number; completed: number }` samples on each task (capped at ~1000 entries). On each `advanceTask` call, push a new sample and evict entries older than `speedEstimatePeriod` (default 30s, configurable).
