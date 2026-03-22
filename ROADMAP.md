@@ -4,14 +4,11 @@
 
 ## Next up
 
-- make it easy to configure order of, and which cells are included
 - configurable transient/cleanup mode, clear fully on completion, leave completion message, leave full bar
 - add speed calculation column, I.e 100/s or download speed 200Mbit/s etc.
 - allow precreating tasks then passing them to the public APIs, `.all` `.foreach` to have them use an existing task instead of creating a new one, to allow for showing the upcoming tasks, even though they are executed lazily.
 - make `SNAPSHOT_PUBLISH_INTERVAL_MILLIS` and other rendering constants etc be effect Configs.
 - make preallocated task description space configurable
-- look into making composable components like shadcn for the progress bar columns.
-- update task api to have methods on the tasks instead of having to pass the ids to functions. i.e `task.incrementSuccess`
 
 ## Customization
 
@@ -19,7 +16,6 @@
 - [ ] Spinner frame interval as config/service.
 - [ ] Theme presets (`Oldschool`, `Minimal`, `Rainbow`) as ready-made layers.
 - [ ] High-level config helper API (`Progress.withConfig(...)`).
-- [ ] Pluggable column composition API on top of typed segments.
 
 ## Data model / behavior
 
