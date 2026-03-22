@@ -61,3 +61,7 @@
 - [ ] Rich-style iterator helpers (`Progress.track(...)`).
 - [ ] Non-Effect API surface for plain async usage.
 - [ ] Better output capture for forked fibers/daemons to prevent frame collisions.
+
+## Future development
+
+- allow for arbitrary rendering/output API, so we can use it for general task tracking in a backend for example. Could allow backends to easily track task progress and report through a web api.
