@@ -52,7 +52,7 @@ export const BarCell = ({
 }) => <Text wrap="truncate-end">{renderProgressBar(task, width ?? 0)}</Text>;
 
 export const BarColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskRowModel> }) => {
-  const ref = useRef<DOMElement>(null);
+  const ref = useRef<DOMElement>(null!);
   const { width, hasMeasured } = useBoxMetrics(ref);
   const hasDeterminateRows = rows.some((row) => row.derived.isDeterminate);
 

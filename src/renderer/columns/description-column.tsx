@@ -123,7 +123,7 @@ export const DescriptionCell = ({
 };
 
 export const DescriptionColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskRowModel> }) => {
-  const ref = useRef<DOMElement>(null);
+  const ref = useRef<DOMElement>(null!);
   const { width, hasMeasured } = useBoxMetrics(ref);
   const spinnerTick = useSpinnerTick();
 

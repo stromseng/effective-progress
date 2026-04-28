@@ -31,7 +31,7 @@ const renderNode = (node: ReactNode) => {
 };
 
 const ColumnPosition = ({ position }: { readonly position: ResolvedColumnPosition }) => {
-  const ref = useRef<DOMElement>(null);
+  const ref = useRef<DOMElement>(null!);
   const { width, hasMeasured } = useBoxMetrics(ref);
   const now = useNow();
   const spinnerTick = useSpinnerTick();

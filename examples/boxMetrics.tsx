@@ -2,8 +2,8 @@ import React, { useRef, useState, useEffect } from "react";
 import { render, Box, Text, useBoxMetrics, type DOMElement } from "ink";
 
 function BoxMetricsDemo() {
-  const outerRef = useRef<DOMElement>(null);
-  const innerRef = useRef<DOMElement>(null);
+  const outerRef = useRef<DOMElement>(null!);
+  const innerRef = useRef<DOMElement>(null!);
   const outer = useBoxMetrics(outerRef);
   const inner = useBoxMetrics(innerRef);
 
