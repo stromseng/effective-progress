@@ -10,6 +10,7 @@ import {
   prepareDescription,
   type DescriptionPrepared,
 } from "./renderer/columns/description-column";
+import { ElapsedEtaCell } from "./renderer/columns/elapsed-eta-column";
 import { ElapsedCell } from "./renderer/columns/elapsed-column";
 import { EtaCell } from "./renderer/columns/eta-column";
 
@@ -21,6 +22,24 @@ export interface SpacerOptions {
   readonly flexBasis?: number;
   readonly minWidth?: number;
 }
+
+export interface BarOptions {
+  readonly size?: number | "fullwidth";
+}
+
+const DEFAULT_BAR_SIZE = 30;
+
+const resolveBarSize = (size: number | "fullwidth" | undefined): number | "fullwidth" => {
+  if (size === "fullwidth") {
+    return size;
+  }
+
+  if (typeof size !== "number" || !Number.isFinite(size)) {
+    return DEFAULT_BAR_SIZE;
+  }
+
+  return Math.max(1, Math.floor(size));
+};
 
 export const spacer = <M = unknown>({
   flexGrow,
@@ -37,8 +56,8 @@ export const spacer = <M = unknown>({
 
 export const description = (): ColumnDef<any, DescriptionPrepared> => ({
   prepare: prepareDescription,
-  flexGrow: 1,
   flexShrink: 1,
+  flexBasis: (prepared) => prepared.preferredWidth,
   minWidth: 1,
   render: (cell, ctx) => (
     <DescriptionCell
@@ -50,13 +69,24 @@ export const description = (): ColumnDef<any, DescriptionPrepared> => ({
   ),
 });
 
-export const bar = (): ColumnDef<any, BarPrepared> => ({
-  prepare: prepareBar,
-  flexShrink: (prepared) => (prepared.hasDeterminateRows ? 1 : 0),
-  flexBasis: (prepared) => (prepared.hasDeterminateRows ? 30 : 0),
-  minWidth: (prepared) => (prepared.hasDeterminateRows ? 4 : 0),
-  render: ({ task }, ctx) => <BarCell task={task} width={ctx.width} />,
-});
+export const bar = ({ size }: BarOptions = {}): ColumnDef<any, BarPrepared> => {
+  const resolvedSize = resolveBarSize(size);
+
+  return {
+    prepare: prepareBar,
+    flexGrow: (prepared) => (prepared.hasDeterminateRows && resolvedSize === "fullwidth" ? 1 : 0),
+    flexShrink: (prepared) => (prepared.hasDeterminateRows ? 1 : 0),
+    flexBasis: (prepared) =>
+      prepared.hasDeterminateRows
+        ? resolvedSize === "fullwidth"
+          ? DEFAULT_BAR_SIZE
+          : resolvedSize
+        : 0,
+    minWidth: (prepared) =>
+      prepared.hasDeterminateRows ? (resolvedSize === "fullwidth" ? 4 : resolvedSize) : 0,
+    render: ({ task }, ctx) => <BarCell task={task} width={ctx.width} />,
+  };
+};
 
 export const amount = (): ColumnDef<any, AmountLayout> => ({
   prepare: measureAmountLayout,
@@ -70,9 +100,17 @@ export const elapsed = (): ColumnDef<any> => ({
   render: ({ task }, ctx) => <ElapsedCell task={task} now={ctx.now} />,
 });
 
+export const elapsedEta = (): ColumnDef<any> => ({
+  align: "right",
+  flexShrink: 0,
+  minWidth: 11,
+  render: ({ task }, ctx) => <ElapsedEtaCell task={task} now={ctx.now} />,
+});
+
 export const eta = (): ColumnDef<any> => ({
   align: "right",
   flexShrink: 0,
+  minWidth: 8,
   render: ({ task }, ctx) => <EtaCell task={task} now={ctx.now} />,
 });
 
@@ -80,8 +118,7 @@ export const defaults = (): ReadonlyArray<ColumnDef<any, any>> => [
   description(),
   bar(),
   amount(),
-  elapsed(),
-  eta(),
+  elapsedEta(),
 ];
 
 export const resolveColumnSizeValue = <P,>(

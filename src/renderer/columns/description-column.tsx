@@ -62,6 +62,7 @@ export const getTaskIndicator = (
 
 export interface DescriptionPrepared {
   readonly minTreeWidth: number;
+  readonly preferredWidth: number;
 }
 
 export const prepareDescription = (
@@ -70,6 +71,10 @@ export const prepareDescription = (
   minTreeWidth: rows.reduce(
     (max, row) => Math.max(max, row.derived.treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
     MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2,
+  ),
+  preferredWidth: rows.reduce(
+    (max, row) => Math.max(max, row.derived.treePrefixWidth + 2 + row.derived.descriptionWidth),
+    2,
   ),
 });
 
@@ -131,9 +136,13 @@ export const DescriptionColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskR
     (max, row) => Math.max(max, row.derived.treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
     MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2,
   );
+  const preferredWidth = rows.reduce(
+    (max, row) => Math.max(max, row.derived.treePrefixWidth + 2 + row.derived.descriptionWidth),
+    2,
+  );
 
   return (
-    <Box ref={ref} flexDirection="column" flexGrow={1} flexShrink={1} minWidth={1}>
+    <Box ref={ref} flexDirection="column" flexShrink={1} flexBasis={preferredWidth} minWidth={1}>
       {rows.map((row) => (
         <Box key={row.task.id as number} height={1}>
           <DescriptionCell

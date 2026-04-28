@@ -3,6 +3,7 @@ import { renderToString } from "ink";
 import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
+import { resolveColumns } from "../src/renderer/column-resolver";
 import { NowProvider } from "../src/renderer/context/now-context";
 import { ProgressRenderer } from "../src/renderer/public-api";
 import { SpinnerProvider } from "../src/renderer/context/spinner-context";
@@ -48,12 +49,13 @@ const makeTask = (id: number, description: string, metadata?: unknown): Progress
 const renderWithColumns = (
   rows: ReadonlyArray<TaskRowModel>,
   columns: Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>,
+  nowOverride = 1_000,
 ): string =>
   stripAnsi(
     renderToString(
       createElement(NowProvider, {
         active: false,
-        nowOverride: 1_000,
+        nowOverride,
         children: createElement(SpinnerProvider, {
           active: false,
           tickOverride: 0,
@@ -80,6 +82,100 @@ describe("rendererv2 public api", () => {
 
     expect(output).toContain("task-a");
     expect(output).toContain("task-b");
+    expect(output).toContain("00:01<00:01");
+  });
+
+  test("renders the combined elapsed/eta column while keeping standalone columns available", () => {
+    const output = renderWithColumns(
+      [deriveRow(makeTask(1, "timed-task"))],
+      new Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>([
+        [
+          Progress.TaskId(1),
+          [
+            Progress.Columns.description(),
+            Progress.Columns.elapsedEta(),
+            Progress.Columns.elapsed(),
+            Progress.Columns.eta(),
+          ],
+        ],
+      ]),
+    );
+
+    expect(output).toContain("00:01<00:01");
+    expect(output).toContain("1s");
+    expect(output).toContain("ETA: 1s");
+  });
+
+  test("renders elapsed/eta hours only when required", () => {
+    const output = renderWithColumns(
+      [deriveRow(makeTask(1, "hour-task"))],
+      new Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>([
+        [
+          Progress.TaskId(1),
+          [Progress.Columns.description(), Progress.Columns.elapsedEta()],
+        ],
+      ]),
+      3_661_000,
+    );
+
+    expect(output).toContain("01:01:01<01:01:01");
+  });
+
+  test("renders elapsed/eta clock hours past two digits", () => {
+    const output = renderWithColumns(
+      [deriveRow(makeTask(1, "long-task"))],
+      new Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>([
+        [
+          Progress.TaskId(1),
+          [Progress.Columns.description(), Progress.Columns.elapsedEta()],
+        ],
+      ]),
+      360_000_000,
+    );
+
+    expect(output).toContain("100:00:00<100:00:00");
+  });
+
+  test("caps description width at its natural content size and keeps the default bar fixed", () => {
+    const rows = [deriveRow(makeTask(1, "short task"))];
+    const positions = resolveColumns(rows, new Map());
+
+    expect(positions[0]?.flexBasis).toBe("short task".length + 2);
+    expect(positions[0]?.flexGrow).toBeUndefined();
+    expect(positions[1]?.flexGrow).toBe(0);
+    expect(positions[1]?.flexBasis).toBe(30);
+    expect(positions[1]?.minWidth).toBe(30);
+  });
+
+  test("supports fullwidth bars when requested explicitly", () => {
+    const rows = [deriveRow(makeTask(1, "wide bar"))];
+    const positions = resolveColumns(
+      rows,
+      new Map([
+        [
+          Progress.TaskId(1),
+          [Progress.Columns.description(), Progress.Columns.bar({ size: "fullwidth" })],
+        ],
+      ]),
+    );
+
+    expect(positions[1]?.flexGrow).toBe(1);
+    expect(positions[1]?.flexBasis).toBe(30);
+    expect(positions[1]?.minWidth).toBe(4);
+  });
+
+  test("supports fixed custom bar widths", () => {
+    const rows = [deriveRow(makeTask(1, "narrow bar"))];
+    const positions = resolveColumns(
+      rows,
+      new Map([
+        [Progress.TaskId(1), [Progress.Columns.description(), Progress.Columns.bar({ size: 12 })]],
+      ]),
+    );
+
+    expect(positions[1]?.flexGrow).toBe(0);
+    expect(positions[1]?.flexBasis).toBe(12);
+    expect(positions[1]?.minWidth).toBe(12);
   });
 
   test("renders different cells in the same visual column at the same index", () => {

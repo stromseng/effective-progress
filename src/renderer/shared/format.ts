@@ -24,9 +24,23 @@ const formatDurationSeconds = (seconds: number): string => {
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 };
 
+const formatClockDurationSeconds = (seconds: number): string => {
+  const value = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(value / 3600);
+  const mins = Math.floor((value % 3600) / 60);
+  const secs = value % 60;
+  const clock = `${`${mins}`.padStart(2, "0")}:${`${secs}`.padStart(2, "0")}`;
+  return hours > 0 ? `${`${hours}`.padStart(2, "0")}:${clock}` : clock;
+};
+
 export const formatElapsed = (task: TaskSnapshot, now: number): string => {
   const elapsedMillis = Math.max(0, (task.completedAt ?? now) - task.startedAt);
   return formatDurationSeconds(elapsedMillis / 1000);
+};
+
+export const formatElapsedClock = (task: TaskSnapshot, now: number): string => {
+  const elapsedMillis = Math.max(0, (task.completedAt ?? now) - task.startedAt);
+  return formatClockDurationSeconds(elapsedMillis / 1000);
 };
 
 export const formatEta = (task: TaskSnapshot, now: number): string => {
@@ -44,6 +58,25 @@ export const formatEta = (task: TaskSnapshot, now: number): string => {
   const etaMillis = Math.max(0, Math.floor((elapsedMillis / processed) * remaining));
   return formatDurationSeconds(etaMillis / 1000);
 };
+
+export const formatEtaClock = (task: TaskSnapshot, now: number): string | undefined => {
+  if (task.status !== "running" || !isDeterminate(task)) {
+    return undefined;
+  }
+
+  const { processed, total } = task.units;
+  const remaining = total - processed;
+  if (processed <= 0 || remaining <= 0) {
+    return undefined;
+  }
+
+  const elapsedMillis = Math.max(1, now - task.startedAt);
+  const etaMillis = Math.max(0, Math.floor((elapsedMillis / processed) * remaining));
+  return formatClockDurationSeconds(etaMillis / 1000);
+};
+
+export const formatElapsedEta = (task: TaskSnapshot, now: number): string =>
+  `${formatElapsedClock(task, now)}<${formatEtaClock(task, now) ?? "00:00"}`;
 
 interface DeterminateAmountParts {
   readonly succeeded: string;

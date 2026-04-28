@@ -145,8 +145,10 @@ Effect.runPromise(program);
 ### Ink renderer behavior
 
 - Rendering is powered by [Ink](https://github.com/vadimdemedes/ink).
-- Built-in columns are exposed as `Progress.Columns.description()`, `bar()`, `amount()`, `elapsed()`, `eta()`, `spacer()`, and `defaults()`.
+- Built-in columns are exposed as `Progress.Columns.description()`, `bar()`, `amount()`, `elapsedEta()`, `elapsed()`, `eta()`, `spacer()`, and `defaults()`.
+- `elapsedEta()` renders a compact clock-style column as `elapsed<eta` using the shape `00:00<00:00`; `defaults()` now uses that combined column.
 - Determinate bars are segmented by outcome: succeeded (green), failed (red), and remaining (neutral).
+- `bar()` defaults to a fixed width of `30`; pass `bar({ size: "fullwidth" })` to consume remaining row width or `bar({ size: 12 })` for an explicit width.
 - Determinate amount text shows counters without prefixes: `<succeeded> <failed> <processed>/<total>`.
 - Counts can exceed `total`; the amount text keeps those raw values (for example `12/10`) while the bar stays visually clamped at full.
 - `total: 0` is valid for determinate tasks and renders as a full bar by default.

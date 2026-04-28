@@ -52,7 +52,7 @@ const evaluateModel = (model: string) =>
               model,
               script,
               score: 0,
-            } satisfies EvalResult);
+            });
           }
 
           yield* task.update({
