@@ -6,6 +6,8 @@
 > Pre-`1.0.0`, breaking changes may happen in any minor release. SemVer guarantees will begin at `1.0.0`.  
 > I recommend using only the `Progress.all` and `Progress.forEach` APIs for now, as they will likely change the least. The lower-level APIs for manual progress bar control are more likely to see breaking changes as I iterate on the design.
 >
+> I am currently waiting on https://github.com/anomalyco/opentui/issues/204 to swap the renderer to opentui.
+>
 > Please open an issue or reach out if you have any questions or want to contribute!
 > Feedback and contributions are very welcome!
 

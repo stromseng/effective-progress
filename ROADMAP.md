@@ -4,11 +4,10 @@
 
 ## Next up
 
-- fix new renderer eta popin / layout shift
 - configurable transient/cleanup mode, clear fully on completion, leave completion message, leave full bar
 - add speed calculation column, I.e 100/s or download speed 200Mbit/s etc.
 - allow precreating tasks then passing them to the public APIs, `.all` `.foreach` to have them use an existing task instead of creating a new one, to allow for showing the upcoming tasks, even though they are executed lazily.
-- make `SNAPSHOT_PUBLISH_INTERVAL_MILLIS` and other rendering constants etc be effect Configs.
+- make `SNAPSHOT_PUBLISH_INTERVAL_MILLIS` and other rendering constants etc be effect Configs. also `ETA_SAMPLE_WINDOW_MILLIS` and `ETA_SAMPLE_MAX_LENGTH`
 - make preallocated task description space configurable
 
 ## Customization
