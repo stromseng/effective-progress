@@ -20,12 +20,6 @@
 
 ## Data model / behavior
 
-- [ ] Smoothed ETA (rolling window/deque) instead of lifetime-average rate.
-  - Currently `formatEta` computes speed as `completed / (now - startedAt)` - the lifetime average. If the first 10% is slow (cold start, initial IO) the ETA stays pessimistically inflated for the entire run; conversely, if early progress is fast then slows, the ETA is optimistically wrong.
-  - Store a ring buffer of `{ timestamp: number; completed: number }` samples on each task (capped at ~1000 entries). On each `advanceTask` call, push a new sample and evict entries older than `speedEstimatePeriod` (default 30s, configurable).
-  - Compute speed as `deltaCompleted / deltaTime` over only the retained window. ETA = `remaining / speed`.
-  - Reference: Rich's `Task` class (`rich/progress.py:1023-1038`) uses a `deque[ProgressSample]` with `maxlen=1000` and a 30s default window. The `speed` property sums recent deltas and divides by window duration.
-  - Needs a new field on the task snapshot (e.g. `samples: Array<ProgressSample>`) and a renderer-level config surface for `speedEstimatePeriod`.
 - [ ] Better non-TTY strategy and configurability.
 
 ## Rendering
