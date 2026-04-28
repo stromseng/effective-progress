@@ -42,6 +42,10 @@ const makeTask = (id: number): Progress.TaskSnapshot =>
     },
     startedAt: 0,
     completedAt: 1_000,
+    progressSamples: [
+      { timestamp: 0, processed: 0 },
+      { timestamp: 1_000, processed: 1 },
+    ],
     metadata: undefined,
   });
 

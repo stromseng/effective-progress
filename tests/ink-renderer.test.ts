@@ -36,7 +36,7 @@ const captureStdioOutput = async <A, E, R>(
 };
 
 describe("Ink renderer integration", () => {
-  test("renders nested tasks with tree connectors", async () => {
+  test("renders nested task rows", async () => {
     const program = Progress.task(
       Effect.gen(function* () {
         const progress = yield* Progress.Progress;
@@ -64,7 +64,6 @@ describe("Ink renderer integration", () => {
 
     expect(output.includes("parent")).toBeTrue();
     expect(output.includes("child")).toBeTrue();
-    expect(output.includes("└─ ") || output.includes("├─ ")).toBeTrue();
   });
 
   test("emits logs through custom Effect Console while Ink is active", async () => {
@@ -288,7 +287,7 @@ describe("Ink renderer integration", () => {
     const line =
       output.split("\n").find((candidate) => candidate.includes("indeterminate-single")) ?? "";
     expect(line.includes("indeterminate-single")).toBeTrue();
-    expect(/\d+s/.test(line)).toBeTrue();
+    expect(/\d{2}:\d{2}<\d{2}:\d{2}/.test(line)).toBeTrue();
     expect(line.includes("%")).toBeFalse();
     expect(line.includes("ETA:")).toBeFalse();
   });

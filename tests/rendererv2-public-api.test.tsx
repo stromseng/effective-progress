@@ -27,7 +27,12 @@ const deriveRow = (task: Progress.TaskSnapshot): TaskRowModel => ({
   },
 });
 
-const makeTask = (id: number, description: string, metadata?: unknown): Progress.TaskSnapshot =>
+const makeTask = (
+  id: number,
+  description: string,
+  metadata?: unknown,
+  overrides: Partial<Progress.TaskSnapshot> = {},
+): Progress.TaskSnapshot =>
   Progress.TaskSnapshot({
     id: Progress.TaskId(id),
     parentId: null,
@@ -43,7 +48,12 @@ const makeTask = (id: number, description: string, metadata?: unknown): Progress
     },
     startedAt: 0,
     completedAt: null,
+    progressSamples: [
+      { timestamp: 0, processed: 0 },
+      { timestamp: 1_000, processed: 1 },
+    ],
     metadata,
+    ...overrides,
   });
 
 const renderWithColumns = (
@@ -103,17 +113,23 @@ describe("rendererv2 public api", () => {
 
     expect(output).toContain("00:01<00:01");
     expect(output).toContain("1s");
-    expect(output).toContain("ETA: 1s");
+    expect(output).toContain("ETA: 00:01");
   });
 
   test("renders elapsed/eta hours only when required", () => {
     const output = renderWithColumns(
-      [deriveRow(makeTask(1, "hour-task"))],
+      [
+        deriveRow(
+          makeTask(1, "hour-task", undefined, {
+            progressSamples: [
+              { timestamp: 0, processed: 0 },
+              { timestamp: 3_661_000, processed: 1 },
+            ],
+          }),
+        ),
+      ],
       new Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>([
-        [
-          Progress.TaskId(1),
-          [Progress.Columns.description(), Progress.Columns.elapsedEta()],
-        ],
+        [Progress.TaskId(1), [Progress.Columns.description(), Progress.Columns.elapsedEta()]],
       ]),
       3_661_000,
     );
@@ -123,12 +139,18 @@ describe("rendererv2 public api", () => {
 
   test("renders elapsed/eta clock hours past two digits", () => {
     const output = renderWithColumns(
-      [deriveRow(makeTask(1, "long-task"))],
+      [
+        deriveRow(
+          makeTask(1, "long-task", undefined, {
+            progressSamples: [
+              { timestamp: 0, processed: 0 },
+              { timestamp: 360_000_000, processed: 1 },
+            ],
+          }),
+        ),
+      ],
       new Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>([
-        [
-          Progress.TaskId(1),
-          [Progress.Columns.description(), Progress.Columns.elapsedEta()],
-        ],
+        [Progress.TaskId(1), [Progress.Columns.description(), Progress.Columns.elapsedEta()]],
       ]),
       360_000_000,
     );

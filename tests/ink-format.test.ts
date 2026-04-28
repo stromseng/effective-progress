@@ -17,6 +17,10 @@ const makeTask = (
     units,
     startedAt: 0,
     completedAt: status === "running" ? null : 1_000,
+    progressSamples: [
+      { timestamp: 0, processed: 0 },
+      { timestamp: 1_000, processed: units.processed },
+    ],
     metadata: undefined,
   });
 

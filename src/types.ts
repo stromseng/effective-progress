@@ -118,6 +118,14 @@ export const TaskUnitsSchema = Schema.Struct({
 
 export type TaskUnits = typeof TaskUnitsSchema.Type;
 
+// A processed-count observation used to estimate ETA from recent throughput.
+export const TaskProgressSampleSchema = Schema.Struct({
+  timestamp: Schema.Number,
+  processed: Schema.Number,
+});
+
+export type TaskProgressSample = typeof TaskProgressSampleSchema.Type;
+
 export const TaskSnapshotSchema = Schema.Struct({
   id: TaskIdSchema,
   parentId: Schema.NullOr(TaskIdSchema),
@@ -128,6 +136,7 @@ export const TaskSnapshotSchema = Schema.Struct({
   units: TaskUnitsSchema,
   startedAt: Schema.Number,
   completedAt: Schema.NullOr(Schema.Number),
+  progressSamples: Schema.Array(TaskProgressSampleSchema),
   metadata: Schema.Unknown,
 });
 

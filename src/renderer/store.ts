@@ -3,6 +3,7 @@ import type {
   AddTaskOptions,
   ColumnDef,
   ProgressTaskEvent,
+  TaskProgressSample,
   TaskId,
   TaskStore,
   UpdateTaskOptions,
@@ -22,6 +23,9 @@ interface TaskCounts {
   readonly failed: number;
   readonly total?: number;
 }
+
+const ETA_SAMPLE_WINDOW_MILLIS = 30_000;
+const ETA_SAMPLE_MAX_LENGTH = 1_000;
 
 export interface RenderPublication {
   readonly snapshot: TaskStore;
@@ -82,7 +86,39 @@ const normalizeUnits = (counts: TaskCounts) => {
       };
 };
 
-const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => {
+/**
+ * Returns a new progress sample deque with the latest processed count appended.
+ *
+ * Samples are retained for the ETA rolling window and capped by count so very chatty tasks do not
+ * grow memory without bound.
+ */
+const appendProgressSample = (
+  samples: ReadonlyArray<TaskProgressSample> | undefined,
+  now: number,
+  processed: number,
+): ReadonlyArray<TaskProgressSample> => {
+  const previousSamples = samples ?? [];
+  const lastSample = previousSamples.at(-1);
+  if (lastSample?.processed === processed) {
+    return previousSamples;
+  }
+
+  // Keep one sample immediately before the rolling window when possible. That gives the ETA
+  // calculation a usable delta even just after old samples age out of the 30s window.
+  const windowStart = now - ETA_SAMPLE_WINDOW_MILLIS;
+  const nextSamples = [...previousSamples, { timestamp: now, processed }];
+  while (
+    nextSamples.length > 2 &&
+    (nextSamples.length > ETA_SAMPLE_MAX_LENGTH || nextSamples[1]!.timestamp < windowStart)
+  ) {
+    nextSamples.shift();
+  }
+
+  return nextSamples;
+};
+
+/** Applies mutable task fields and records a progress sample when the processed count changes. */
+const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions, now: number) => {
   const currentUnits = snapshot.units;
   const units =
     options.succeeded === undefined &&
@@ -99,32 +135,14 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => 
         });
 
   return TaskSnapshot({
-    id: snapshot.id,
-    parentId: snapshot.parentId,
+    ...snapshot,
     description: options.description ?? snapshot.description,
-    status: snapshot.status,
     countDisplay: options.countDisplay ?? snapshot.countDisplay,
     transient: options.transient ?? snapshot.transient,
     units,
-    startedAt: snapshot.startedAt,
-    completedAt: snapshot.completedAt,
-    metadata: snapshot.metadata,
+    progressSamples: appendProgressSample(snapshot.progressSamples, now, units.processed),
   });
 };
-
-const withTransient = (snapshot: TaskSnapshot, transient: boolean) =>
-  TaskSnapshot({
-    id: snapshot.id,
-    parentId: snapshot.parentId,
-    description: snapshot.description,
-    status: snapshot.status,
-    countDisplay: snapshot.countDisplay,
-    transient,
-    units: snapshot.units,
-    startedAt: snapshot.startedAt,
-    completedAt: snapshot.completedAt,
-    metadata: snapshot.metadata,
-  });
 
 const findInsertionIndex = (
   renderOrder: ReadonlyArray<TaskStore["renderOrder"][number]>,
@@ -319,6 +337,7 @@ export const makeProgressRenderStore = () => {
           units,
           startedAt: now,
           completedAt: null,
+          progressSamples: [{ timestamp: now, processed: units.processed }],
           metadata: options.metadata,
         });
 
@@ -354,14 +373,16 @@ export const makeProgressRenderStore = () => {
         return taskId;
       }),
     updateTask: (taskId, options) =>
-      Effect.sync(() => {
+      Effect.gen(function* () {
+        const now = yield* Clock.currentTimeMillis;
+
         updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
             return { state: current, events: [] };
           }
 
-          const nextTask = updatedSnapshot(currentTask, options);
+          const nextTask = updatedSnapshot(currentTask, options, now);
           const nextTasks = new Map(current.tasks);
           nextTasks.set(taskId, nextTask);
 
@@ -388,7 +409,7 @@ export const makeProgressRenderStore = () => {
                 continue;
               }
 
-              const nextCandidate = withTransient(candidate, nextTask.transient);
+              const nextCandidate = TaskSnapshot({ ...candidate, transient: nextTask.transient });
               nextTasks.set(candidateId, nextCandidate);
               events.push(
                 new TaskUpdatedEvent({
@@ -406,31 +427,31 @@ export const makeProgressRenderStore = () => {
         });
       }),
     incrementSucceeded: (taskId, amount = 1) =>
-      Effect.sync(() => {
+      Effect.gen(function* () {
+        const now = yield* Clock.currentTimeMillis;
+
         updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
             return { state: current, events: [] };
           }
 
+          const units = normalizeUnits({
+            succeeded: currentTask.units.succeeded + amount,
+            failed: currentTask.units.failed,
+            total: currentTask.units.total,
+          });
           const nextTasks = new Map(current.tasks);
           nextTasks.set(
             taskId,
             TaskSnapshot({
-              id: currentTask.id,
-              parentId: currentTask.parentId,
-              description: currentTask.description,
-              status: currentTask.status,
-              countDisplay: currentTask.countDisplay,
-              transient: currentTask.transient,
-              units: normalizeUnits({
-                succeeded: currentTask.units.succeeded + amount,
-                failed: currentTask.units.failed,
-                total: currentTask.units.total,
-              }),
-              startedAt: currentTask.startedAt,
-              completedAt: currentTask.completedAt,
-              metadata: currentTask.metadata,
+              ...currentTask,
+              units,
+              progressSamples: appendProgressSample(
+                currentTask.progressSamples,
+                now,
+                units.processed,
+              ),
             }),
           );
 
@@ -441,31 +462,31 @@ export const makeProgressRenderStore = () => {
         });
       }),
     incrementFailed: (taskId, amount = 1) =>
-      Effect.sync(() => {
+      Effect.gen(function* () {
+        const now = yield* Clock.currentTimeMillis;
+
         updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
             return { state: current, events: [] };
           }
 
+          const units = normalizeUnits({
+            succeeded: currentTask.units.succeeded,
+            failed: currentTask.units.failed + amount,
+            total: currentTask.units.total,
+          });
           const nextTasks = new Map(current.tasks);
           nextTasks.set(
             taskId,
             TaskSnapshot({
-              id: currentTask.id,
-              parentId: currentTask.parentId,
-              description: currentTask.description,
-              status: currentTask.status,
-              countDisplay: currentTask.countDisplay,
-              transient: currentTask.transient,
-              units: normalizeUnits({
-                succeeded: currentTask.units.succeeded,
-                failed: currentTask.units.failed + amount,
-                total: currentTask.units.total,
-              }),
-              startedAt: currentTask.startedAt,
-              completedAt: currentTask.completedAt,
-              metadata: currentTask.metadata,
+              ...currentTask,
+              units,
+              progressSamples: appendProgressSample(
+                currentTask.progressSamples,
+                now,
+                units.processed,
+              ),
             }),
           );
 
@@ -515,36 +536,37 @@ export const makeProgressRenderStore = () => {
             };
           }
 
+          const units =
+            currentTask.units.total !== undefined
+              ? currentTask.units.processed < currentTask.units.total
+                ? normalizeUnits({
+                    succeeded:
+                      currentTask.units.succeeded +
+                      (currentTask.units.total - currentTask.units.processed),
+                    failed: currentTask.units.failed,
+                    total: currentTask.units.total,
+                  })
+                : currentTask.units
+              : currentTask.units.processed > 0
+                ? normalizeUnits({
+                    succeeded: currentTask.units.succeeded,
+                    failed: currentTask.units.failed,
+                    total: currentTask.units.processed,
+                  })
+                : currentTask.units;
+
           nextTasks.set(
             taskId,
             TaskSnapshot({
-              id: currentTask.id,
-              parentId: currentTask.parentId,
-              description: currentTask.description,
+              ...currentTask,
               status: "done",
-              countDisplay: currentTask.countDisplay,
-              transient: currentTask.transient,
-              units:
-                currentTask.units.total !== undefined
-                  ? currentTask.units.processed < currentTask.units.total
-                    ? normalizeUnits({
-                        succeeded:
-                          currentTask.units.succeeded +
-                          (currentTask.units.total - currentTask.units.processed),
-                        failed: currentTask.units.failed,
-                        total: currentTask.units.total,
-                      })
-                    : currentTask.units
-                  : currentTask.units.processed > 0
-                    ? normalizeUnits({
-                        succeeded: currentTask.units.succeeded,
-                        failed: currentTask.units.failed,
-                        total: currentTask.units.processed,
-                      })
-                    : currentTask.units,
-              startedAt: currentTask.startedAt,
+              units,
               completedAt: now,
-              metadata: currentTask.metadata,
+              progressSamples: appendProgressSample(
+                currentTask.progressSamples,
+                now,
+                units.processed,
+              ),
             }),
           );
 
@@ -596,18 +618,7 @@ export const makeProgressRenderStore = () => {
 
           nextTasks.set(
             taskId,
-            TaskSnapshot({
-              id: currentTask.id,
-              parentId: currentTask.parentId,
-              description: currentTask.description,
-              status: "failed",
-              countDisplay: currentTask.countDisplay,
-              transient: currentTask.transient,
-              units: currentTask.units,
-              startedAt: currentTask.startedAt,
-              completedAt: now,
-              metadata: currentTask.metadata,
-            }),
+            TaskSnapshot({ ...currentTask, status: "failed", completedAt: now }),
           );
 
           return {
@@ -627,21 +638,7 @@ export const makeProgressRenderStore = () => {
           }
 
           const nextTasks = new Map(current.tasks);
-          nextTasks.set(
-            taskId,
-            TaskSnapshot({
-              id: currentTask.id,
-              parentId: currentTask.parentId,
-              description: currentTask.description,
-              status: currentTask.status,
-              countDisplay: currentTask.countDisplay,
-              transient: currentTask.transient,
-              units: currentTask.units,
-              startedAt: currentTask.startedAt,
-              completedAt: currentTask.completedAt,
-              metadata,
-            }),
-          );
+          nextTasks.set(taskId, TaskSnapshot({ ...currentTask, metadata }));
 
           return {
             state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },

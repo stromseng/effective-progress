@@ -33,6 +33,42 @@ const formatClockDurationSeconds = (seconds: number): string => {
   return hours > 0 ? `${`${hours}`.padStart(2, "0")}:${clock}` : clock;
 };
 
+/**
+ * Estimates remaining time from the task's retained progress sample deque.
+ *
+ * Returns undefined until there are at least two samples with positive processed and time deltas.
+ */
+const getSmoothedEtaMillis = (
+  task: TaskSnapshot & { readonly units: TaskSnapshot["units"] & { readonly total: number } },
+): number | undefined => {
+  const { processed, total } = task.units;
+  const remaining = total - processed;
+  if (processed <= 0 || remaining <= 0) {
+    return undefined;
+  }
+
+  const samples = task.progressSamples;
+  const lastSample = samples.at(-1);
+  if (lastSample === undefined) {
+    return undefined;
+  }
+
+  const firstSample = samples[0];
+  if (firstSample === undefined || firstSample === lastSample) {
+    return undefined;
+  }
+
+  // The store maintains this as a retained rolling deque, so the first and last samples represent
+  // recent throughput rather than lifetime average throughput.
+  const deltaProcessed = lastSample.processed - firstSample.processed;
+  const deltaMillis = lastSample.timestamp - firstSample.timestamp;
+  if (deltaProcessed <= 0 || deltaMillis <= 0) {
+    return undefined;
+  }
+
+  return Math.max(0, Math.floor((remaining * deltaMillis) / deltaProcessed));
+};
+
 export const formatElapsed = (task: TaskSnapshot, now: number): string => {
   const elapsedMillis = Math.max(0, (task.completedAt ?? now) - task.startedAt);
   return formatDurationSeconds(elapsedMillis / 1000);
@@ -54,9 +90,12 @@ export const formatEta = (task: TaskSnapshot, now: number): string => {
     return "";
   }
 
-  const elapsedMillis = Math.max(1, now - task.startedAt);
-  const etaMillis = Math.max(0, Math.floor((elapsedMillis / processed) * remaining));
-  return formatDurationSeconds(etaMillis / 1000);
+  const etaMillis = getSmoothedEtaMillis(task);
+  if (etaMillis === undefined) {
+    return "";
+  }
+
+  return formatClockDurationSeconds(etaMillis / 1000);
 };
 
 export const formatEtaClock = (task: TaskSnapshot, now: number): string | undefined => {
@@ -70,8 +109,11 @@ export const formatEtaClock = (task: TaskSnapshot, now: number): string | undefi
     return undefined;
   }
 
-  const elapsedMillis = Math.max(1, now - task.startedAt);
-  const etaMillis = Math.max(0, Math.floor((elapsedMillis / processed) * remaining));
+  const etaMillis = getSmoothedEtaMillis(task);
+  if (etaMillis === undefined) {
+    return undefined;
+  }
+
   return formatClockDurationSeconds(etaMillis / 1000);
 };
 

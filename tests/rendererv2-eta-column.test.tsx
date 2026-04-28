@@ -26,7 +26,7 @@ const deriveRow = (task: Progress.TaskSnapshot): TaskRowModel => ({
   },
 });
 
-const makeTask = (): Progress.TaskSnapshot =>
+const makeTask = (overrides: Partial<Progress.TaskSnapshot> = {}): Progress.TaskSnapshot =>
   Progress.TaskSnapshot({
     id: Progress.TaskId(1),
     parentId: null,
@@ -42,10 +42,15 @@ const makeTask = (): Progress.TaskSnapshot =>
     },
     startedAt: 0,
     completedAt: null,
+    progressSamples: [
+      { timestamp: 0, processed: 0 },
+      { timestamp: 1_000, processed: 1 },
+    ],
     metadata: undefined,
+    ...overrides,
   });
 
-const renderWithEta = (now: number): string =>
+const renderTaskWithEta = (task: Progress.TaskSnapshot, now: number): string =>
   stripAnsi(
     renderToString(
       createElement(NowProvider, {
@@ -55,18 +60,22 @@ const renderWithEta = (now: number): string =>
           active: false,
           tickOverride: 0,
           children: createElement(ProgressRenderer, {
-            rows: [deriveRow(makeTask())],
-            columns: new Map(),
+            rows: [deriveRow(task)],
+            columns: new Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>([
+              [Progress.TaskId(1), [Progress.Columns.description(), Progress.Columns.eta()]],
+            ]),
           }),
         }),
       }),
     ),
   );
 
+const renderWithEta = (now: number): string => renderTaskWithEta(makeTask(), now);
+
 describe("rendererv2 eta column", () => {
   test("renders prefixed eta when task has progress", () => {
     const output = renderWithEta(1_000);
-    expect(output).toContain("ETA: 1s");
+    expect(output).toContain("ETA: 00:01");
   });
 
   test("does not render ETA for completed tasks", () => {
@@ -85,6 +94,10 @@ describe("rendererv2 eta column", () => {
       },
       startedAt: 0,
       completedAt: 1_000,
+      progressSamples: [
+        { timestamp: 0, processed: 0 },
+        { timestamp: 1_000, processed: 2 },
+      ],
       metadata: undefined,
     });
 
@@ -109,8 +122,37 @@ describe("rendererv2 eta column", () => {
   });
 
   test("renders longer ETA for slow tasks", () => {
-    const output = renderWithEta(88_320_000);
+    const output = renderTaskWithEta(
+      makeTask({
+        progressSamples: [
+          { timestamp: 0, processed: 0 },
+          { timestamp: 88_320_000, processed: 1 },
+        ],
+      }),
+      88_320_000,
+    );
     expect(output).toContain("ETA:");
-    expect(output).toContain("24h");
+    expect(output).toContain("24:32:00");
+  });
+
+  test("uses recent progress samples instead of lifetime average", () => {
+    const output = renderTaskWithEta(
+      makeTask({
+        units: {
+          succeeded: 11,
+          failed: 0,
+          processed: 11,
+          total: 12,
+        },
+        progressSamples: [
+          { timestamp: 0, processed: 0 },
+          { timestamp: 10_000, processed: 1 },
+          { timestamp: 40_000, processed: 11 },
+        ],
+      }),
+      40_000,
+    );
+
+    expect(output).toContain("ETA: 00:03");
   });
 });
