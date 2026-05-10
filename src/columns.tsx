@@ -111,7 +111,7 @@ export const eta = (): ColumnDef<any> => ({
   align: "right",
   flexShrink: 0,
   minWidth: 8,
-  render: ({ task }, ctx) => <EtaCell task={task} now={ctx.now} />,
+  render: ({ task }) => <EtaCell task={task} />,
 });
 
 export const defaults = (): ReadonlyArray<ColumnDef<any, any>> => [

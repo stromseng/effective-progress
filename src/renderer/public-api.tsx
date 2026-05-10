@@ -22,7 +22,7 @@ const justifyContentForAlign = (align: ColumnAlign | undefined) => {
   return "flex-start";
 };
 
-const renderNode = (node: ReactNode) => {
+const RenderedNode = ({ node }: { readonly node: ReactNode }) => {
   if (typeof node === "string" || typeof node === "number") {
     return <Text wrap="truncate-end">{node}</Text>;
   }
@@ -63,7 +63,7 @@ const ColumnPosition = ({ position }: { readonly position: ResolvedColumnPositio
             height={1}
             justifyContent={justifyContentForAlign(column?.align)}
           >
-            {renderNode(output)}
+            <RenderedNode node={output} />
           </Box>
         );
       })}

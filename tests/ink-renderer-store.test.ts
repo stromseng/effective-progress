@@ -2,23 +2,30 @@ import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { makeProgressRenderStore } from "../src/renderer/store";
 
-const sleep = (millis: number) =>
-  new Promise<void>((resolve) => {
-    setTimeout(resolve, millis);
-  });
-
 const waitFor = async (
   predicate: () => boolean,
   timeoutMillis: number,
   pollMillis = 10,
 ): Promise<void> => {
   const deadline = Date.now() + timeoutMillis;
-  while (!predicate()) {
-    if (Date.now() >= deadline) {
-      throw new Error(`Condition not met within ${timeoutMillis}ms`);
-    }
-    await sleep(pollMillis);
-  }
+
+  return new Promise((resolve, reject) => {
+    const poll = () => {
+      if (predicate()) {
+        resolve();
+        return;
+      }
+
+      if (Date.now() >= deadline) {
+        reject(new Error(`Condition not met within ${timeoutMillis}ms`));
+        return;
+      }
+
+      setTimeout(poll, pollMillis);
+    };
+
+    poll();
+  });
 };
 
 describe("progress render store", () => {

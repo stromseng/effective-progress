@@ -1,16 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useReducer } from "react";
 
 export const useNowClock = (active: boolean, intervalMillis: number): number => {
-  const [now, setNow] = useState(() => Date.now());
+  const [now, updateNow] = useReducer(() => Date.now(), undefined, Date.now);
 
   useEffect(() => {
     if (!active) {
       return;
     }
 
-    setNow(Date.now());
+    updateNow();
     const interval = setInterval(() => {
-      setNow(Date.now());
+      updateNow();
     }, intervalMillis);
 
     return () => {

@@ -11,12 +11,6 @@ const sleepRandom = (base: number, jitter: number) =>
 // Each model evaluation task carries structured metadata that gets
 // rendered into custom columns aligned across all tasks.
 
-interface EvalResult {
-  readonly model: string;
-  readonly script: string;
-  readonly score: number;
-}
-
 const models = ["Qwen-2.5-72B", "Llama-3.3-70B", "Mistral-Large-2"] as const;
 const scripts = ["eval_mcq", "eval_rag", "eval_code"] as const;
 

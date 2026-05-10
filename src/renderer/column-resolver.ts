@@ -11,7 +11,7 @@ interface PreparedGroup {
   readonly prepared: unknown;
 }
 
-export interface ResolvedColumnEntry {
+interface ResolvedColumnEntry {
   readonly column: ColumnDef<any, any>;
   readonly prepared: unknown;
 }
@@ -31,7 +31,7 @@ const getColumnsForRow = (
   columns: Map<TaskId, ReadonlyArray<ColumnDef<any, any>>>,
 ): ReadonlyArray<ColumnDef<any, any>> => columns.get(row.task.id) ?? defaults();
 
-export const toCellInfo = (row: TaskRowModel): CellInfo<unknown> => row;
+const toCellInfo = (row: TaskRowModel): CellInfo<unknown> => row;
 
 const maxDefined = (values: ReadonlyArray<number | undefined>): number | undefined =>
   values.reduce<number | undefined>(

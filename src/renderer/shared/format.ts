@@ -74,12 +74,12 @@ export const formatElapsed = (task: TaskSnapshot, now: number): string => {
   return formatDurationSeconds(elapsedMillis / 1000);
 };
 
-export const formatElapsedClock = (task: TaskSnapshot, now: number): string => {
+const formatElapsedClock = (task: TaskSnapshot, now: number): string => {
   const elapsedMillis = Math.max(0, (task.completedAt ?? now) - task.startedAt);
   return formatClockDurationSeconds(elapsedMillis / 1000);
 };
 
-export const formatEta = (task: TaskSnapshot, now: number): string => {
+export const formatEta = (task: TaskSnapshot): string => {
   if (task.status !== "running" || !isDeterminate(task)) {
     return "";
   }
@@ -98,7 +98,7 @@ export const formatEta = (task: TaskSnapshot, now: number): string => {
   return formatClockDurationSeconds(etaMillis / 1000);
 };
 
-export const formatEtaClock = (task: TaskSnapshot, now: number): string | undefined => {
+const formatEtaClock = (task: TaskSnapshot): string | undefined => {
   if (task.status !== "running" || !isDeterminate(task)) {
     return undefined;
   }
@@ -118,7 +118,7 @@ export const formatEtaClock = (task: TaskSnapshot, now: number): string | undefi
 };
 
 export const formatElapsedEta = (task: TaskSnapshot, now: number): string =>
-  `${formatElapsedClock(task, now)}<${formatEtaClock(task, now) ?? "00:00"}`;
+  `${formatElapsedClock(task, now)}<${formatEtaClock(task) ?? "00:00"}`;
 
 interface DeterminateAmountParts {
   readonly succeeded: string;

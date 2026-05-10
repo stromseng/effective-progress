@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { renderToString } from "ink";
-import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
 import { NowProvider } from "../src/renderer/context/now-context";
@@ -52,18 +51,11 @@ const makeTask = (
 const renderColumns = (rows: ReadonlyArray<TaskRowModel>): string =>
   stripAnsi(
     renderToString(
-      createElement(NowProvider, {
-        active: false,
-        nowOverride: 1_000,
-        children: createElement(SpinnerProvider, {
-          active: false,
-          tickOverride: 0,
-          children: createElement(ProgressRenderer, {
-            rows,
-            columns: new Map(),
-          }),
-        }),
-      }),
+      <NowProvider active={false} nowOverride={1_000}>
+        <SpinnerProvider active={false} tickOverride={0}>
+          <ProgressRenderer rows={rows} columns={new Map()} />
+        </SpinnerProvider>
+      </NowProvider>,
     ),
   );
 

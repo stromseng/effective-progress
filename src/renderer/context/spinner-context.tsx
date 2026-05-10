@@ -1,5 +1,5 @@
 import cliSpinners from "cli-spinners";
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, use, type ReactNode } from "react";
 import { useSpinnerClock } from "../hooks/use-spinner-clock";
 
 const DEFAULT_SPINNER_INTERVAL_MILLIS = cliSpinners.dots.interval;
@@ -24,4 +24,4 @@ export const SpinnerProvider = ({
   return <SpinnerContext.Provider value={tick}>{children}</SpinnerContext.Provider>;
 };
 
-export const useSpinnerTick = (): number => useContext(SpinnerContext);
+export const useSpinnerTick = (): number => use(SpinnerContext);

@@ -1,10 +1,8 @@
-import { Box, Text } from "ink";
-import type { ReactNode } from "react";
+import { Text } from "ink";
 import type { CellInfo, TaskSnapshot } from "../../types";
 import { isDeterminate } from "../shared/determinate";
 import { formatAmount } from "../shared/format";
 import { textWidth } from "../shared/text-width";
-import type { TaskRowModel } from "../store/types";
 
 export interface AmountLayout {
   readonly hasDetailedRows: boolean;
@@ -88,7 +86,13 @@ export const measureAmountLayout = (rows: ReadonlyArray<CellInfo<unknown>>): Amo
   };
 };
 
-export const renderAmount = (task: TaskSnapshot, layout: AmountLayout): ReactNode => {
+const AmountValue = ({
+  task,
+  layout,
+}: {
+  readonly task: TaskSnapshot;
+  readonly layout: AmountLayout;
+}) => {
   if (!hasCountedAmount(task)) {
     return formatAmount(task, 0);
   }
@@ -123,22 +127,8 @@ export const AmountCell = ({
 }: {
   readonly task: TaskSnapshot;
   readonly layout: AmountLayout;
-}) => <Text wrap="truncate-end">{renderAmount(task, layout)}</Text>;
-
-export const AmountColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskRowModel> }) => {
-  const amountLayout = measureAmountLayout(rows);
-
-  if (amountLayout.preferredWidth === 0) {
-    return null;
-  }
-
-  return (
-    <Box flexDirection="column" flexShrink={0}>
-      {rows.map((row) => (
-        <Box key={row.task.id as number} height={1} justifyContent="flex-end">
-          <AmountCell task={row.task} layout={amountLayout} />
-        </Box>
-      ))}
-    </Box>
-  );
-};
+}) => (
+  <Text wrap="truncate-end">
+    <AmountValue task={task} layout={layout} />
+  </Text>
+);

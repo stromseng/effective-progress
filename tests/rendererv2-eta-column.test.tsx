@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { renderToString } from "ink";
-import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
 import { NowProvider } from "../src/renderer/context/now-context";
@@ -53,20 +52,18 @@ const makeTask = (overrides: Partial<Progress.TaskSnapshot> = {}): Progress.Task
 const renderTaskWithEta = (task: Progress.TaskSnapshot, now: number): string =>
   stripAnsi(
     renderToString(
-      createElement(NowProvider, {
-        active: false,
-        nowOverride: now,
-        children: createElement(SpinnerProvider, {
-          active: false,
-          tickOverride: 0,
-          children: createElement(ProgressRenderer, {
-            rows: [deriveRow(task)],
-            columns: new Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>([
-              [Progress.TaskId(1), [Progress.Columns.description(), Progress.Columns.eta()]],
-            ]),
-          }),
-        }),
-      }),
+      <NowProvider active={false} nowOverride={now}>
+        <SpinnerProvider active={false} tickOverride={0}>
+          <ProgressRenderer
+            rows={[deriveRow(task)]}
+            columns={
+              new Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>([
+                [Progress.TaskId(1), [Progress.Columns.description(), Progress.Columns.eta()]],
+              ])
+            }
+          />
+        </SpinnerProvider>
+      </NowProvider>,
     ),
   );
 
@@ -103,18 +100,11 @@ describe("rendererv2 eta column", () => {
 
     const output = stripAnsi(
       renderToString(
-        createElement(NowProvider, {
-          active: false,
-          nowOverride: 1_000,
-          children: createElement(SpinnerProvider, {
-            active: false,
-            tickOverride: 0,
-            children: createElement(ProgressRenderer, {
-              rows: [deriveRow(completedTask)],
-              columns: new Map(),
-            }),
-          }),
-        }),
+        <NowProvider active={false} nowOverride={1_000}>
+          <SpinnerProvider active={false} tickOverride={0}>
+            <ProgressRenderer rows={[deriveRow(completedTask)]} columns={new Map()} />
+          </SpinnerProvider>
+        </NowProvider>,
       ),
     );
 

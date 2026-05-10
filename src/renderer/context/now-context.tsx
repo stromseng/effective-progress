@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, use, type ReactNode } from "react";
 import { useNowClock } from "../hooks/use-now-clock";
 
 const NOW_INTERVAL_MILLIS = 1_000;
@@ -17,4 +17,4 @@ export const NowProvider = ({ active, children, nowOverride }: NowProviderProps)
   return <NowContext.Provider value={now}>{children}</NowContext.Provider>;
 };
 
-export const useNow = (): number => useContext(NowContext);
+export const useNow = (): number => use(NowContext);

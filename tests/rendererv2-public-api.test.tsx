@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { renderToString } from "ink";
-import { createElement } from "react";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
 import { resolveColumns } from "../src/renderer/column-resolver";
@@ -63,18 +62,11 @@ const renderWithColumns = (
 ): string =>
   stripAnsi(
     renderToString(
-      createElement(NowProvider, {
-        active: false,
-        nowOverride,
-        children: createElement(SpinnerProvider, {
-          active: false,
-          tickOverride: 0,
-          children: createElement(ProgressRenderer, {
-            rows,
-            columns,
-          }),
-        }),
-      }),
+      <NowProvider active={false} nowOverride={nowOverride}>
+        <SpinnerProvider active={false} tickOverride={0}>
+          <ProgressRenderer rows={rows} columns={columns} />
+        </SpinnerProvider>
+      </NowProvider>,
     ),
   );
 
