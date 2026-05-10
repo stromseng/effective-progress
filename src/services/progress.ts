@@ -1,7 +1,7 @@
 import { Context, Effect, Exit, FiberRef, Layer, Option } from "effect";
 import { dual } from "effect/Function";
 import { ProgressStore } from "./store/store";
-import type { AddTaskOptions, ProgressService, TaskHandle, TaskId } from "../types";
+import type { AddTaskOptions, ProgressShape, TaskHandle, TaskId } from "../types";
 import { Task } from "../types";
 import { Renderer } from "./renderer/renderer";
 import { ProgressStdio } from "./stdio";
@@ -109,7 +109,7 @@ const makeProgressService = Effect.gen(function* () {
     }),
   ) as InternalTaskApi;
 
-  const task: ProgressService["task"] = dual(
+  const task: ProgressShape["task"] = dual(
     2,
     <A, E, R>(
       effectOrCallback:
@@ -165,7 +165,7 @@ const makeProgressService = Effect.gen(function* () {
     setMetadata,
     getMetadata,
     task,
-  } satisfies ProgressService;
+  } satisfies ProgressShape;
 
   return Progress.of(service);
 });
@@ -189,7 +189,7 @@ const serviceOptionDefaultLayer = <I, S, E, R>(
 
 export class Progress extends Context.Tag("stromseng.dev/effective-progress/Progress")<
   Progress,
-  ProgressService
+  ProgressShape
 >() {
   static readonly Default = Layer.scoped(Progress, makeProgressService).pipe(
     Layer.provide(

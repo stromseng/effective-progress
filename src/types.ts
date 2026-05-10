@@ -155,7 +155,7 @@ export interface TaskStore {
   readonly columns: Map<TaskId, ReadonlyArray<ColumnDef<any, any>>>;
 }
 
-export interface ProgressService {
+export interface ProgressShape {
   // biome-ignore lint: any is needed here — the store is heterogeneous
   readonly addTask: (options: AddTaskOptions<any>) => Effect.Effect<TaskId>;
   readonly updateTask: (taskId: TaskId, options: UpdateTaskOptions) => Effect.Effect<void>;

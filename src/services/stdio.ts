@@ -1,18 +1,18 @@
 import { Context, Layer } from "effect";
 
-export interface ProgressStdioService {
+export interface ProgressStdioShape {
   readonly stdout: NodeJS.WriteStream;
   readonly stderr: NodeJS.WriteStream;
 }
 
-const defaultStdioService: ProgressStdioService = {
+const defaultStdioService: ProgressStdioShape = {
   stdout: process.stdout,
   stderr: process.stderr,
 };
 
 export class ProgressStdio extends Context.Tag("stromseng.dev/effective-progress/ProgressStdio")<
   ProgressStdio,
-  ProgressStdioService
+  ProgressStdioShape
 >() {
   static readonly Default = Layer.succeed(ProgressStdio, defaultStdioService);
 }

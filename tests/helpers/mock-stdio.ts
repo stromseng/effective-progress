@@ -1,5 +1,5 @@
 import { PassThrough } from "node:stream";
-import type { ProgressStdioService } from "../../src/services/stdio";
+import type { ProgressStdioShape } from "../../src/services/stdio";
 
 interface MockWriteStreamOptions {
   readonly isTTY: boolean;
@@ -19,7 +19,7 @@ interface MockStdioOptions {
 }
 
 export interface MockStdioHandle {
-  readonly service: ProgressStdioService;
+  readonly service: ProgressStdioShape;
   readonly stdout: MockWriteStreamHandle;
   readonly stderr: MockWriteStreamHandle;
 }

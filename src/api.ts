@@ -5,7 +5,7 @@ import { Progress } from "./services/progress";
 import { Task } from "./types";
 import type {
   AddTaskOptions,
-  ProgressService,
+  ProgressShape,
   TaskCountDisplay,
   TaskHandle,
   TaskId,
@@ -122,7 +122,7 @@ const allCountDisplay = (mode: EffectAllExecutionOptions["mode"]): TaskCountDisp
   isCollectAllMode(mode) ? "detailed" : "processedOnly";
 
 const wrapTrackedEffect = (
-  progress: ProgressService,
+  progress: ProgressShape,
   taskId: TaskId,
   effect: Effect.Effect<any, any, any>,
 ) =>
@@ -142,7 +142,7 @@ const wrapTrackedEffect = (
     return yield* Effect.failCause(exit.cause);
   });
 
-const isTaskFullyProcessed = (progress: ProgressService, taskId: TaskId) =>
+const isTaskFullyProcessed = (progress: ProgressShape, taskId: TaskId) =>
   Effect.gen(function* () {
     const taskOption = yield* progress.getTask(taskId);
     if (Option.isNone(taskOption)) {
