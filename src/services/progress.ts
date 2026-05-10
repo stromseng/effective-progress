@@ -3,7 +3,7 @@ import { dual } from "effect/Function";
 import { ProgressStore, LayerProgressStoreDefault } from "../renderer/store";
 import type { AddTaskOptions, ProgressService, TaskHandle, TaskId } from "../types";
 import { Task } from "../types";
-import { Renderer } from "./ink-renderer";
+import { Renderer } from "./renderer";
 import { ProgressStdio } from "./stdio";
 
 interface InternalTaskApi {
