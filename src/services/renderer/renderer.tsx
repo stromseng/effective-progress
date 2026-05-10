@@ -7,7 +7,7 @@ import { ProgressStore, type ProgressStoreShape } from "../store/store";
 import { useProgressRenderView } from "./hooks/use-progress-render-view";
 import { ProgressStdio } from "../stdio";
 
-interface RendererService {
+interface RendererShape {
   readonly run: Effect.Effect<void>;
 }
 
@@ -55,12 +55,12 @@ export const makeRendererv2InkRendererService = Effect.gen(function* () {
         ),
       ),
     ),
-  } satisfies RendererService;
+  } satisfies RendererShape;
 });
 
 export class Renderer extends Context.Tag("stromseng.dev/effective-progress/Renderer")<
   Renderer,
-  RendererService
+  RendererShape
 >() {
   static readonly Default = Layer.effect(Renderer, makeRendererv2InkRendererService);
 }
