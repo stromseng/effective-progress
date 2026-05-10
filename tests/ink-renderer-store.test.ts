@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { makeProgressRenderStore } from "../src/renderer/store";
+import { makeProgressRenderStore } from "../src/services/store/store";
 
 const waitFor = async (
   predicate: () => boolean,

@@ -1,7 +1,7 @@
-import { resolveColumnSizeValue } from "../columns";
-import { defaults } from "../columns";
-import type { CellInfo, ColumnDef, TaskId } from "../types";
-import type { TaskRowModel } from "./store/types";
+import { resolveColumnSizeValue } from "../../columns";
+import { defaults } from "../../columns";
+import type { CellInfo, ColumnDef, TaskId } from "../../types";
+import type { TaskRowModel } from "../store/types";
 
 const NO_PREPARE = Symbol("no-prepare");
 type PrepareFn = NonNullable<ColumnDef<any, any>["prepare"]>;

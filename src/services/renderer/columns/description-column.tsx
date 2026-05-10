@@ -1,9 +1,9 @@
 import cliSpinners, { type SpinnerName } from "cli-spinners";
 import { Box, Text, useBoxMetrics, type DOMElement } from "ink";
 import { useRef } from "react";
-import type { CellInfo, TaskSnapshot } from "../../types";
+import type { CellInfo, TaskSnapshot } from "../../../types";
 import { useSpinnerTick } from "../context/spinner-context";
-import type { TaskRowModel } from "../store/types";
+import type { TaskRowModel } from "../../store/types";
 
 const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
 type TaskIndicatorColor = "green" | "yellow" | "red";

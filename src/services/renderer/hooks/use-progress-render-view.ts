@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import type { ProgressStore, RenderPublication } from "../store";
-import { toRenderSnapshot, type RenderSnapshot } from "./render-snapshot";
+import type { ProgressStore, RenderPublication } from "../../store/store";
+import { toRenderSnapshot, type RenderSnapshot } from "../../store/render-snapshot";
 
 interface ProgressRenderView {
   readonly publication: RenderPublication;

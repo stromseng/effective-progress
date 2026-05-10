@@ -1,11 +1,11 @@
 import { Box, Text, useBoxMetrics, type DOMElement } from "ink";
 import type { ReactElement, ReactNode } from "react";
 import { useRef } from "react";
-import type { ColumnAlign, ColumnDef, TaskId } from "../types";
+import type { ColumnAlign, ColumnDef, TaskId } from "../../types";
 import { useNow } from "./context/now-context";
 import { useSpinnerTick } from "./context/spinner-context";
 import { resolveColumns, type ResolvedColumnPosition } from "./column-resolver";
-import type { TaskRowModel } from "./store/types";
+import type { TaskRowModel } from "../store/types";
 
 interface ProgressRendererProps {
   readonly rows: ReadonlyArray<TaskRowModel>;

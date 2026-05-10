@@ -1,11 +1,11 @@
 import { Context, Effect, Layer } from "effect";
 import { render } from "ink";
-import { NowProvider } from "../renderer/context/now-context";
-import { SpinnerProvider } from "../renderer/context/spinner-context";
-import { ProgressRenderer } from "../renderer/public-api";
-import { ProgressStore } from "../renderer/store";
-import { useProgressRenderView } from "../renderer/store/use-progress-render-view";
-import { ProgressStdio } from "./stdio";
+import { NowProvider } from "./context/now-context";
+import { SpinnerProvider } from "./context/spinner-context";
+import { ProgressRenderer } from "./public-api";
+import { ProgressStore } from "../store/store";
+import { useProgressRenderView } from "./hooks/use-progress-render-view";
+import { ProgressStdio } from "../stdio";
 
 interface RendererService {
   readonly run: Effect.Effect<void>;

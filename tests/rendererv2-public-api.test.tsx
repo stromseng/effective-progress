@@ -2,11 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { renderToString } from "ink";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
-import { resolveColumns } from "../src/renderer/column-resolver";
-import { NowProvider } from "../src/renderer/context/now-context";
-import { ProgressRenderer } from "../src/renderer/public-api";
-import { SpinnerProvider } from "../src/renderer/context/spinner-context";
-import type { TaskRowModel } from "../src/renderer/store/types";
+import { resolveColumns } from "../src/services/renderer/column-resolver";
+import { NowProvider } from "../src/services/renderer/context/now-context";
+import { ProgressRenderer } from "../src/services/renderer/public-api";
+import { SpinnerProvider } from "../src/services/renderer/context/spinner-context";
+import type { TaskRowModel } from "../src/services/store/types";
 
 const deriveRow = (task: Progress.TaskSnapshot): TaskRowModel => ({
   task,

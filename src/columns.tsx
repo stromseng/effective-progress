@@ -3,16 +3,16 @@ import {
   AmountCell,
   measureAmountLayout,
   type AmountLayout,
-} from "./renderer/columns/amount-column";
-import { BarCell, prepareBar, type BarPrepared } from "./renderer/columns/bar-column";
+} from "./services/renderer/columns/amount-column";
+import { BarCell, prepareBar, type BarPrepared } from "./services/renderer/columns/bar-column";
 import {
   DescriptionCell,
   prepareDescription,
   type DescriptionPrepared,
-} from "./renderer/columns/description-column";
-import { ElapsedEtaCell } from "./renderer/columns/elapsed-eta-column";
-import { ElapsedCell } from "./renderer/columns/elapsed-column";
-import { EtaCell } from "./renderer/columns/eta-column";
+} from "./services/renderer/columns/description-column";
+import { ElapsedEtaCell } from "./services/renderer/columns/elapsed-eta-column";
+import { ElapsedCell } from "./services/renderer/columns/elapsed-column";
+import { EtaCell } from "./services/renderer/columns/eta-column";
 
 export type { AmountLayout, BarPrepared, DescriptionPrepared };
 

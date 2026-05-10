@@ -7,8 +7,8 @@ import type {
   TaskId,
   TaskStore,
   UpdateTaskOptions,
-} from "../types";
-import { TaskId as makeTaskId, TaskSnapshot } from "../types";
+} from "../../types";
+import { TaskId as makeTaskId, TaskSnapshot } from "../../types";
 import {
   TaskAddedEvent,
   TaskAdvancedEvent,
@@ -16,7 +16,7 @@ import {
   TaskFailedEvent,
   TaskRemovedEvent,
   TaskUpdatedEvent,
-} from "../types";
+} from "../../types";
 
 interface TaskCounts {
   readonly succeeded: number;

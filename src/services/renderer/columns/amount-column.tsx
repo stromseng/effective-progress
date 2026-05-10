@@ -1,5 +1,5 @@
 import { Text } from "ink";
-import type { CellInfo, TaskSnapshot } from "../../types";
+import type { CellInfo, TaskSnapshot } from "../../../types";
 import { isDeterminate } from "../shared/determinate";
 import { formatAmount } from "../shared/format";
 import { textWidth } from "../shared/text-width";

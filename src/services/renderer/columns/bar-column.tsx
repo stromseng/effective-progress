@@ -1,7 +1,7 @@
 import { Text } from "ink";
-import type { CellInfo } from "../../types";
+import type { CellInfo } from "../../../types";
 import { isDeterminate } from "../shared/determinate";
-import type { TaskRowModel } from "../store/types";
+import type { TaskRowModel } from "../../store/types";
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));

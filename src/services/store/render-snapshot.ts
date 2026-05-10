@@ -1,5 +1,5 @@
 import type { TaskStore } from "../../types";
-import { textWidth } from "../shared/text-width";
+import { textWidth } from "../renderer/shared/text-width";
 import type { OrderedTask, TaskRowModel } from "./types";
 
 const orderedVisibleTasks = (store: TaskStore): ReadonlyArray<OrderedTask> =>

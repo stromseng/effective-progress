@@ -1,9 +1,9 @@
 import { Context, Effect, Exit, FiberRef, Layer, Option } from "effect";
 import { dual } from "effect/Function";
-import { ProgressStore, LayerProgressStoreDefault } from "../renderer/store";
+import { ProgressStore, LayerProgressStoreDefault } from "./store/store";
 import type { AddTaskOptions, ProgressService, TaskHandle, TaskId } from "../types";
 import { Task } from "../types";
-import { Renderer } from "./renderer";
+import { Renderer } from "./renderer/renderer";
 import { ProgressStdio } from "./stdio";
 
 interface InternalTaskApi {

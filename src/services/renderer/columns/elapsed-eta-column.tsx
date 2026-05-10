@@ -1,8 +1,8 @@
 import { Text } from "ink";
-import { formatElapsed } from "../shared/format";
-import type { TaskRowModel } from "../store/types";
+import { formatElapsedEta } from "../shared/format";
+import type { TaskRowModel } from "../../store/types";
 
-export const ElapsedCell = ({
+export const ElapsedEtaCell = ({
   task,
   now,
 }: {
@@ -11,7 +11,7 @@ export const ElapsedCell = ({
 }) => {
   return (
     <Text wrap="truncate-end" color="gray">
-      {formatElapsed(task, now)}
+      {formatElapsedEta(task, now)}
     </Text>
   );
 };
