@@ -3,7 +3,7 @@ import { render } from "ink";
 import { NowProvider } from "./context/now-context";
 import { SpinnerProvider } from "./context/spinner-context";
 import { ProgressRenderer } from "./public-api";
-import { ProgressStore } from "../store/store";
+import { ProgressStore, type ProgressStoreShape } from "../store/store";
 import { useProgressRenderView } from "./hooks/use-progress-render-view";
 import { ProgressStdio } from "../stdio";
 
@@ -13,7 +13,7 @@ interface RendererService {
 
 const MAX_FPS = 24;
 
-const ProgressRoot = ({ store }: { readonly store: ProgressStore }) => {
+const ProgressRoot = ({ store }: { readonly store: ProgressStoreShape }) => {
   const { renderSnapshot, hasRunningTasks, publication } = useProgressRenderView(store);
 
   return (

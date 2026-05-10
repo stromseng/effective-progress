@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { makeProgressRenderStore } from "../src/services/store/store";
+import { makeProgressStore } from "../src/services/store/store";
 
 const waitFor = async (
   predicate: () => boolean,
@@ -30,7 +30,7 @@ const waitFor = async (
 
 describe("progress render store", () => {
   test("coalesces rapid task updates into a single published snapshot", async () => {
-    const store = makeProgressRenderStore();
+    const store = makeProgressStore();
     let notifications = 0;
 
     store.subscribe(() => {
@@ -68,7 +68,7 @@ describe("progress render store", () => {
   });
 
   test("flush publishes pending updates immediately", async () => {
-    const store = makeProgressRenderStore();
+    const store = makeProgressStore();
     let notifications = 0;
 
     store.subscribe(() => {

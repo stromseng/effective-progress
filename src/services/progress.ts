@@ -1,6 +1,6 @@
 import { Context, Effect, Exit, FiberRef, Layer, Option } from "effect";
 import { dual } from "effect/Function";
-import { ProgressStore, LayerProgressStoreDefault } from "./store/store";
+import { ProgressStore } from "./store/store";
 import type { AddTaskOptions, ProgressService, TaskHandle, TaskId } from "../types";
 import { Task } from "../types";
 import { Renderer } from "./renderer/renderer";
@@ -170,31 +170,33 @@ const makeProgressService = Effect.gen(function* () {
   return Progress.of(service);
 });
 
+/**
+ * Returns a layer that uses an already-provided service for the given tag when available,
+ * or falls back to the supplied default layer otherwise.
+ */
+const serviceOptionDefaultLayer = <I, S, E, R>(
+  tag: Context.Tag<I, S>,
+  defaultLayer: Layer.Layer<I, E, R>,
+) =>
+  Layer.unwrapEffect(
+    Effect.map(Effect.serviceOption(tag), (option) =>
+      Option.getOrElse(
+        Option.map(option, (service) => Layer.succeed(tag, service)),
+        () => defaultLayer,
+      ),
+    ),
+  );
+
 export class Progress extends Context.Tag("stromseng.dev/effective-progress/Progress")<
   Progress,
   ProgressService
 >() {
-  static readonly Default = Layer.unwrapEffect(
-    Effect.gen(function* () {
-      const stdioOption = yield* Effect.serviceOption(ProgressStdio);
-      const rendererOption = yield* Effect.serviceOption(Renderer);
-
-      const stdioLayer = Option.match(stdioOption, {
-        onNone: () => ProgressStdio.Default,
-        onSome: (stdio) => Layer.succeed(ProgressStdio, stdio),
-      });
-      const rendererLayer = Option.match(rendererOption, {
-        onNone: () => Renderer.Default,
-        onSome: (inkRenderer) => Layer.succeed(Renderer, inkRenderer),
-      });
-
-      const dependencies = rendererLayer.pipe(
-        Layer.provideMerge(stdioLayer),
-        Layer.provideMerge(LayerProgressStoreDefault),
-      );
-      const layer = Layer.scoped(Progress, makeProgressService).pipe(Layer.provide(dependencies));
-
-      return layer;
-    }),
+  static readonly Default = Layer.scoped(Progress, makeProgressService).pipe(
+    Layer.provide(
+      serviceOptionDefaultLayer(Renderer, Renderer.Default).pipe(
+        Layer.provideMerge(serviceOptionDefaultLayer(ProgressStdio, ProgressStdio.Default)),
+        Layer.provideMerge(ProgressStore.Default),
+      ),
+    ),
   );
 }

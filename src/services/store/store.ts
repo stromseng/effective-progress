@@ -32,7 +32,7 @@ export interface RenderPublication {
   readonly events: ReadonlyArray<ProgressTaskEvent>;
 }
 
-export interface ProgressStore {
+export interface ProgressStoreShape {
   readonly getSnapshot: () => RenderPublication;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
@@ -48,10 +48,6 @@ export interface ProgressStore {
   readonly setMetadata: (taskId: TaskId, metadata: unknown) => Effect.Effect<void>;
   readonly getMetadata: (taskId: TaskId) => Effect.Effect<unknown>;
 }
-
-export const ProgressStore = Context.GenericTag<ProgressStore>(
-  "stromseng.dev/effective-progress/ProgressStore",
-);
 
 const hasExplicitTotal = (options: Pick<AddTaskOptions | UpdateTaskOptions, "total">) =>
   Object.prototype.hasOwnProperty.call(options, "total");
@@ -215,7 +211,7 @@ interface StateUpdate {
 
 const SNAPSHOT_PUBLISH_INTERVAL_MILLIS = 100;
 
-export const makeProgressRenderStore = () => {
+export const makeProgressStore = (): ProgressStoreShape => {
   let nextTaskId = 0;
   let state: TaskStore = {
     tasks: new Map<TaskId, TaskSnapshot>(),
@@ -303,7 +299,7 @@ export const makeProgressRenderStore = () => {
     publish(transform(state));
   };
 
-  const store = {
+  const store: ProgressStoreShape = {
     getSnapshot: () => publishedPublication,
     subscribe: (listener) => {
       listeners.add(listener);
@@ -655,12 +651,17 @@ export const makeProgressRenderStore = () => {
         const task = state.tasks.get(taskId);
         return task?.metadata;
       }),
-  } satisfies ProgressStore;
+  };
 
   return store;
 };
 
-export const LayerProgressStoreDefault = Layer.effect(
+export class ProgressStore extends Context.Tag("stromseng.dev/effective-progress/ProgressStore")<
   ProgressStore,
-  Effect.sync(() => makeProgressRenderStore()),
-);
+  ProgressStoreShape
+>() {
+  static readonly Default = Layer.effect(
+    ProgressStore,
+    Effect.sync(() => makeProgressStore()),
+  );
+}
