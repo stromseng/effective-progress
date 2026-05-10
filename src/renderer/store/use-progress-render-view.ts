@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import type { ProgressRenderStore, RenderPublication } from "../store";
+import type { ProgressStore, RenderPublication } from "../store";
 import { toRenderSnapshot, type RenderSnapshot } from "./render-snapshot";
 
 interface ProgressRenderView {
@@ -23,7 +23,7 @@ const useRenderSnapshot = (storeSnapshot: RenderPublication["snapshot"]): Render
   return renderSnapshot;
 };
 
-export const useProgressRenderView = (store: ProgressRenderStore): ProgressRenderView => {
+export const useProgressRenderView = (store: ProgressStore): ProgressRenderView => {
   const publication = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const renderSnapshot = useRenderSnapshot(publication.snapshot);
   const hasRunningTasks = renderSnapshot.rows.some((row) => row.task.status === "running");

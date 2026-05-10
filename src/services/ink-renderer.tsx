@@ -1,21 +1,66 @@
-import { Context, Layer } from "effect";
-import { makeRendererv2InkRendererService } from "../renderer/renderer-service";
-import type { ProgressRenderStore } from "../renderer/store";
-import type { ProgressStdioService } from "./stdio";
+import { Context, Effect, Layer } from "effect";
+import { render } from "ink";
+import { NowProvider } from "../renderer/context/now-context";
+import { SpinnerProvider } from "../renderer/context/spinner-context";
+import { ProgressRenderer } from "../renderer/public-api";
+import { ProgressStore } from "../renderer/store";
+import { useProgressRenderView } from "../renderer/store/use-progress-render-view";
+import { ProgressStdio } from "./stdio";
 
-interface InkRendererService {
-  readonly run: (
-    store: ProgressRenderStore,
-    stdio: ProgressStdioService,
-  ) => import("effect").Effect.Effect<void>;
+interface RendererService {
+  readonly run: Effect.Effect<void>;
 }
 
-export class InkRenderer extends Context.Tag("stromseng.dev/effective-progress/InkRenderer")<
-  InkRenderer,
-  InkRendererService
->() {
-  static readonly Default = Layer.succeed(
-    InkRenderer,
-    InkRenderer.of(makeRendererv2InkRendererService()),
+const MAX_FPS = 24;
+
+const ProgressRoot = ({ store }: { readonly store: ProgressStore }) => {
+  const { renderSnapshot, hasRunningTasks, publication } = useProgressRenderView(store);
+
+  return (
+    <SpinnerProvider active={hasRunningTasks}>
+      <NowProvider active={hasRunningTasks}>
+        <ProgressRenderer rows={renderSnapshot.rows} columns={publication.snapshot.columns} />
+      </NowProvider>
+    </SpinnerProvider>
   );
+};
+
+export const makeRendererv2InkRendererService = Effect.gen(function* () {
+  const store = yield* ProgressStore;
+  const stdio = yield* ProgressStdio;
+  const proot = <ProgressRoot store={store} />;
+
+  return {
+    run: Effect.sync(() =>
+      render(proot, {
+        stdout: stdio.stdout,
+        stderr: stdio.stderr,
+        patchConsole: true,
+        exitOnCtrlC: false,
+        debug: false,
+        maxFps: MAX_FPS,
+      }),
+    ).pipe(
+      Effect.flatMap((instance) =>
+        Effect.never.pipe(
+          Effect.ensuring(
+            Effect.gen(function* () {
+              store.flush();
+              instance.rerender(proot);
+              yield* Effect.sync(() => {
+                instance.unmount();
+              });
+            }),
+          ),
+        ),
+      ),
+    ),
+  } satisfies RendererService;
+});
+
+export class Renderer extends Context.Tag("stromseng.dev/effective-progress/Renderer")<
+  Renderer,
+  RendererService
+>() {
+  static readonly Default = Layer.effect(Renderer, makeRendererv2InkRendererService);
 }

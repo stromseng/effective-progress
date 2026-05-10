@@ -1,4 +1,4 @@
-import { Clock, Effect, Option } from "effect";
+import { Clock, Context, Effect, Layer, Option } from "effect";
 import type {
   AddTaskOptions,
   ColumnDef,
@@ -32,7 +32,7 @@ export interface RenderPublication {
   readonly events: ReadonlyArray<ProgressTaskEvent>;
 }
 
-export interface ProgressRenderStore {
+export interface ProgressStore {
   readonly getSnapshot: () => RenderPublication;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
@@ -48,6 +48,10 @@ export interface ProgressRenderStore {
   readonly setMetadata: (taskId: TaskId, metadata: unknown) => Effect.Effect<void>;
   readonly getMetadata: (taskId: TaskId) => Effect.Effect<unknown>;
 }
+
+export const ProgressStore = Context.GenericTag<ProgressStore>(
+  "stromseng.dev/effective-progress/ProgressStore",
+);
 
 const hasExplicitTotal = (options: Pick<AddTaskOptions | UpdateTaskOptions, "total">) =>
   Object.prototype.hasOwnProperty.call(options, "total");
@@ -651,7 +655,12 @@ export const makeProgressRenderStore = () => {
         const task = state.tasks.get(taskId);
         return task?.metadata;
       }),
-  } satisfies ProgressRenderStore;
+  } satisfies ProgressStore;
 
   return store;
 };
+
+export const LayerProgressStoreDefault = Layer.effect(
+  ProgressStore,
+  Effect.sync(() => makeProgressRenderStore()),
+);

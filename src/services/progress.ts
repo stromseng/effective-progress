@@ -1,9 +1,9 @@
 import { Context, Effect, Exit, FiberRef, Layer, Option } from "effect";
 import { dual } from "effect/Function";
-import { makeProgressRenderStore } from "../renderer/store";
+import { ProgressStore, LayerProgressStoreDefault } from "../renderer/store";
 import type { AddTaskOptions, ProgressService, TaskHandle, TaskId } from "../types";
 import { Task } from "../types";
-import { InkRenderer } from "./ink-renderer";
+import { Renderer } from "./ink-renderer";
 import { ProgressStdio } from "./stdio";
 
 interface InternalTaskApi {
@@ -26,17 +26,16 @@ interface InternalTaskApi {
 
 /** Builds the scoped implementation used by `ProgressService.task(...)` without auto-providing services. */
 const makeProgressService = Effect.gen(function* () {
-  const stdio = yield* ProgressStdio;
-  const inkRenderer = yield* InkRenderer;
+  const inkRenderer = yield* Renderer;
   const outerConsole = yield* Effect.console;
-  const store = makeProgressRenderStore();
+  const store = yield* ProgressStore;
   const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
   const scope = yield* Effect.scope;
 
   const log = (...args: ReadonlyArray<unknown>) =>
     args.length === 0 ? Effect.void : outerConsole.log(...args);
 
-  yield* Effect.forkIn(inkRenderer.run(store, stdio), scope);
+  yield* Effect.forkIn(inkRenderer.run, scope);
   // Let the renderer fiber start so queued logs are reliably flushed on scope teardown.
   yield* Effect.sleep("0 millis");
 
@@ -178,17 +177,24 @@ export class Progress extends Context.Tag("stromseng.dev/effective-progress/Prog
   static readonly Default = Layer.unwrapEffect(
     Effect.gen(function* () {
       const stdioOption = yield* Effect.serviceOption(ProgressStdio);
-      const inkRendererOption = yield* Effect.serviceOption(InkRenderer);
-      let layer: Layer.Layer<Progress, never, any> = Layer.scoped(Progress, makeProgressService);
+      const rendererOption = yield* Effect.serviceOption(Renderer);
 
-      if (Option.isNone(inkRendererOption)) {
-        layer = layer.pipe(Layer.provide(InkRenderer.Default));
-      }
-      if (Option.isNone(stdioOption)) {
-        layer = layer.pipe(Layer.provide(ProgressStdio.Default));
-      }
+      const stdioLayer = Option.match(stdioOption, {
+        onNone: () => ProgressStdio.Default,
+        onSome: (stdio) => Layer.succeed(ProgressStdio, stdio),
+      });
+      const rendererLayer = Option.match(rendererOption, {
+        onNone: () => Renderer.Default,
+        onSome: (inkRenderer) => Layer.succeed(Renderer, inkRenderer),
+      });
 
-      return layer as Layer.Layer<Progress, never, never>;
+      const dependencies = rendererLayer.pipe(
+        Layer.provideMerge(stdioLayer),
+        Layer.provideMerge(LayerProgressStoreDefault),
+      );
+      const layer = Layer.scoped(Progress, makeProgressService).pipe(Layer.provide(dependencies));
+
+      return layer;
     }),
   );
 }
