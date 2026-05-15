@@ -52,20 +52,12 @@ export interface ProgressStoreShape {
 const hasExplicitTotal = (options: Pick<AddTaskOptions | UpdateTaskOptions, "total">) =>
   Object.prototype.hasOwnProperty.call(options, "total");
 
-const sanitizeTotalOnAdd = (total: number | undefined) => {
+const sanitizeTotal = (total: number | undefined) => {
   if (total === undefined) {
     return undefined;
   }
 
   return total < 0 ? undefined : total;
-};
-
-const sanitizeTotalOnUpdate = (nextTotal: number | undefined) => {
-  if (nextTotal === undefined) {
-    return undefined;
-  }
-
-  return nextTotal < 0 ? undefined : nextTotal;
 };
 
 const normalizeUnits = (counts: TaskCounts) => {
@@ -106,15 +98,16 @@ const appendProgressSample = (
   // Keep one sample immediately before the rolling window when possible. That gives the ETA
   // calculation a usable delta even just after old samples age out of the 30s window.
   const windowStart = now - ETA_SAMPLE_WINDOW_MILLIS;
-  const nextSamples = [...previousSamples, { timestamp: now, processed }];
+  const appendedLength = previousSamples.length + 1;
+  let firstRetainedIndex = Math.max(0, appendedLength - ETA_SAMPLE_MAX_LENGTH);
   while (
-    nextSamples.length > 2 &&
-    (nextSamples.length > ETA_SAMPLE_MAX_LENGTH || nextSamples[1]!.timestamp < windowStart)
+    firstRetainedIndex + 1 < previousSamples.length &&
+    previousSamples[firstRetainedIndex + 1]!.timestamp < windowStart
   ) {
-    nextSamples.shift();
+    firstRetainedIndex++;
   }
 
-  return nextSamples;
+  return [...previousSamples.slice(firstRetainedIndex), { timestamp: now, processed }];
 };
 
 /** Applies mutable task fields and records a progress sample when the processed count changes. */
@@ -129,9 +122,7 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions, now
       : normalizeUnits({
           succeeded: options.succeeded ?? currentUnits.succeeded,
           failed: options.failed ?? currentUnits.failed,
-          total: hasExplicitTotal(options)
-            ? sanitizeTotalOnUpdate(options.total)
-            : currentUnits.total,
+          total: hasExplicitTotal(options) ? sanitizeTotal(options.total) : currentUnits.total,
         });
 
   return TaskSnapshot({
@@ -208,6 +199,28 @@ interface StateUpdate {
   readonly state: TaskStore;
   readonly events: ReadonlyArray<ProgressTaskEvent>;
 }
+
+const removeTransientSubtree = (
+  current: TaskStore,
+  nextTasks: Map<TaskId, TaskSnapshot>,
+  taskId: TaskId,
+) => {
+  const removedTaskIds = subtreeTaskIds(current.renderOrder, taskId);
+  for (const removedTaskId of removedTaskIds) {
+    nextTasks.delete(removedTaskId);
+  }
+
+  const nextColumns = new Map(current.columns);
+  for (const removedTaskId of removedTaskIds) {
+    nextColumns.delete(removedTaskId);
+  }
+
+  return {
+    removedTaskIds,
+    renderOrder: removeFromRenderOrder(current.renderOrder, taskId),
+    columns: nextColumns,
+  };
+};
 
 const SNAPSHOT_PUBLISH_INTERVAL_MILLIS = 100;
 
@@ -320,7 +333,7 @@ export const makeProgressStore = (): ProgressStoreShape => {
         const units = normalizeUnits({
           succeeded: 0,
           failed: 0,
-          total: sanitizeTotalOnAdd(options.total),
+          total: sanitizeTotal(options.total),
         });
         const parentSnapshot =
           options.parentId === undefined ? undefined : state.tasks.get(options.parentId);
@@ -511,25 +524,17 @@ export const makeProgressStore = (): ProgressStoreShape => {
 
           const nextTasks = new Map(current.tasks);
           if (currentTask.transient) {
-            const removedTaskIds = subtreeTaskIds(current.renderOrder, taskId);
-            for (const removedTaskId of removedTaskIds) {
-              nextTasks.delete(removedTaskId);
-            }
-
-            const nextColumns = new Map(current.columns);
-            for (const removedTaskId of removedTaskIds) {
-              nextColumns.delete(removedTaskId);
-            }
+            const removedSubtree = removeTransientSubtree(current, nextTasks, taskId);
 
             return {
               state: {
                 tasks: nextTasks,
-                renderOrder: removeFromRenderOrder(current.renderOrder, taskId),
-                columns: nextColumns,
+                renderOrder: removedSubtree.renderOrder,
+                columns: removedSubtree.columns,
               },
               events: [
                 new TaskCompletedEvent({ taskId }),
-                ...removedTaskIds.map(
+                ...removedSubtree.removedTaskIds.map(
                   (removedTaskId) => new TaskRemovedEvent({ taskId: removedTaskId }),
                 ),
               ],
@@ -591,25 +596,17 @@ export const makeProgressStore = (): ProgressStoreShape => {
 
           const nextTasks = new Map(current.tasks);
           if (currentTask.transient) {
-            const removedTaskIds = subtreeTaskIds(current.renderOrder, taskId);
-            for (const removedTaskId of removedTaskIds) {
-              nextTasks.delete(removedTaskId);
-            }
-
-            const nextColumns = new Map(current.columns);
-            for (const removedTaskId of removedTaskIds) {
-              nextColumns.delete(removedTaskId);
-            }
+            const removedSubtree = removeTransientSubtree(current, nextTasks, taskId);
 
             return {
               state: {
                 tasks: nextTasks,
-                renderOrder: removeFromRenderOrder(current.renderOrder, taskId),
-                columns: nextColumns,
+                renderOrder: removedSubtree.renderOrder,
+                columns: removedSubtree.columns,
               },
               events: [
                 new TaskFailedEvent({ taskId }),
-                ...removedTaskIds.map(
+                ...removedSubtree.removedTaskIds.map(
                   (removedTaskId) => new TaskRemovedEvent({ taskId: removedTaskId }),
                 ),
               ],
