@@ -25,7 +25,7 @@ const ProgressRoot = ({ store }: { readonly store: ProgressStoreShape }) => {
   );
 };
 
-export const makeRendererv2InkRendererService = Effect.gen(function* () {
+const makeRendererv2InkRendererService = Effect.gen(function* () {
   const store = yield* ProgressStore;
   const stdio = yield* ProgressStdio;
   const proot = <ProgressRoot store={store} />;

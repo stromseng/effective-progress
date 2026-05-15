@@ -156,7 +156,6 @@ export interface TaskStore {
 }
 
 export interface ProgressShape {
-  // biome-ignore lint: any is needed here — the store is heterogeneous
   readonly addTask: (options: AddTaskOptions<any>) => Effect.Effect<TaskId>;
   readonly updateTask: (taskId: TaskId, options: UpdateTaskOptions) => Effect.Effect<void>;
   readonly incrementSucceeded: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
