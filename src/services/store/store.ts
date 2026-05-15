@@ -1,4 +1,4 @@
-import { Clock, Context, Effect, Layer, Option } from "effect";
+import { Clock, Context, Effect, Layer, Option, Queue } from "effect";
 import type {
   AddTaskOptions,
   ColumnDef,
@@ -224,7 +224,12 @@ const removeTransientSubtree = (
 
 const SNAPSHOT_PUBLISH_INTERVAL_MILLIS = 100;
 
-export const makeProgressStore = (): ProgressStoreShape => {
+interface ProgressStoreRuntime {
+  readonly store: ProgressStoreShape;
+  readonly publisherLoop: Effect.Effect<never>;
+}
+
+const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStoreRuntime => {
   let nextTaskId = 0;
   let state: TaskStore = {
     tasks: new Map<TaskId, TaskSnapshot>(),
@@ -237,8 +242,8 @@ export const makeProgressStore = (): ProgressStoreShape => {
     events: [],
   };
   let hasPendingPublish = false;
-  let lastPublishAt = 0;
-  let publishTimeout: ReturnType<typeof setTimeout> | undefined;
+  let lastPublishAt = -SNAPSHOT_PUBLISH_INTERVAL_MILLIS;
+  let latestObservedAt = 0;
   const listeners = new Set<() => void>();
 
   const notifyListeners = (): void => {
@@ -247,7 +252,7 @@ export const makeProgressStore = (): ProgressStoreShape => {
     }
   };
 
-  const publishNow = (): void => {
+  const publishNow = (publishedAt: number): void => {
     const nextPublication: RenderPublication = {
       snapshot: state,
       events: [...pendingEvents],
@@ -257,59 +262,61 @@ export const makeProgressStore = (): ProgressStoreShape => {
     publishedPublication = nextPublication;
     notifyListeners();
     pendingEvents = [];
-    lastPublishAt = Date.now();
+    lastPublishAt = publishedAt;
   };
 
-  const clearScheduledPublish = (): void => {
-    if (publishTimeout === undefined) {
-      return;
-    }
+  const publisherLoop = Effect.forever(
+    Effect.gen(function* () {
+      yield* Queue.take(publishQueue);
 
-    clearTimeout(publishTimeout);
-    publishTimeout = undefined;
-  };
+      const now = yield* Clock.currentTimeMillis;
+      const waitMillis = Math.max(0, SNAPSHOT_PUBLISH_INTERVAL_MILLIS - (now - lastPublishAt));
+      if (waitMillis > 0) {
+        yield* Clock.sleep(waitMillis);
+      }
+      if (!hasPendingPublish) {
+        return;
+      }
 
-  const schedulePublish = (): void => {
+      const publishAt = yield* Clock.currentTimeMillis;
+      publishNow(publishAt);
+    }),
+  );
+
+  const schedulePublish: Effect.Effect<void> = Effect.gen(function* () {
     if (!hasPendingPublish) {
       return;
     }
 
-    const now = Date.now();
+    const now = yield* Clock.currentTimeMillis;
     const waitMillis = Math.max(0, SNAPSHOT_PUBLISH_INTERVAL_MILLIS - (now - lastPublishAt));
     if (waitMillis === 0) {
-      clearScheduledPublish();
-      publishNow();
+      publishNow(now);
       return;
     }
 
-    if (publishTimeout !== undefined) {
-      return;
-    }
+    yield* Queue.offer(publishQueue, undefined);
+  });
 
-    publishTimeout = setTimeout(() => {
-      publishTimeout = undefined;
-      if (!hasPendingPublish) {
-        return;
-      }
-      publishNow();
-    }, waitMillis);
-  };
-
-  const publish = (update: StateUpdate): void => {
+  const publish = (update: StateUpdate, now: number): Effect.Effect<void> => {
     if (update.state === state) {
-      return;
+      return Effect.void;
     }
 
+    latestObservedAt = now;
     state = update.state;
     if (update.events.length > 0) {
       pendingEvents.push(...update.events);
     }
     hasPendingPublish = true;
-    schedulePublish();
+    return schedulePublish;
   };
 
-  const updateState = (transform: (current: TaskStore) => StateUpdate): void => {
-    publish(transform(state));
+  const updateState = (
+    transform: (current: TaskStore) => StateUpdate,
+    now: number,
+  ): Effect.Effect<void> => {
+    return publish(transform(state), now);
   };
 
   const store: ProgressStoreShape = {
@@ -324,8 +331,7 @@ export const makeProgressStore = (): ProgressStoreShape => {
       if (!hasPendingPublish) {
         return;
       }
-      clearScheduledPublish();
-      publishNow();
+      publishNow(latestObservedAt);
     },
     addTask: (options) =>
       Effect.gen(function* () {
@@ -354,7 +360,7 @@ export const makeProgressStore = (): ProgressStoreShape => {
           metadata: options.metadata,
         });
 
-        updateState((current) => {
+        yield* updateState((current) => {
           const nextTasks = new Map(current.tasks);
           nextTasks.set(taskId, task);
           const { index, depth } = findInsertionIndex(current.renderOrder, parentId);
@@ -381,7 +387,7 @@ export const makeProgressStore = (): ProgressStoreShape => {
               }),
             ],
           };
-        });
+        }, now);
 
         return taskId;
       }),
@@ -389,7 +395,7 @@ export const makeProgressStore = (): ProgressStoreShape => {
       Effect.gen(function* () {
         const now = yield* Clock.currentTimeMillis;
 
-        updateState((current) => {
+        yield* updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
             return { state: current, events: [] };
@@ -437,13 +443,13 @@ export const makeProgressStore = (): ProgressStoreShape => {
             state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
             events,
           };
-        });
+        }, now);
       }),
     incrementSucceeded: (taskId, amount = 1) =>
       Effect.gen(function* () {
         const now = yield* Clock.currentTimeMillis;
 
-        updateState((current) => {
+        yield* updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
             return { state: current, events: [] };
@@ -472,13 +478,13 @@ export const makeProgressStore = (): ProgressStoreShape => {
             state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
             events: [new TaskAdvancedEvent({ taskId, amount, kind: "succeeded" })],
           };
-        });
+        }, now);
       }),
     incrementFailed: (taskId, amount = 1) =>
       Effect.gen(function* () {
         const now = yield* Clock.currentTimeMillis;
 
-        updateState((current) => {
+        yield* updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
             return { state: current, events: [] };
@@ -507,13 +513,13 @@ export const makeProgressStore = (): ProgressStoreShape => {
             state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
             events: [new TaskAdvancedEvent({ taskId, amount, kind: "failed" })],
           };
-        });
+        }, now);
       }),
     completeTask: (taskId) =>
       Effect.gen(function* () {
         const now = yield* Clock.currentTimeMillis;
 
-        updateState((current) => {
+        yield* updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
             return { state: current, events: [] };
@@ -579,13 +585,13 @@ export const makeProgressStore = (): ProgressStoreShape => {
             state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
             events: [new TaskCompletedEvent({ taskId })],
           };
-        });
+        }, now);
       }),
     failTask: (taskId) =>
       Effect.gen(function* () {
         const now = yield* Clock.currentTimeMillis;
 
-        updateState((current) => {
+        yield* updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
             return { state: current, events: [] };
@@ -622,13 +628,15 @@ export const makeProgressStore = (): ProgressStoreShape => {
             state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
             events: [new TaskFailedEvent({ taskId })],
           };
-        });
+        }, now);
       }),
     getTask: (taskId) => Effect.sync(() => Option.fromNullable(state.tasks.get(taskId))),
     listTasks: Effect.sync(() => Array.from(state.tasks.values())),
     setMetadata: (taskId, metadata) =>
-      Effect.sync(() => {
-        updateState((current) => {
+      Effect.gen(function* () {
+        const now = yield* Clock.currentTimeMillis;
+
+        yield* updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
             return { state: current, events: [] };
@@ -641,7 +649,7 @@ export const makeProgressStore = (): ProgressStoreShape => {
             state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
             events: [],
           };
-        });
+        }, now);
       }),
     getMetadata: (taskId) =>
       Effect.sync(() => {
@@ -650,15 +658,19 @@ export const makeProgressStore = (): ProgressStoreShape => {
       }),
   };
 
-  return store;
+  return { store, publisherLoop };
 };
+
+export const makeProgressStore: Effect.Effect<ProgressStoreShape> = Effect.gen(function* () {
+  const publishQueue = yield* Queue.sliding<void>(1);
+  const runtime = makeProgressStoreRuntime(publishQueue);
+  yield* Effect.forkDaemon(runtime.publisherLoop);
+  return runtime.store;
+});
 
 export class ProgressStore extends Context.Tag("stromseng.dev/effective-progress/ProgressStore")<
   ProgressStore,
   ProgressStoreShape
 >() {
-  static readonly Default = Layer.effect(
-    ProgressStore,
-    Effect.sync(() => makeProgressStore()),
-  );
+  static readonly Default = Layer.effect(ProgressStore, makeProgressStore);
 }
