@@ -6,10 +6,10 @@ const TaskIdSchema = Schema.Number.pipe(Schema.brand("TaskId"));
 export type TaskId = typeof TaskIdSchema.Type;
 export const TaskId = Brand.nominal<TaskId>();
 
-export const TaskStatusSchema = Schema.Literal("running", "done", "failed");
+export const TaskStatusSchema = Schema.Literals(["running", "done", "failed"]);
 
 export type TaskStatus = typeof TaskStatusSchema.Type;
-export const TaskCountDisplaySchema = Schema.Literal("processedOnly", "detailed");
+export const TaskCountDisplaySchema = Schema.Literals(["processedOnly", "detailed"]);
 export type TaskCountDisplay = typeof TaskCountDisplaySchema.Type;
 export type ColumnAlign = "left" | "center" | "right";
 
@@ -195,7 +195,9 @@ export interface ProgressShape {
   };
 }
 
-export class Task extends Context.Tag("stromseng.dev/effective-progress/Task")<Task, TaskId>() {}
+export class Task extends Context.Service<Task, TaskId>()(
+  "stromseng.dev/effective-progress/Task",
+) {}
 
 export class TaskAddedEvent extends Schema.TaggedClass<TaskAddedEvent>()("TaskAdded", {
   taskId: TaskIdSchema,
@@ -220,7 +222,7 @@ export class TaskUpdatedEvent extends Schema.TaggedClass<TaskUpdatedEvent>()("Ta
 export class TaskAdvancedEvent extends Schema.TaggedClass<TaskAdvancedEvent>()("TaskAdvanced", {
   taskId: TaskIdSchema,
   amount: Schema.Number,
-  kind: Schema.Literal("succeeded", "failed"),
+  kind: Schema.Literals(["succeeded", "failed"]),
 }) {}
 
 export class TaskCompletedEvent extends Schema.TaggedClass<TaskCompletedEvent>()("TaskCompleted", {
@@ -235,14 +237,14 @@ export class TaskRemovedEvent extends Schema.TaggedClass<TaskRemovedEvent>()("Ta
   taskId: TaskIdSchema,
 }) {}
 
-export const ProgressTaskEventSchema = Schema.Union(
+export const ProgressTaskEventSchema = Schema.Union([
   TaskAddedEvent,
   TaskUpdatedEvent,
   TaskAdvancedEvent,
   TaskCompletedEvent,
   TaskFailedEvent,
   TaskRemovedEvent,
-);
+]);
 
 export type ProgressTaskEvent = typeof ProgressTaskEventSchema.Type;
 

@@ -80,4 +80,4 @@ const program = Effect.gen(function* () {
   );
 }).pipe(Progress.task({ description: "Showcase program", transient: false }));
 
-Effect.runPromise(program.pipe(Effect.provide(Logger.pretty)));
+Effect.runPromise(program.pipe(Effect.provide(Logger.layer([Logger.consolePretty()]))));

@@ -211,4 +211,4 @@ const program = Progress.task(
   },
 );
 
-Effect.runPromise(program.pipe(Effect.provide(Logger.pretty)));
+Effect.runPromise(program.pipe(Effect.provide(Logger.layer([Logger.consolePretty()]))));

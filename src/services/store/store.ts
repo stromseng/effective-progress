@@ -271,7 +271,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
       const now = yield* Clock.currentTimeMillis;
       const waitMillis = Math.max(0, SNAPSHOT_PUBLISH_INTERVAL_MILLIS - (now - lastPublishAt));
       if (waitMillis > 0) {
-        yield* Clock.sleep(waitMillis);
+        yield* Effect.sleep(waitMillis);
       }
       if (!hasPendingPublish) {
         return;
@@ -629,7 +629,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
           };
         }, now);
       }),
-    getTask: (taskId) => Effect.sync(() => Option.fromNullable(state.tasks.get(taskId))),
+    getTask: (taskId) => Effect.sync(() => Option.fromNullishOr(state.tasks.get(taskId))),
     listTasks: Effect.sync(() => Array.from(state.tasks.values())),
     setMetadata: (taskId, metadata) =>
       Effect.gen(function* () {
@@ -663,13 +663,12 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
 export const makeProgressStore: Effect.Effect<ProgressStoreShape> = Effect.gen(function* () {
   const publishQueue = yield* Queue.sliding<void>(1);
   const runtime = makeProgressStoreRuntime(publishQueue);
-  yield* Effect.forkDaemon(runtime.publisherLoop);
+  yield* Effect.forkDetach(runtime.publisherLoop);
   return runtime.store;
 });
 
-export class ProgressStore extends Context.Tag("stromseng.dev/effective-progress/ProgressStore")<
-  ProgressStore,
-  ProgressStoreShape
->() {
-  static readonly Default = Layer.effect(ProgressStore, makeProgressStore);
+export class ProgressStore extends Context.Service<ProgressStore, ProgressStoreShape>()(
+  "stromseng.dev/effective-progress/ProgressStore",
+) {
+  static readonly layer = Layer.effect(ProgressStore, makeProgressStore);
 }

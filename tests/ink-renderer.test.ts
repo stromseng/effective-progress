@@ -71,22 +71,15 @@ describe("Ink renderer integration", () => {
 
     const result = await captureStdioOutput(
       Effect.gen(function* () {
-        const outer = yield* Console.consoleWith((console) => Effect.succeed(console));
+        const outer = yield* Console.Console;
         const consoleSpy: Console.Console = {
           ...outer,
           log: (...args) => {
             logs.push(args);
-            return Effect.void;
-          },
-          unsafe: {
-            ...outer.unsafe,
-            log: (...args) => {
-              logs.push(args);
-            },
           },
         };
 
-        return yield* Effect.withConsole(
+        return yield* Effect.provideService(
           Progress.task(
             Effect.gen(function* () {
               yield* Console.log("custom-log-line");
@@ -94,6 +87,7 @@ describe("Ink renderer integration", () => {
             }),
             { description: "log-task", transient: false },
           ),
+          Console.Console,
           consoleSpy,
         );
       }),
@@ -344,7 +338,7 @@ describe("Ink renderer integration", () => {
           yield* progress.failTask(failFastId);
 
           const detailedId = yield* progress.addTask({
-            description: "either mode (collect all outcomes)",
+            description: "result mode (collect all outcomes)",
             total: 4,
             transient: false,
             countDisplay: "detailed",

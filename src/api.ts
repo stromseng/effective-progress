@@ -37,18 +37,16 @@ const provideProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     if (Option.isSome(existing)) {
       return yield* Effect.provideService(effect, Progress, existing.value);
     }
-    return yield* Effect.scoped(effect.pipe(Effect.provide(Progress.Default)));
+    return yield* Effect.scoped(Effect.provide(effect, Progress.layer, { local: true }));
   });
 
 export interface EffectExecutionOptions {
   readonly concurrency?: Concurrency;
-  readonly batching?: boolean | "inherit";
-  readonly concurrentFinalizers?: boolean;
 }
 
 export interface EffectAllExecutionOptions extends EffectExecutionOptions {
   readonly discard?: boolean;
-  readonly mode?: "default" | "validate" | "either";
+  readonly mode?: "default" | "result";
 }
 
 export type AllOptions = Omit<TrackOptions, "total" | "countDisplay"> & EffectAllExecutionOptions;
@@ -59,9 +57,9 @@ export type AllReturn<
   O extends EffectAllExecutionOptions,
 > = [
   [Arg] extends [ReadonlyArray<Effect.Effect<any, any, any>>]
-    ? Effect.All.ReturnTuple<Arg, Effect.All.IsDiscard<O>, Effect.All.ExtractMode<O>>
+    ? Effect.All.ReturnTuple<Arg, Effect.All.IsDiscard<O>, Effect.All.IsResult<O>>
     : [Arg] extends [Record<string, Effect.Effect<any, any, any>>]
-      ? Effect.All.ReturnObject<Arg, Effect.All.IsDiscard<O>, Effect.All.ExtractMode<O>>
+      ? Effect.All.ReturnObject<Arg, Effect.All.IsDiscard<O>, Effect.All.IsResult<O>>
       : never,
 ] extends [Effect.Effect<infer A, infer E, infer R>]
   ? Effect.Effect<A, E, Exclude<R, Progress | Task>>
@@ -115,8 +113,7 @@ const wrapEffects = (
 const countEffects = (effects: AllArg) =>
   Array.isArray(effects) ? effects.length : Object.keys(effects).length;
 
-const isCollectAllMode = (mode: EffectAllExecutionOptions["mode"]) =>
-  mode === "either" || mode === "validate";
+const isCollectAllMode = (mode: EffectAllExecutionOptions["mode"]) => mode === "result";
 
 const allCountDisplay = (mode: EffectAllExecutionOptions["mode"]): TaskCountDisplay =>
   isCollectAllMode(mode) ? "detailed" : "processedOnly";
@@ -134,7 +131,7 @@ const wrapTrackedEffect = (
       return exit.value;
     }
 
-    if (Cause.isInterruptedOnly(exit.cause)) {
+    if (Cause.hasInterruptsOnly(exit.cause)) {
       return yield* Effect.failCause(exit.cause);
     }
 
@@ -183,10 +180,8 @@ export const all: {
                   wrapEffects(effects, (effect) => wrapTrackedEffect(progress, taskId, effect)),
                   {
                     concurrency: options.concurrency,
-                    batching: options.batching,
                     discard: options.discard,
                     mode: options.mode,
-                    concurrentFinalizers: options.concurrentFinalizers,
                   },
                 ),
               );
@@ -253,9 +248,7 @@ export const forEach: {
                   (item, index) => wrapTrackedEffect(progress, taskId, f(item, index)),
                   {
                     concurrency: options.concurrency,
-                    batching: options.batching,
                     discard: options.discard,
-                    concurrentFinalizers: options.concurrentFinalizers,
                   },
                 ),
               );

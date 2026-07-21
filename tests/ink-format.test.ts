@@ -67,7 +67,7 @@ describe("determinate processed amount color", () => {
     expect(getDeterminateProcessedColor(task)).toBe("red");
   });
 
-  test("red for all failed after full validation", () => {
+  test("red when all result-mode effects failed", () => {
     const task = makeTask(
       {
         succeeded: 0,
