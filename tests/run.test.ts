@@ -157,6 +157,28 @@ describe("Progress.run", () => {
     ).toBe("Info");
   });
 
+  test("Progress.log forwards zero-argument calls to Effect loggers", async () => {
+    const { logs } = await Effect.runPromise(
+      withLoggerSpy(
+        withStdio(
+          Progress.task(
+            Effect.gen(function* () {
+              const progress = yield* Progress.Progress;
+              yield* progress.log();
+            }),
+            { description: "empty-log-message", transient: true },
+          ),
+        ),
+      ),
+    );
+
+    const emptyMessageLog = logs.find(
+      (entry) => Array.isArray(entry.message) && entry.message.length === 0,
+    );
+    expect(emptyMessageLog).toBeDefined();
+    expect(emptyMessageLog?.logLevel).toBe("Info");
+  });
+
   test("all returns the values from each effect", async () => {
     const result = await Effect.runPromise(
       withStdio(

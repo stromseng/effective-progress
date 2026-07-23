@@ -44,8 +44,7 @@ const makeProgressService = Effect.gen(function* () {
       : Option.none<TaskId>(),
   );
 
-  const log = (...args: ReadonlyArray<unknown>) =>
-    args.length === 0 ? Effect.void : Effect.log(...args);
+  const log = (...args: ReadonlyArray<unknown>) => Effect.log(...args);
 
   yield* Effect.forkIn(inkRenderer.run, scope, { startImmediately: true });
   // Let the renderer fiber start so queued logs are reliably flushed on scope teardown.
