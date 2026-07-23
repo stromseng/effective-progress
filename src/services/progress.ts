@@ -24,11 +24,25 @@ interface InternalTaskApi {
   ): Effect.Effect<A, E, Exclude<R, Task>>;
 }
 
+interface CurrentParentState {
+  readonly owner: symbol;
+  readonly taskId: TaskId;
+}
+
 /** Builds the scoped implementation used by `ProgressService.task(...)` without auto-providing services. */
 const makeProgressService = Effect.gen(function* () {
   const inkRenderer = yield* Renderer;
   const store = yield* ProgressStore;
   const scope = yield* Effect.scope;
+  const parentOwner = Symbol();
+
+  // Each Progress service has its own task store, but they all share CurrentParent.
+  // Ignore parent IDs created by another service so tasks never point into the wrong store.
+  const currentParentId = Effect.map(CurrentParent, (cp) =>
+    Option.isSome(cp) && cp.value.owner === parentOwner
+      ? Option.some(cp.value.taskId)
+      : Option.none<TaskId>(),
+  );
 
   const log = (...args: ReadonlyArray<unknown>) =>
     args.length === 0 ? Effect.void : Effect.log(...args);
@@ -40,7 +54,7 @@ const makeProgressService = Effect.gen(function* () {
   const addTask = (options: AddTaskOptions) =>
     Effect.gen(function* () {
       const resolvedParentId =
-        options.parentId === undefined ? yield* CurrentParent : Option.some(options.parentId);
+        options.parentId === undefined ? yield* currentParentId : Option.some(options.parentId);
       return yield* store.addTask({
         ...options,
         parentId: Option.isSome(resolvedParentId) ? resolvedParentId.value : undefined,
@@ -87,7 +101,7 @@ const makeProgressService = Effect.gen(function* () {
 
   const scopedTask = dual(2, <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
     Effect.gen(function* () {
-      const inheritedParentId = yield* CurrentParent;
+      const inheritedParentId = yield* currentParentId;
       const resolvedParentId =
         options.parentId === undefined ? inheritedParentId : Option.some(options.parentId);
 
@@ -100,7 +114,7 @@ const makeProgressService = Effect.gen(function* () {
       return yield* Effect.provideService(
         Effect.provideService(effect, Task, taskId),
         CurrentParent,
-        Option.some(taskId),
+        Option.some({ owner: parentOwner, taskId }),
       );
     }),
   ) as InternalTaskApi;
@@ -183,7 +197,7 @@ const serviceOptionDefaultLayer = <I, S, E, R>(
     ),
   );
 
-const CurrentParent = Context.Reference<Option.Option<TaskId>>(
+const CurrentParent = Context.Reference<Option.Option<CurrentParentState>>(
   "stromseng.dev/effective-progress/CurrentParent",
   { defaultValue: Option.none },
 );

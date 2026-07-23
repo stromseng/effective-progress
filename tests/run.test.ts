@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { Console, Effect, Exit, Logger, Option, Result } from "effect";
 import { pipe } from "effect/Function";
 import * as Progress from "../src";
+import { Renderer } from "../src/services/renderer/renderer";
 import { createMockStdio } from "./helpers/mock-stdio";
 
 const withLogSpy = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
@@ -71,6 +72,30 @@ describe("Progress.run", () => {
     );
 
     expect(reused).toBeTrue();
+  });
+
+  test("isolated nested Progress layer does not inherit the outer parent", async () => {
+    const inner = Effect.gen(function* () {
+      const progress = yield* Progress.Progress;
+      yield* progress.task(Effect.void, {
+        description: "isolated-inner",
+        transient: false,
+      });
+      return getTaskByDescription(yield* progress.listTasks, "isolated-inner");
+    });
+
+    const outer = Effect.gen(function* () {
+      const isolatedInner = Effect.scoped(
+        Effect.provide(inner, Progress.Progress.layer, { local: true }),
+      );
+      return yield* Progress.task(isolatedInner, { description: "outer", transient: false });
+    });
+
+    const innerTask = await Effect.runPromise(
+      withStdio(Effect.provideService(outer, Renderer, { run: Effect.never })),
+    );
+
+    expect(innerTask.parentId).toBeNull();
   });
 
   test("manual task delegates Console.log to the outer console and provides Task context", async () => {
