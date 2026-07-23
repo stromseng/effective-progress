@@ -9,7 +9,7 @@ const withStdio = <A, E, R>(effect: Effect.Effect<A, E, R>) => {
 };
 
 const withProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  Effect.scoped(effect.pipe(Effect.provide(Progress.Progress.Default)));
+  Effect.scoped(effect.pipe(Effect.provide(Progress.Progress.layer)));
 
 const getTaskOrFail = (
   task: Option.Option<Progress.TaskSnapshot>,

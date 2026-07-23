@@ -17,14 +17,14 @@
 
 - multiple nested tree-like progress bars
 - spinner support for “we have no idea how long this takes” work
-- keep using `Console.log` / `Effect.logInfo` while progress rendering is active
+- keep using Effect v4 `Effect.log*` / `Logger` and `Console.log` while progress rendering is active
 - familiar `.all` and `.forEach` APIs — swap `Effect` for `Progress`, get progress bars basically for free
 - flicker-free rendering with [Ink](https://github.com/vadimdemedes/ink)
 
 ## Install
 
 ```bash
-bun add effective-progress
+bun add effective-progress effect@^4.0.0-beta.100
 ```
 
 ## Usage
@@ -32,14 +32,14 @@ bun add effective-progress
 Iterate items with a single progress bar.
 
 ```ts
-import { Console, Effect } from "effect";
+import { Effect } from "effect";
 import * as Progress from "effective-progress";
 
 const program = Progress.all(
   Array.from({ length: 5 }).map((_, i) =>
     Effect.gen(function* () {
       yield* Effect.sleep("1 second");
-      yield* Console.log(`Completed task ${i + 1}`);
+      yield* Effect.logInfo(`Completed task ${i + 1}`);
     }),
   ),
   { description: "Running tasks in parallel", concurrency: 2 },
@@ -75,16 +75,16 @@ Effect.runPromise(program);
 
 <img alt="Nested example output" src="docs/images/nesting.gif" width="600" />
 
-### Effect.all modes
+### Effect.all result mode
 
-Support for `either`/`validate` modes of `Effect.all` and render the amount of successes/failures.
+`Progress.all` mirrors Effect v4's fail-fast default and `mode: "result"`, rendering the amount of successes and failures as work completes.
 
 <img alt="Mixed outcomes modes output" src="docs/images/mixedOutcomes.gif" width="600" />
 
 - `Progress.all` in default mode (`mode: "default"`) remains fail-fast.
 - In fail-fast runs, unresolved units remain unprocessed.
-- `mode: "either"` and `mode: "validate"` run all effects and keep mixed outcomes in the task counters.
-- Mixed outcomes can finalize as `done` when all units are accounted for.
+- `mode: "result"` runs every effect and returns a `Result` for each outcome while keeping mixed outcomes in the task counters.
+- Result-mode tasks finalize as `done` when all units are accounted for.
 - Empty collections are valid inputs for `Progress.all` / `Progress.forEach` and render as `0/0` instead of failing.
 
 ### Single task with a typed handle
@@ -92,13 +92,13 @@ Support for `either`/`validate` modes of `Effect.all` and render the amount of s
 Use `Progress.task(...)` when you want one progress bar around a custom effect. The callback form gives you a task-local handle, so you can update counts, descriptions, and metadata without fetching the current task ID first.
 
 ```ts
-import { Console, Effect } from "effect";
+import { Effect } from "effect";
 import * as Progress from "effective-progress";
 
 const program = Progress.task(
   (task) =>
     Effect.gen(function* () {
-      yield* Console.log("Starting deployment");
+      yield* Effect.logInfo("Starting deployment");
       yield* task.incrementSucceeded();
       yield* task.update({
         description: "Uploading release bundle",
@@ -125,7 +125,7 @@ Effect.runPromise(program);
 - `examples/advancedExample.ts` - mixed high-level and low-level Progress service usage
 - `examples/basic.ts` - minimal `Progress.all` usage
 - `examples/nesting.ts` - nested tree rendering with parent and child tasks
-- `examples/mixedOutcomes.ts` - fail-fast vs `either`/`validate` with mixed success/failure counters
+- `examples/mixedOutcomes.ts` - fail-fast vs `result` mode with mixed success/failure counters
 - `examples/cliProgressSemantics.ts` - zero totals, negative totals clearing to unknown totals, overflow counts, and empty `all` / `forEach`
 - `examples/unknownTotalCounting.ts` - count successes/failures without a known total and render `processed/?`
 - `examples/typedMetadata.ts` - typed task metadata rendered through custom columns
@@ -138,11 +138,21 @@ Effect.runPromise(program);
 
 ## Configuration
 
-### Console behavior
+### Logging behavior
 
 - The Ink renderer runs with `patchConsole: true`, so console output is patched by Ink while the app is mounted.
-- `Progress.task`, `Progress.all`, and `Progress.forEach` write through the currently provided Effect `Console` implementation.
-- Formatting is controlled by the API consumer's logger/console implementation.
+- `Effect.log*` uses the active Effect v4 `Logger` set, including custom loggers installed with `Logger.layer(...)`.
+- The low-level `progress.log(...)` method emits through `Effect.log`, so it honors the current log level, logger set, annotations, and spans.
+- Direct `Console` calls still use the currently provided Effect `Console` reference.
+- Formatting and routing remain controlled by the consumer's logger and console configuration.
+
+For example, install the v4 pretty console logger around a program with:
+
+```ts
+import { Effect, Logger } from "effect";
+
+Effect.runPromise(program.pipe(Effect.provide(Logger.layer([Logger.consolePretty()]))));
+```
 
 ### Ink renderer behavior
 
@@ -177,17 +187,19 @@ The handle exposes:
 
 When you need lower-level control, the `Progress` service is available inside the effect and exposes APIs like `addTask`, `updateTask`, `incrementSucceeded(taskId, amount)`, and `completeTask(taskId)`.
 
+The primary v4-style service layers are exposed as `Progress.layer` and `ProgressStdio.layer`.
+
 Example using the lower-level service API:
 
 ```ts
-import { Console, Effect } from "effect";
+import { Effect } from "effect";
 import * as Progress from "effective-progress";
 
 const program = Progress.task(
   Effect.gen(function* () {
     const progress = yield* Progress.Progress;
     const currentTask = yield* Progress.Task;
-    yield* Console.log("This log is handled by the outer Console", { taskId: currentTask });
+    yield* Effect.logInfo("Updating the current task", { taskId: currentTask });
 
     // Manual determinate updates:
     yield* progress.incrementSucceeded(currentTask, 3);
@@ -258,6 +270,6 @@ const program = Progress.task(
 
 If a task does not provide `columns`, the renderer falls back to `Progress.Columns.defaults()`.
 
-## Notes
+## Effect compatibility
 
-- As Effect 4.0 is around the corner with some changes to logging, there may be some adjustments needed to align with the new Effect APIs.
+This release targets Effect `4.0.0-beta.100` or newer compatible v4 prereleases. Effect v4 is still in beta, so its APIs may change between beta releases.

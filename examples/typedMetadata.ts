@@ -107,4 +107,4 @@ const program = Effect.gen(function* () {
   yield* Effect.logInfo("Evaluation complete");
 });
 
-Effect.runPromise(program.pipe(Effect.provide(Logger.pretty)));
+Effect.runPromise(program.pipe(Effect.provide(Logger.layer([Logger.consolePretty()]))));

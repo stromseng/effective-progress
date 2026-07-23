@@ -1,35 +1,38 @@
 import { describe, expect, test } from "bun:test";
-import { Console, Effect, Exit, Option } from "effect";
+import { Console, Effect, Exit, Logger, Option, Result } from "effect";
 import { pipe } from "effect/Function";
 import * as Progress from "../src";
+import { Renderer } from "../src/services/renderer/renderer";
 import { createMockStdio } from "./helpers/mock-stdio";
 
 const withLogSpy = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
-    const outer = yield* Console.consoleWith((console) => Effect.succeed(console));
+    const outer = yield* Console.Console;
     const logs: Array<ReadonlyArray<unknown>> = [];
 
     const consoleSpy: Console.Console = {
       ...outer,
       log: (...args) => {
         logs.push(args);
-        return Effect.void;
-      },
-      unsafe: {
-        ...outer.unsafe,
-        log: (...args) => {
-          logs.push(args);
-        },
       },
     };
 
-    const result = yield* Effect.withConsole(effect, consoleSpy);
+    const result = yield* Effect.provideService(effect, Console.Console, consoleSpy);
     return { result, logs };
   });
 
 const withStdio = <A, E, R>(effect: Effect.Effect<A, E, R>) => {
   const stdio = createMockStdio();
   return effect.pipe(Effect.provideService(Progress.ProgressStdio, stdio.service));
+};
+
+const withLoggerSpy = <A, E, R>(effect: Effect.Effect<A, E, R>) => {
+  const logs: Array<Logger.Options<unknown>> = [];
+  const logger = Logger.make<unknown, void>((options) => {
+    logs.push(options);
+  });
+
+  return Effect.map(Effect.provide(effect, Logger.layer([logger])), (result) => ({ result, logs }));
 };
 
 const getTaskByDescription = (
@@ -71,6 +74,30 @@ describe("Progress.run", () => {
     expect(reused).toBeTrue();
   });
 
+  test("isolated nested Progress layer does not inherit the outer parent", async () => {
+    const inner = Effect.gen(function* () {
+      const progress = yield* Progress.Progress;
+      yield* progress.task(Effect.void, {
+        description: "isolated-inner",
+        transient: false,
+      });
+      return getTaskByDescription(yield* progress.listTasks, "isolated-inner");
+    });
+
+    const outer = Effect.gen(function* () {
+      const isolatedInner = Effect.scoped(
+        Effect.provide(inner, Progress.Progress.layer, { local: true }),
+      );
+      return yield* Progress.task(isolatedInner, { description: "outer", transient: false });
+    });
+
+    const innerTask = await Effect.runPromise(
+      withStdio(Effect.provideService(outer, Renderer, { run: Effect.never })),
+    );
+
+    expect(innerTask.parentId).toBeNull();
+  });
+
   test("manual task delegates Console.log to the outer console and provides Task context", async () => {
     const capturedMessage = "manual-captured";
 
@@ -100,6 +127,56 @@ describe("Progress.run", () => {
 
     expect(logs.some((args) => args[0] === capturedMessage)).toBeTrue();
     expect(result).toBeTrue();
+  });
+
+  test("task preserves Effect v4 loggers and routes Progress.log through them", async () => {
+    const { logs } = await Effect.runPromise(
+      withLoggerSpy(
+        withStdio(
+          Progress.task(
+            Effect.gen(function* () {
+              yield* Effect.logInfo("effect-log");
+              const progress = yield* Progress.Progress;
+              yield* progress.log("progress-log");
+            }),
+            { description: "logger-task", transient: true },
+          ),
+        ),
+      ),
+    );
+
+    const messages = logs.flatMap((entry) =>
+      Array.isArray(entry.message) ? entry.message : [entry.message],
+    );
+    expect(messages).toContain("effect-log");
+    expect(messages).toContain("progress-log");
+    expect(
+      logs.find((entry) =>
+        (Array.isArray(entry.message) ? entry.message : [entry.message]).includes("effect-log"),
+      )?.logLevel,
+    ).toBe("Info");
+  });
+
+  test("Progress.log forwards zero-argument calls to Effect loggers", async () => {
+    const { logs } = await Effect.runPromise(
+      withLoggerSpy(
+        withStdio(
+          Progress.task(
+            Effect.gen(function* () {
+              const progress = yield* Progress.Progress;
+              yield* progress.log();
+            }),
+            { description: "empty-log-message", transient: true },
+          ),
+        ),
+      ),
+    );
+
+    const emptyMessageLog = logs.find(
+      (entry) => Array.isArray(entry.message) && entry.message.length === 0,
+    );
+    expect(emptyMessageLog).toBeDefined();
+    expect(emptyMessageLog?.logLevel).toBe("Info");
   });
 
   test("all returns the values from each effect", async () => {
@@ -137,22 +214,15 @@ describe("Progress.run", () => {
 
     const result = await Effect.runPromise(
       Effect.gen(function* () {
-        const outer = yield* Console.consoleWith((console) => Effect.succeed(console));
+        const outer = yield* Console.Console;
         const consoleSpy: Console.Console = {
           ...outer,
           dir: (item, nextOptions) => {
             captured = { item, options: nextOptions };
-            return Effect.void;
-          },
-          unsafe: {
-            ...outer.unsafe,
-            dir: (item, nextOptions) => {
-              captured = { item, options: nextOptions };
-            },
           },
         };
 
-        return yield* Effect.withConsole(
+        return yield* Effect.provideService(
           withStdio(
             Progress.task(
               Effect.gen(function* () {
@@ -162,6 +232,7 @@ describe("Progress.run", () => {
               { description: "dir-replay" },
             ),
           ),
+          Console.Console,
           consoleSpy,
         );
       }),
@@ -226,7 +297,7 @@ describe("Progress.run", () => {
             });
             const task = getTaskByDescription(yield* progress.listTasks, description);
             return { value, task };
-          }).pipe(Effect.provide(Progress.Progress.Default)),
+          }).pipe(Effect.provide(Progress.Progress.layer)),
         ),
       ),
     );
@@ -248,7 +319,7 @@ describe("Progress.run", () => {
             });
             const task = getTaskByDescription(yield* progress.listTasks, description);
             return { value, task };
-          }).pipe(Effect.provide(Progress.Progress.Default)),
+          }).pipe(Effect.provide(Progress.Progress.layer)),
         ),
       ),
     );
@@ -274,7 +345,7 @@ describe("Progress.run", () => {
             );
             const task = getTaskByDescription(yield* progress.listTasks, description);
             return { value, task };
-          }).pipe(Effect.provide(Progress.Progress.Default)),
+          }).pipe(Effect.provide(Progress.Progress.layer)),
         ),
       ),
     );
@@ -297,7 +368,7 @@ describe("Progress.run", () => {
             });
             const task = getTaskByDescription(yield* progress.listTasks, description);
             return { value, task };
-          }).pipe(Effect.provide(Progress.Progress.Default)),
+          }).pipe(Effect.provide(Progress.Progress.layer)),
         ),
       ),
     );
@@ -326,7 +397,7 @@ describe("Progress.run", () => {
             );
             const task = getTaskByDescription(yield* progress.listTasks, description);
             return { exit, task };
-          }).pipe(Effect.provide(Progress.Progress.Default)),
+          }).pipe(Effect.provide(Progress.Progress.layer)),
         ),
       ),
     );
@@ -341,27 +412,32 @@ describe("Progress.run", () => {
     expect(result.task.units.total).toBe(3);
   });
 
-  test("all either mode completes with mixed succeeded/failed counters", async () => {
+  test("all result mode completes with mixed succeeded/failed counters", async () => {
     const result = await Effect.runPromise(
       withStdio(
         Effect.scoped(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
-            const description = "all-either-counters";
+            const description = "all-result-counters";
             const exit = yield* Effect.exit(
               Progress.all([Effect.succeed("ok-1"), Effect.fail("bad"), Effect.succeed("ok-2")], {
                 description,
-                mode: "either",
+                mode: "result",
               }),
             );
             const task = getTaskByDescription(yield* progress.listTasks, description);
             return { exit, task };
-          }).pipe(Effect.provide(Progress.Progress.Default)),
+          }).pipe(Effect.provide(Progress.Progress.layer)),
         ),
       ),
     );
 
     expect(Exit.isSuccess(result.exit)).toBeTrue();
+    if (Exit.isSuccess(result.exit)) {
+      expect(Result.isSuccess(result.exit.value[0])).toBeTrue();
+      expect(Result.isFailure(result.exit.value[1])).toBeTrue();
+      expect(Result.isSuccess(result.exit.value[2])).toBeTrue();
+    }
     expect(result.task.status).toBe("done");
     expect(result.task.countDisplay).toBe("detailed");
     expect(result.task.units.total).toBe(3);
@@ -371,34 +447,33 @@ describe("Progress.run", () => {
     expect(result.task.units.total).toBe(3);
   });
 
-  test("all validate mode completes task after full accounting even when effect fails", async () => {
+  test("all result mode completes after accounting for all failures", async () => {
     const result = await Effect.runPromise(
       withStdio(
         Effect.scoped(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
-            const description = "all-validate-counters";
+            const description = "all-result-failure-counters";
             const exit = yield* Effect.exit(
-              Progress.all([Effect.succeed("ok-1"), Effect.fail("bad"), Effect.succeed("ok-2")], {
+              Progress.all([Effect.fail("bad-1"), Effect.fail("bad-2")], {
                 description,
-                mode: "validate",
+                mode: "result",
               }),
             );
             const task = getTaskByDescription(yield* progress.listTasks, description);
             return { exit, task };
-          }).pipe(Effect.provide(Progress.Progress.Default)),
+          }).pipe(Effect.provide(Progress.Progress.layer)),
         ),
       ),
     );
 
-    expect(Exit.isFailure(result.exit)).toBeTrue();
+    expect(Exit.isSuccess(result.exit)).toBeTrue();
     expect(result.task.status).toBe("done");
     expect(result.task.countDisplay).toBe("detailed");
-    expect(result.task.units.total).toBe(3);
-    expect(result.task.units.succeeded).toBe(2);
-    expect(result.task.units.failed).toBe(1);
-    expect(result.task.units.processed).toBe(3);
-    expect(result.task.units.total).toBe(3);
+    expect(result.task.units.total).toBe(2);
+    expect(result.task.units.succeeded).toBe(0);
+    expect(result.task.units.failed).toBe(2);
+    expect(result.task.units.processed).toBe(2);
   });
 
   test("forEach fail-fast does not account unresolved items", async () => {
@@ -417,7 +492,7 @@ describe("Progress.run", () => {
             );
             const task = getTaskByDescription(yield* progress.listTasks, description);
             return { exit, task };
-          }).pipe(Effect.provide(Progress.Progress.Default)),
+          }).pipe(Effect.provide(Progress.Progress.layer)),
         ),
       ),
     );
@@ -453,7 +528,7 @@ describe("Progress.run", () => {
             );
             const task = getTaskByDescription(yield* progress.listTasks, description);
             return { value, task };
-          }).pipe(Effect.provide(Progress.Progress.Default)),
+          }).pipe(Effect.provide(Progress.Progress.layer)),
         ),
       ),
     );
@@ -485,7 +560,7 @@ describe("Progress.run", () => {
             );
             const task = getTaskByDescription(yield* progress.listTasks, description);
             return { exit, task };
-          }).pipe(Effect.provide(Progress.Progress.Default)),
+          }).pipe(Effect.provide(Progress.Progress.layer)),
         ),
       ),
     );
@@ -519,7 +594,7 @@ describe("Progress.run", () => {
               completed: getTaskByDescription(yield* progress.listTasks, "terminal-complete"),
               failed: getTaskByDescription(yield* progress.listTasks, "terminal-fail"),
             };
-          }).pipe(Effect.provide(Progress.Progress.Default)),
+          }).pipe(Effect.provide(Progress.Progress.layer)),
         ),
       ),
     );

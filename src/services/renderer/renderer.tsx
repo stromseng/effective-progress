@@ -58,9 +58,8 @@ const makeRendererv2InkRendererService = Effect.gen(function* () {
   } satisfies RendererShape;
 });
 
-export class Renderer extends Context.Tag("stromseng.dev/effective-progress/Renderer")<
-  Renderer,
-  RendererShape
->() {
-  static readonly Default = Layer.effect(Renderer, makeRendererv2InkRendererService);
+export class Renderer extends Context.Service<Renderer, RendererShape>()(
+  "stromseng.dev/effective-progress/Renderer",
+) {
+  static readonly layer = Layer.effect(Renderer, makeRendererv2InkRendererService);
 }

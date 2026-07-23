@@ -1,4 +1,4 @@
-import { Context, Effect, Exit, FiberRef, Layer, Option } from "effect";
+import { Context, Effect, Exit, Layer, Option } from "effect";
 import { dual } from "effect/Function";
 import { ProgressStore } from "./store/store";
 import type { AddTaskOptions, ProgressShape, TaskHandle, TaskId } from "../types";
@@ -24,27 +24,36 @@ interface InternalTaskApi {
   ): Effect.Effect<A, E, Exclude<R, Task>>;
 }
 
+interface CurrentParentState {
+  readonly owner: symbol;
+  readonly taskId: TaskId;
+}
+
 /** Builds the scoped implementation used by `ProgressService.task(...)` without auto-providing services. */
 const makeProgressService = Effect.gen(function* () {
   const inkRenderer = yield* Renderer;
-  const outerConsole = yield* Effect.console;
   const store = yield* ProgressStore;
-  const currentParentRef = yield* FiberRef.make(Option.none<TaskId>());
   const scope = yield* Effect.scope;
+  const parentOwner = Symbol();
 
-  const log = (...args: ReadonlyArray<unknown>) =>
-    args.length === 0 ? Effect.void : outerConsole.log(...args);
+  // Each Progress service has its own task store, but they all share CurrentParent.
+  // Ignore parent IDs created by another service so tasks never point into the wrong store.
+  const currentParentId = Effect.map(CurrentParent, (cp) =>
+    Option.isSome(cp) && cp.value.owner === parentOwner
+      ? Option.some(cp.value.taskId)
+      : Option.none<TaskId>(),
+  );
 
-  yield* Effect.forkIn(inkRenderer.run, scope);
+  const log = (...args: ReadonlyArray<unknown>) => Effect.log(...args);
+
+  yield* Effect.forkIn(inkRenderer.run, scope, { startImmediately: true });
   // Let the renderer fiber start so queued logs are reliably flushed on scope teardown.
   yield* Effect.sleep("0 millis");
 
   const addTask = (options: AddTaskOptions) =>
     Effect.gen(function* () {
       const resolvedParentId =
-        options.parentId === undefined
-          ? yield* FiberRef.get(currentParentRef)
-          : Option.some(options.parentId);
+        options.parentId === undefined ? yield* currentParentId : Option.some(options.parentId);
       return yield* store.addTask({
         ...options,
         parentId: Option.isSome(resolvedParentId) ? resolvedParentId.value : undefined,
@@ -91,7 +100,7 @@ const makeProgressService = Effect.gen(function* () {
 
   const scopedTask = dual(2, <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
     Effect.gen(function* () {
-      const inheritedParentId = yield* FiberRef.get(currentParentRef);
+      const inheritedParentId = yield* currentParentId;
       const resolvedParentId =
         options.parentId === undefined ? inheritedParentId : Option.some(options.parentId);
 
@@ -101,10 +110,10 @@ const makeProgressService = Effect.gen(function* () {
         transient: options.transient,
       });
 
-      return yield* Effect.locally(
+      return yield* Effect.provideService(
         Effect.provideService(effect, Task, taskId),
-        currentParentRef,
-        Option.some(taskId),
+        CurrentParent,
+        Option.some({ owner: parentOwner, taskId }),
       );
     }),
   ) as InternalTaskApi;
@@ -175,10 +184,10 @@ const makeProgressService = Effect.gen(function* () {
  * or falls back to the supplied default layer otherwise.
  */
 const serviceOptionDefaultLayer = <I, S, E, R>(
-  tag: Context.Tag<I, S>,
+  tag: Context.Key<I, S>,
   defaultLayer: Layer.Layer<I, E, R>,
 ) =>
-  Layer.unwrapEffect(
+  Layer.unwrap(
     Effect.map(Effect.serviceOption(tag), (option) =>
       Option.getOrElse(
         Option.map(option, (service) => Layer.succeed(tag, service)),
@@ -187,15 +196,19 @@ const serviceOptionDefaultLayer = <I, S, E, R>(
     ),
   );
 
-export class Progress extends Context.Tag("stromseng.dev/effective-progress/Progress")<
-  Progress,
-  ProgressShape
->() {
-  static readonly Default = Layer.scoped(Progress, makeProgressService).pipe(
+const CurrentParent = Context.Reference<Option.Option<CurrentParentState>>(
+  "stromseng.dev/effective-progress/CurrentParent",
+  { defaultValue: Option.none },
+);
+
+export class Progress extends Context.Service<Progress, ProgressShape>()(
+  "stromseng.dev/effective-progress/Progress",
+) {
+  static readonly layer = Layer.effect(Progress, makeProgressService).pipe(
     Layer.provide(
-      serviceOptionDefaultLayer(Renderer, Renderer.Default).pipe(
-        Layer.provideMerge(serviceOptionDefaultLayer(ProgressStdio, ProgressStdio.Default)),
-        Layer.provideMerge(ProgressStore.Default),
+      serviceOptionDefaultLayer(Renderer, Renderer.layer).pipe(
+        Layer.provideMerge(serviceOptionDefaultLayer(ProgressStdio, ProgressStdio.layer)),
+        Layer.provideMerge(ProgressStore.layer),
       ),
     ),
   );

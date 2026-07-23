@@ -51,7 +51,7 @@ const ColumnPosition = ({ position }: { readonly position: ResolvedColumnPositio
         const cell = row;
         const output =
           column?.render(cell, {
-            width: hasMeasured ? width : undefined,
+            width: hasMeasured ? width : position.flexBasis,
             now,
             spinnerTick,
             prepared: entry?.prepared as never,

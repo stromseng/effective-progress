@@ -56,4 +56,4 @@ const program = Effect.gen(function* () {
   yield* Console.log("All advanced progress examples finished.");
 });
 
-Effect.runPromise(program.pipe(Effect.provide(Logger.pretty)));
+Effect.runPromise(program.pipe(Effect.provide(Logger.layer([Logger.consolePretty()]))));

@@ -1,6 +1,6 @@
 {
   "name": "effective-progress",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "description": "Effect-first terminal progress bars with nested multibar support",
   "homepage": "https://github.com/stromseng/effective-progress#readme",
   "bugs": {
@@ -34,6 +34,7 @@
     "prepare": "effect-language-service patch",
     "build": "tsdown",
     "prepublishOnly": "bun run build",
+    "test": "bun test",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",
     "format": "oxfmt --write .",
@@ -51,7 +52,7 @@
     "@effect/language-service": "^0.73.1",
     "@types/bun": "latest",
     "@types/react": "^19.2.14",
-    "effect": "^3.19.17",
+    "effect": "^4.0.0-beta.100",
     "knip": "^5.86.0",
     "oxfmt": "^0.32.0",
     "oxlint": "^1.47.0",
@@ -60,7 +61,7 @@
     "typescript": "^5"
   },
   "peerDependencies": {
-    "effect": "^3.19.17"
+    "effect": "^4.0.0-beta.100"
   },
   "engines": {
     "node": ">=20.12.0"

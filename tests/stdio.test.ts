@@ -46,7 +46,7 @@ describe("ProgressStdio", () => {
           stdout: stdio.stdout,
           stderr: stdio.stderr,
         };
-      }).pipe(Effect.provide(Progress.ProgressStdio.Default)),
+      }).pipe(Effect.provide(Progress.ProgressStdio.layer)),
     );
 
     expect(result.stdout).toBe(process.stdout);

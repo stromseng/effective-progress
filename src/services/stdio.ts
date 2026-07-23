@@ -10,9 +10,8 @@ const defaultStdioService: ProgressStdioShape = {
   stderr: process.stderr,
 };
 
-export class ProgressStdio extends Context.Tag("stromseng.dev/effective-progress/ProgressStdio")<
-  ProgressStdio,
-  ProgressStdioShape
->() {
-  static readonly Default = Layer.succeed(ProgressStdio, defaultStdioService);
+export class ProgressStdio extends Context.Service<ProgressStdio, ProgressStdioShape>()(
+  "stromseng.dev/effective-progress/ProgressStdio",
+) {
+  static readonly layer = Layer.succeed(ProgressStdio, defaultStdioService);
 }

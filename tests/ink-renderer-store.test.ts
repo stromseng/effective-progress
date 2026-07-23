@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Effect, Option, TestClock, TestContext } from "effect";
+import { Effect, Option } from "effect";
+import { TestClock } from "effect/testing";
 import type { ColumnDef } from "../src";
 import { makeProgressStore } from "../src/services/store/store";
 
@@ -42,7 +43,7 @@ describe("progress render store", () => {
         expect(task?.units.failed).toBe(1);
         expect(task?.units.processed).toBe(3);
         expect(publication.events).toHaveLength(3);
-      }).pipe(Effect.provide(TestContext.TestContext)),
+      }).pipe(Effect.provide(TestClock.layer())),
     );
   });
 
@@ -77,7 +78,7 @@ describe("progress render store", () => {
 
         yield* TestClock.adjust(100);
         expect(notifications).toBe(2);
-      }).pipe(Effect.provide(TestContext.TestContext)),
+      }).pipe(Effect.provide(TestClock.layer())),
     );
   });
 
@@ -306,7 +307,7 @@ describe("progress render store", () => {
         expect(Option.isSome(task) ? task.value.progressSamples : []).toEqual([
           { timestamp: 0, processed: 0 },
         ]);
-      }).pipe(Effect.provide(TestContext.TestContext)),
+      }).pipe(Effect.provide(TestClock.layer())),
     );
   });
 
@@ -330,7 +331,7 @@ describe("progress render store", () => {
         expect(samples).toHaveLength(1_000);
         expect(samples[0]).toEqual({ timestamp: 0, processed: 6 });
         expect(samples.at(-1)).toEqual({ timestamp: 0, processed: 1_005 });
-      }).pipe(Effect.provide(TestContext.TestContext)),
+      }).pipe(Effect.provide(TestClock.layer())),
     );
   });
 
@@ -357,7 +358,7 @@ describe("progress render store", () => {
           { timestamp: 2_000, processed: 2 },
           { timestamp: 33_000, processed: 3 },
         ]);
-      }).pipe(Effect.provide(TestContext.TestContext)),
+      }).pipe(Effect.provide(TestClock.layer())),
     );
   });
 });
