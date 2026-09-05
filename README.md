@@ -291,3 +291,7 @@ to investigate Ink rendering, logging, and end-to-end overhead.
 ## Effect compatibility
 
 This release targets Effect `4.0.0-rc.112` or newer compatible v4 prereleases. Effect v4 is a release candidate, so its APIs may change before the stable release.
+
+## Snapshot types
+
+Task snapshots are plain TypeScript values. Use `{ ... } satisfies Progress.TaskSnapshot` to check a manually constructed snapshot; the former `Progress.TaskSnapshot(...)` identity function did not validate data. Runtime schema exports and the unused task-event classes/decoder have been removed. Applications that deserialize external data should define validation at their own input boundary.

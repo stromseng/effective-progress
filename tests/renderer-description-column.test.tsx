@@ -40,7 +40,7 @@ const makeTask = (
   description: string,
   status: Progress.TaskSnapshot["status"] = "done",
 ): Progress.TaskSnapshot =>
-  Progress.TaskSnapshot({
+  ({
     id: Progress.TaskId(id),
     parentId: null,
     description,
@@ -60,7 +60,7 @@ const makeTask = (
       { timestamp: 1_000, processed: 1 },
     ],
     metadata: undefined,
-  });
+  }) satisfies Progress.TaskSnapshot;
 
 const renderDescriptionColumn = (rows: ReadonlyArray<TaskRowModel>, spinnerTick?: number): string =>
   stripAnsi(

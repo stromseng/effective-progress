@@ -26,7 +26,7 @@ const deriveRow = (task: Progress.TaskSnapshot): TaskRowModel => ({
 });
 
 const makeTask = (overrides: Partial<Progress.TaskSnapshot> = {}): Progress.TaskSnapshot =>
-  Progress.TaskSnapshot({
+  ({
     id: Progress.TaskId(1),
     parentId: null,
     description: "eta-task",
@@ -47,7 +47,7 @@ const makeTask = (overrides: Partial<Progress.TaskSnapshot> = {}): Progress.Task
     ],
     metadata: undefined,
     ...overrides,
-  });
+  }) satisfies Progress.TaskSnapshot;
 
 const renderTaskWithEta = (task: Progress.TaskSnapshot, now: number): string =>
   stripAnsi(
@@ -76,7 +76,7 @@ describe("renderer eta column", () => {
   });
 
   test("does not render ETA for completed tasks", () => {
-    const completedTask = Progress.TaskSnapshot({
+    const completedTask = {
       id: Progress.TaskId(1),
       parentId: null,
       description: "done-task",
@@ -96,7 +96,7 @@ describe("renderer eta column", () => {
         { timestamp: 1_000, processed: 2 },
       ],
       metadata: undefined,
-    });
+    } satisfies Progress.TaskSnapshot;
 
     const output = stripAnsi(
       renderToString(
