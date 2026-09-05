@@ -77,6 +77,20 @@ const normalizeUnits = (counts: TaskCounts) => {
       };
 };
 
+/** Completes remaining known work, or records the observed total for an unknown-total task. */
+const completedUnits = (units: TaskSnapshot["units"]): TaskSnapshot["units"] => {
+  if (units.total === undefined) {
+    return units.processed > 0 ? normalizeUnits({ ...units, total: units.processed }) : units;
+  }
+
+  return units.processed < units.total
+    ? normalizeUnits({
+        ...units,
+        succeeded: units.succeeded + (units.total - units.processed),
+      })
+    : units;
+};
+
 /**
  * Returns a new progress sample deque with the latest processed count appended.
  *
@@ -348,6 +362,59 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
       }, now);
     });
 
+  const finalizeTask = (taskId: TaskId, status: "done" | "failed") =>
+    Effect.gen(function* () {
+      const now = yield* Clock.currentTimeMillis;
+
+      yield* updateState((current) => {
+        const currentTask = current.tasks.get(taskId);
+        if (!currentTask || currentTask.status !== "running") {
+          return { state: current, events: [] };
+        }
+
+        const event =
+          status === "done" ? new TaskCompletedEvent({ taskId }) : new TaskFailedEvent({ taskId });
+        const nextTasks = new Map(current.tasks);
+        if (currentTask.transient) {
+          const removedSubtree = removeTransientSubtree(current, nextTasks, taskId);
+
+          return {
+            state: {
+              tasks: nextTasks,
+              renderOrder: removedSubtree.renderOrder,
+              columns: removedSubtree.columns,
+            },
+            events: [
+              event,
+              ...removedSubtree.removedTaskIds.map(
+                (removedTaskId) => new TaskRemovedEvent({ taskId: removedTaskId }),
+              ),
+            ],
+          };
+        }
+
+        const units = status === "done" ? completedUnits(currentTask.units) : currentTask.units;
+        nextTasks.set(
+          taskId,
+          TaskSnapshot({
+            ...currentTask,
+            status,
+            units,
+            completedAt: now,
+            progressSamples:
+              status === "done"
+                ? appendProgressSample(currentTask.progressSamples, now, units.processed)
+                : currentTask.progressSamples,
+          }),
+        );
+
+        return {
+          state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
+          events: [event],
+        };
+      }, now);
+    });
+
   const store: ProgressStoreShape = {
     getSnapshot: () => publishedPublication,
     subscribe: (listener) => {
@@ -476,121 +543,8 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
       }),
     incrementSucceeded: (taskId, amount = 1) => incrementCounter(taskId, "succeeded", amount),
     incrementFailed: (taskId, amount = 1) => incrementCounter(taskId, "failed", amount),
-    completeTask: (taskId) =>
-      Effect.gen(function* () {
-        const now = yield* Clock.currentTimeMillis;
-
-        yield* updateState((current) => {
-          const currentTask = current.tasks.get(taskId);
-          if (!currentTask) {
-            return { state: current, events: [] };
-          }
-          if (currentTask.status !== "running") {
-            return { state: current, events: [] };
-          }
-
-          const nextTasks = new Map(current.tasks);
-          if (currentTask.transient) {
-            const removedSubtree = removeTransientSubtree(current, nextTasks, taskId);
-
-            return {
-              state: {
-                tasks: nextTasks,
-                renderOrder: removedSubtree.renderOrder,
-                columns: removedSubtree.columns,
-              },
-              events: [
-                new TaskCompletedEvent({ taskId }),
-                ...removedSubtree.removedTaskIds.map(
-                  (removedTaskId) => new TaskRemovedEvent({ taskId: removedTaskId }),
-                ),
-              ],
-            };
-          }
-
-          const units =
-            currentTask.units.total !== undefined
-              ? currentTask.units.processed < currentTask.units.total
-                ? normalizeUnits({
-                    succeeded:
-                      currentTask.units.succeeded +
-                      (currentTask.units.total - currentTask.units.processed),
-                    failed: currentTask.units.failed,
-                    total: currentTask.units.total,
-                  })
-                : currentTask.units
-              : currentTask.units.processed > 0
-                ? normalizeUnits({
-                    succeeded: currentTask.units.succeeded,
-                    failed: currentTask.units.failed,
-                    total: currentTask.units.processed,
-                  })
-                : currentTask.units;
-
-          nextTasks.set(
-            taskId,
-            TaskSnapshot({
-              ...currentTask,
-              status: "done",
-              units,
-              completedAt: now,
-              progressSamples: appendProgressSample(
-                currentTask.progressSamples,
-                now,
-                units.processed,
-              ),
-            }),
-          );
-
-          return {
-            state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
-            events: [new TaskCompletedEvent({ taskId })],
-          };
-        }, now);
-      }),
-    failTask: (taskId) =>
-      Effect.gen(function* () {
-        const now = yield* Clock.currentTimeMillis;
-
-        yield* updateState((current) => {
-          const currentTask = current.tasks.get(taskId);
-          if (!currentTask) {
-            return { state: current, events: [] };
-          }
-          if (currentTask.status !== "running") {
-            return { state: current, events: [] };
-          }
-
-          const nextTasks = new Map(current.tasks);
-          if (currentTask.transient) {
-            const removedSubtree = removeTransientSubtree(current, nextTasks, taskId);
-
-            return {
-              state: {
-                tasks: nextTasks,
-                renderOrder: removedSubtree.renderOrder,
-                columns: removedSubtree.columns,
-              },
-              events: [
-                new TaskFailedEvent({ taskId }),
-                ...removedSubtree.removedTaskIds.map(
-                  (removedTaskId) => new TaskRemovedEvent({ taskId: removedTaskId }),
-                ),
-              ],
-            };
-          }
-
-          nextTasks.set(
-            taskId,
-            TaskSnapshot({ ...currentTask, status: "failed", completedAt: now }),
-          );
-
-          return {
-            state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
-            events: [new TaskFailedEvent({ taskId })],
-          };
-        }, now);
-      }),
+    completeTask: (taskId) => finalizeTask(taskId, "done"),
+    failTask: (taskId) => finalizeTask(taskId, "failed"),
     getTask: (taskId) => Effect.sync(() => Option.fromNullishOr(state.tasks.get(taskId))),
     listTasks: Effect.sync(() => Array.from(state.tasks.values())),
     setMetadata: (taskId, metadata) =>
