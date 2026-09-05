@@ -26,11 +26,10 @@ const useRenderSnapshot = (storeSnapshot: RenderPublication["snapshot"]): Render
 export const useProgressRenderView = (store: ProgressStoreShape): ProgressRenderView => {
   const publication = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const renderSnapshot = useRenderSnapshot(publication.snapshot);
-  const hasRunningTasks = renderSnapshot.rows.some((row) => row.task.status === "running");
 
   return {
     publication,
     renderSnapshot,
-    hasRunningTasks,
+    hasRunningTasks: renderSnapshot.hasRunningTasks,
   };
 };
