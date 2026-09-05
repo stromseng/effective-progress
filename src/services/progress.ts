@@ -26,8 +26,6 @@ const makeProgressService = Effect.gen(function* () {
       : Option.none<TaskId>(),
   );
 
-  const log = (...args: ReadonlyArray<unknown>) => Effect.log(...args);
-
   yield* Effect.forkIn(inkRenderer.run, scope, { startImmediately: true });
   // Let the renderer fiber start so queued logs are reliably flushed on scope teardown.
   yield* Effect.sleep("0 millis");
@@ -101,7 +99,6 @@ const makeProgressService = Effect.gen(function* () {
     incrementFailed: store.incrementFailed,
     completeTask: store.completeTask,
     failTask: store.failTask,
-    log,
     getTask: store.getTask,
     listTasks: store.listTasks,
     setMetadata: store.setMetadata,

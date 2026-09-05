@@ -168,7 +168,6 @@ export interface TaskOperations {
 }
 
 export interface ProgressShape extends TaskOperations {
-  readonly log: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>;
   /**
    * Runs an effect inside a newly created task scope.
    *
