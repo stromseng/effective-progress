@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import type { ProgressStoreShape, RenderPublication } from "../../store/store";
+import type { ProgressStoreShape } from "../../store/store";
+import type { TaskStore } from "../../../types";
 import { toRenderSnapshot, type RenderSnapshot } from "../../store/render-snapshot";
 
 interface ProgressRenderView {
-  readonly publication: RenderPublication;
+  readonly storeSnapshot: TaskStore;
   readonly renderSnapshot: RenderSnapshot;
   readonly hasRunningTasks: boolean;
 }
 
-const useRenderSnapshot = (storeSnapshot: RenderPublication["snapshot"]): RenderSnapshot => {
+const useRenderSnapshot = (storeSnapshot: TaskStore): RenderSnapshot => {
   const previousSnapshotRef = useRef<RenderSnapshot | undefined>(undefined);
 
   const renderSnapshot = useMemo(
@@ -24,11 +25,11 @@ const useRenderSnapshot = (storeSnapshot: RenderPublication["snapshot"]): Render
 };
 
 export const useProgressRenderView = (store: ProgressStoreShape): ProgressRenderView => {
-  const publication = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  const renderSnapshot = useRenderSnapshot(publication.snapshot);
+  const storeSnapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  const renderSnapshot = useRenderSnapshot(storeSnapshot);
 
   return {
-    publication,
+    storeSnapshot,
     renderSnapshot,
     hasRunningTasks: renderSnapshot.hasRunningTasks,
   };

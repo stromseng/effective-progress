@@ -54,7 +54,7 @@ const benchmarkStore = (taskCount: number) =>
 
       // Publication and correctness checks are outside the timed section.
       store.flush();
-      const tasks = store.getSnapshot().snapshot.tasks;
+      const tasks = store.getSnapshot().tasks;
       assert.equal(tasks.size, taskCount);
       for (const [id, task] of tasks) {
         assert.equal(task.units.succeeded, id === hotTaskId ? (round + 1) * STORE_UPDATES : 0);
