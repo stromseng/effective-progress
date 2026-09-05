@@ -150,7 +150,7 @@ export const getDeterminateProcessedColor = (task: TaskSnapshot): DeterminatePro
   return "whiteBright";
 };
 
-export const formatAmount = (task: TaskSnapshot, _tick: number): string => {
+export const formatAmount = (task: TaskSnapshot): string => {
   if (isDeterminate(task)) {
     const parts = formatDeterminateAmountParts(task);
     if (parts === undefined) {

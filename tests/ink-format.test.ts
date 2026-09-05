@@ -126,7 +126,7 @@ describe("determinate amount formatting", () => {
       countDisplay: "processedOnly",
     });
 
-    expect(formatAmount(processedOnlyTask, 0)).toBe("4/4");
+    expect(formatAmount(processedOnlyTask)).toBe("4/4");
   });
 
   test("renders succeeded/failed and processed/total for detailed mode", () => {
@@ -140,7 +140,7 @@ describe("determinate amount formatting", () => {
       "done",
     );
 
-    expect(formatAmount(task, 0)).toBe("3 1 4/4");
+    expect(formatAmount(task)).toBe("3 1 4/4");
   });
 
   test("renders raw overflow counts for determinate tasks", () => {
@@ -154,7 +154,7 @@ describe("determinate amount formatting", () => {
       "done",
     );
 
-    expect(formatAmount(task, 0)).toBe("6 2 8/5");
+    expect(formatAmount(task)).toBe("6 2 8/5");
   });
 
   test("renders zero-total determinate counts as 0/0", () => {
@@ -171,7 +171,7 @@ describe("determinate amount formatting", () => {
       countDisplay: "processedOnly",
     });
 
-    expect(formatAmount(task, 0)).toBe("0/0");
+    expect(formatAmount(task)).toBe("0/0");
   });
 
   test("renders processed/? for counted indeterminate tasks", () => {
@@ -187,7 +187,7 @@ describe("determinate amount formatting", () => {
       countDisplay: "processedOnly",
     });
 
-    expect(formatAmount(task, 0)).toBe("4/?");
+    expect(formatAmount(task)).toBe("4/?");
   });
 
   test("renders succeeded/failed and processed/? for detailed indeterminate tasks", () => {
@@ -200,7 +200,7 @@ describe("determinate amount formatting", () => {
       "done",
     );
 
-    expect(formatAmount(task, 0)).toBe("3 1 4/?");
+    expect(formatAmount(task)).toBe("3 1 4/?");
   });
 });
 
