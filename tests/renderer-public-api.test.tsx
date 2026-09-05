@@ -1,30 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { renderToString } from "ink";
-import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
+import { makeTaskSnapshot, makeRow as deriveRow, renderRows } from "./helpers/renderer";
 import { resolveColumns } from "../src/services/renderer/column-resolver";
-import { NowProvider } from "../src/services/renderer/context/now-context";
-import { ProgressRenderer } from "../src/services/renderer/public-api";
-import { SpinnerProvider } from "../src/services/renderer/context/spinner-context";
 import type { TaskRowModel } from "../src/services/store/types";
-
-const deriveRow = (task: Progress.TaskSnapshot): TaskRowModel => ({
-  task,
-  tree: {
-    depth: 0,
-    hasChildren: false,
-    hasNextSibling: false,
-    ancestorHasNextSibling: [],
-  },
-  derived: {
-    treePrefix: "",
-    treePrefixWidth: 0,
-    descriptionWidth: task.description.length,
-    treePrefixedDescriptionWidth: task.description.length,
-    hasRenderableProgress: task.units.total !== undefined || task.units.processed > 0,
-    isDeterminate: task.units.total !== undefined,
-  },
-});
 
 const makeTask = (
   id: number,
@@ -32,43 +10,13 @@ const makeTask = (
   metadata?: unknown,
   overrides: Partial<Progress.TaskSnapshot> = {},
 ): Progress.TaskSnapshot =>
-  Progress.TaskSnapshot({
-    id: Progress.TaskId(id),
-    parentId: null,
-    description,
-    status: "running",
-    countDisplay: "processedOnly",
-    transient: false,
-    units: {
-      succeeded: 1,
-      failed: 0,
-      processed: 1,
-      total: 2,
-    },
-    startedAt: 0,
-    completedAt: null,
-    progressSamples: [
-      { timestamp: 0, processed: 0 },
-      { timestamp: 1_000, processed: 1 },
-    ],
-    metadata,
-    ...overrides,
-  });
+  makeTaskSnapshot({ id: Progress.TaskId(id), description, metadata, ...overrides });
 
 const renderWithColumns = (
   rows: ReadonlyArray<TaskRowModel>,
-  columns: Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>,
-  nowOverride = 1_000,
-): string =>
-  stripAnsi(
-    renderToString(
-      <NowProvider active={false} nowOverride={nowOverride}>
-        <SpinnerProvider active={false} tickOverride={0}>
-          <ProgressRenderer rows={rows} columns={columns} />
-        </SpinnerProvider>
-      </NowProvider>,
-    ),
-  );
+  columns: Progress.TaskStore["columns"],
+  now = 1_000,
+): string => renderRows(rows, { columns, now });
 
 describe("renderer public api", () => {
   test("renders null when there are no rows", () => {

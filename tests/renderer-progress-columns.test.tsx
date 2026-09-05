@@ -1,29 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { renderToString } from "ink";
-import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
-import { NowProvider } from "../src/services/renderer/context/now-context";
-import { ProgressRenderer } from "../src/services/renderer/public-api";
-import { SpinnerProvider } from "../src/services/renderer/context/spinner-context";
-import type { TaskRowModel } from "../src/services/store/types";
-
-const deriveRow = (task: Progress.TaskSnapshot): TaskRowModel => ({
-  task,
-  tree: {
-    depth: 0,
-    hasChildren: false,
-    hasNextSibling: false,
-    ancestorHasNextSibling: [],
-  },
-  derived: {
-    treePrefix: "",
-    treePrefixWidth: 0,
-    descriptionWidth: task.description.length,
-    treePrefixedDescriptionWidth: task.description.length,
-    hasRenderableProgress: task.units.total !== undefined || task.units.processed > 0,
-    isDeterminate: task.units.total !== undefined,
-  },
-});
+import { makeTaskSnapshot, makeRow as deriveRow, renderRows } from "./helpers/renderer";
 
 const makeTask = (
   id: number,
@@ -31,37 +8,22 @@ const makeTask = (
   countDisplay: Progress.TaskCountDisplay,
   units: Progress.TaskSnapshot["units"],
 ): Progress.TaskSnapshot =>
-  Progress.TaskSnapshot({
+  makeTaskSnapshot({
     id: Progress.TaskId(id),
-    parentId: null,
     description,
-    status: units.total !== undefined && units.processed < units.total ? "failed" : "done",
     countDisplay,
-    transient: false,
     units,
-    startedAt: 0,
+    status: units.total !== undefined && units.processed < units.total ? "failed" : "done",
     completedAt: 1_000,
     progressSamples: [
       { timestamp: 0, processed: 0 },
       { timestamp: 1_000, processed: units.processed },
     ],
-    metadata: undefined,
   });
-
-const renderColumns = (rows: ReadonlyArray<TaskRowModel>): string =>
-  stripAnsi(
-    renderToString(
-      <NowProvider active={false} nowOverride={1_000}>
-        <SpinnerProvider active={false} tickOverride={0}>
-          <ProgressRenderer rows={rows} columns={new Map()} />
-        </SpinnerProvider>
-      </NowProvider>,
-    ),
-  );
 
 describe("renderer progress columns", () => {
   test("renders amount values for all rows", () => {
-    const output = renderColumns([
+    const output = renderRows([
       deriveRow(
         makeTask(1, "fail-fast", "processedOnly", {
           succeeded: 3,
@@ -85,7 +47,7 @@ describe("renderer progress columns", () => {
   });
 
   test("renders amounts with consistent formatting across rows", () => {
-    const output = renderColumns([
+    const output = renderRows([
       deriveRow(
         makeTask(1, "all-succeeded", "detailed", {
           succeeded: 3,

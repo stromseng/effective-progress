@@ -1,71 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { renderToString } from "ink";
-import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
-import { NowProvider } from "../src/services/renderer/context/now-context";
-import { SpinnerProvider } from "../src/services/renderer/context/spinner-context";
-import { ProgressRenderer } from "../src/services/renderer/public-api";
-import type { TaskRowModel } from "../src/services/store/types";
-
-const deriveRow = (task: Progress.TaskSnapshot): TaskRowModel => ({
-  task,
-  tree: {
-    depth: 0,
-    hasChildren: false,
-    hasNextSibling: false,
-    ancestorHasNextSibling: [],
-  },
-  derived: {
-    treePrefix: "",
-    treePrefixWidth: 0,
-    descriptionWidth: task.description.length,
-    treePrefixedDescriptionWidth: task.description.length,
-    hasRenderableProgress: task.units.total !== undefined || task.units.processed > 0,
-    isDeterminate: task.units.total !== undefined,
-  },
-});
+import { makeTaskSnapshot, makeRow as deriveRow, renderRows } from "./helpers/renderer";
 
 const makeTask = (overrides: Partial<Progress.TaskSnapshot> = {}): Progress.TaskSnapshot =>
-  Progress.TaskSnapshot({
-    id: Progress.TaskId(1),
-    parentId: null,
-    description: "eta-task",
-    status: "running",
-    countDisplay: "processedOnly",
-    transient: false,
-    units: {
-      succeeded: 1,
-      failed: 0,
-      processed: 1,
-      total: 2,
-    },
-    startedAt: 0,
-    completedAt: null,
-    progressSamples: [
-      { timestamp: 0, processed: 0 },
-      { timestamp: 1_000, processed: 1 },
-    ],
-    metadata: undefined,
-    ...overrides,
-  });
+  makeTaskSnapshot({ description: "eta-task", ...overrides });
 
 const renderTaskWithEta = (task: Progress.TaskSnapshot, now: number): string =>
-  stripAnsi(
-    renderToString(
-      <NowProvider active={false} nowOverride={now}>
-        <SpinnerProvider active={false} tickOverride={0}>
-          <ProgressRenderer
-            rows={[deriveRow(task)]}
-            columns={
-              new Map<Progress.TaskId, ReadonlyArray<Progress.ColumnDef<any, any>>>([
-                [Progress.TaskId(1), [Progress.Columns.description(), Progress.Columns.eta()]],
-              ])
-            }
-          />
-        </SpinnerProvider>
-      </NowProvider>,
-    ),
-  );
+  renderRows([deriveRow(task)], {
+    now,
+    columns: new Map([[task.id, [Progress.Columns.description(), Progress.Columns.eta()]]]),
+  });
 
 const renderWithEta = (now: number): string => renderTaskWithEta(makeTask(), now);
 
@@ -76,37 +20,17 @@ describe("renderer eta column", () => {
   });
 
   test("does not render ETA for completed tasks", () => {
-    const completedTask = Progress.TaskSnapshot({
-      id: Progress.TaskId(1),
-      parentId: null,
+    const completedTask = makeTask({
       description: "done-task",
       status: "done",
-      countDisplay: "processedOnly",
-      transient: false,
-      units: {
-        succeeded: 2,
-        failed: 0,
-        processed: 2,
-        total: 2,
-      },
-      startedAt: 0,
+      units: { succeeded: 2, failed: 0, processed: 2, total: 2 },
       completedAt: 1_000,
       progressSamples: [
         { timestamp: 0, processed: 0 },
         { timestamp: 1_000, processed: 2 },
       ],
-      metadata: undefined,
     });
-
-    const output = stripAnsi(
-      renderToString(
-        <NowProvider active={false} nowOverride={1_000}>
-          <SpinnerProvider active={false} tickOverride={0}>
-            <ProgressRenderer rows={[deriveRow(completedTask)]} columns={new Map()} />
-          </SpinnerProvider>
-        </NowProvider>,
-      ),
-    );
+    const output = renderTaskWithEta(completedTask, 1_000);
 
     expect(output).not.toContain("ETA:");
   });
