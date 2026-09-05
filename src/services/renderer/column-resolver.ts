@@ -3,13 +3,7 @@ import { defaults } from "../../columns";
 import type { CellInfo, ColumnDef, TaskId } from "../../types";
 import type { TaskRowModel } from "../store/types";
 
-const NO_PREPARE = Symbol("no-prepare");
 type PrepareFn = NonNullable<ColumnDef<any, any>["prepare"]>;
-
-interface PreparedGroup {
-  readonly key: symbol | PrepareFn;
-  readonly prepared: unknown;
-}
 
 interface ResolvedColumnEntry {
   readonly column: ColumnDef<any, any>;
@@ -43,7 +37,7 @@ const maxDefined = (values: ReadonlyArray<number | undefined>): number | undefin
 const resolvePreparedGroups = (
   defs: ReadonlyArray<ColumnDef<any, any> | undefined>,
   cellInfos: ReadonlyArray<CellInfo<unknown>>,
-): ReadonlyArray<PreparedGroup> => {
+): ReadonlyMap<PrepareFn, unknown> => {
   const groupedRows = new Map<PrepareFn, CellInfo<any>[]>();
 
   defs.forEach((def, rowIndex) => {
@@ -65,27 +59,13 @@ const resolvePreparedGroups = (
     }
   });
 
-  const groups: PreparedGroup[] = [{ key: NO_PREPARE, prepared: undefined }];
+  const groups = new Map<PrepareFn, unknown>();
 
   for (const [key, rows] of groupedRows) {
-    groups.push({
-      key,
-      prepared: key(rows),
-    });
+    groups.set(key, key(rows));
   }
 
   return groups;
-};
-
-const getPreparedFor = (
-  def: ColumnDef<any, any> | undefined,
-  groups: ReadonlyArray<PreparedGroup>,
-): unknown => {
-  if (!def?.prepare) {
-    return undefined;
-  }
-
-  return groups.find((group) => group.key === def.prepare)?.prepared;
 };
 
 export const resolveColumns = (
@@ -104,7 +84,7 @@ export const resolveColumns = (
         ? undefined
         : {
             column,
-            prepared: getPreparedFor(column, preparedGroups),
+            prepared: column.prepare === undefined ? undefined : preparedGroups.get(column.prepare),
           },
     );
 
