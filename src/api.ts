@@ -241,30 +241,14 @@ export const forEach: {
 
         return yield* progress.task(
           (handle) =>
-            Effect.gen(function* () {
-              const taskId = handle.id;
-              const exit = yield* Effect.exit(
-                Effect.forEach(
-                  iterable,
-                  (item, index) => wrapTrackedEffect(progress, taskId, f(item, index)),
-                  {
-                    concurrency: options.concurrency,
-                    discard: options.discard,
-                  },
-                ),
-              );
-
-              if (Exit.isSuccess(exit)) {
-                yield* progress.completeTask(taskId);
-              } else {
-                yield* progress.failTask(taskId);
-              }
-
-              return yield* Exit.match(exit, {
-                onFailure: Effect.failCause,
-                onSuccess: Effect.succeed,
-              });
-            }),
+            Effect.forEach(
+              iterable,
+              (item, index) => wrapTrackedEffect(progress, handle.id, f(item, index)),
+              {
+                concurrency: options.concurrency,
+                discard: options.discard,
+              },
+            ),
           {
             description: options.description,
             total: options.total ?? inferTotal(iterable),

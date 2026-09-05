@@ -98,29 +98,15 @@ const makeProgressService = Effect.gen(function* () {
         | Effect.Effect<A, E, R>
         | ((handle: TaskHandle<any>) => Effect.Effect<A, E, R>),
       options: AddTaskOptions<any>,
-    ) => {
-      if (typeof effectOrCallback === "function") {
-        return scopedTask(
-          Effect.gen(function* () {
-            const taskId = yield* Task;
-            const handle = makeTaskHandle(taskId);
-            const exit = yield* Effect.exit(effectOrCallback(handle));
-
-            yield* autoFinalizeIfRunning(taskId, exit);
-
-            return yield* Exit.match(exit, {
-              onFailure: Effect.failCause,
-              onSuccess: Effect.succeed,
-            });
-          }),
-          options,
-        );
-      }
-
-      return scopedTask(
+    ) =>
+      scopedTask(
         Effect.gen(function* () {
           const taskId = yield* Task;
-          const exit = yield* Effect.exit(effectOrCallback);
+          const effect =
+            typeof effectOrCallback === "function"
+              ? effectOrCallback(makeTaskHandle(taskId))
+              : effectOrCallback;
+          const exit = yield* Effect.exit(effect);
 
           yield* autoFinalizeIfRunning(taskId, exit);
 
@@ -130,8 +116,7 @@ const makeProgressService = Effect.gen(function* () {
           });
         }),
         options,
-      );
-    },
+      ),
   );
 
   const service = {
