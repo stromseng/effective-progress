@@ -318,6 +318,43 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
     return publish(transform(state), now);
   };
 
+  const incrementCounter = (taskId: TaskId, kind: "succeeded" | "failed", amount: number) =>
+    Effect.gen(function* () {
+      const now = yield* Clock.currentTimeMillis;
+
+      yield* updateState((current) => {
+        const currentTask = current.tasks.get(taskId);
+        if (!currentTask) {
+          return { state: current, events: [] };
+        }
+
+        const units = normalizeUnits({
+          succeeded: currentTask.units.succeeded,
+          failed: currentTask.units.failed,
+          [kind]: currentTask.units[kind] + amount,
+          total: currentTask.units.total,
+        });
+        const nextTasks = new Map(current.tasks);
+        nextTasks.set(
+          taskId,
+          TaskSnapshot({
+            ...currentTask,
+            units,
+            progressSamples: appendProgressSample(
+              currentTask.progressSamples,
+              now,
+              units.processed,
+            ),
+          }),
+        );
+
+        return {
+          state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
+          events: [new TaskAdvancedEvent({ taskId, amount, kind })],
+        };
+      }, now);
+    });
+
   const store: ProgressStoreShape = {
     getSnapshot: () => publishedPublication,
     subscribe: (listener) => {
@@ -444,76 +481,8 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
           };
         }, now);
       }),
-    incrementSucceeded: (taskId, amount = 1) =>
-      Effect.gen(function* () {
-        const now = yield* Clock.currentTimeMillis;
-
-        yield* updateState((current) => {
-          const currentTask = current.tasks.get(taskId);
-          if (!currentTask) {
-            return { state: current, events: [] };
-          }
-
-          const units = normalizeUnits({
-            succeeded: currentTask.units.succeeded + amount,
-            failed: currentTask.units.failed,
-            total: currentTask.units.total,
-          });
-          const nextTasks = new Map(current.tasks);
-          nextTasks.set(
-            taskId,
-            TaskSnapshot({
-              ...currentTask,
-              units,
-              progressSamples: appendProgressSample(
-                currentTask.progressSamples,
-                now,
-                units.processed,
-              ),
-            }),
-          );
-
-          return {
-            state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
-            events: [new TaskAdvancedEvent({ taskId, amount, kind: "succeeded" })],
-          };
-        }, now);
-      }),
-    incrementFailed: (taskId, amount = 1) =>
-      Effect.gen(function* () {
-        const now = yield* Clock.currentTimeMillis;
-
-        yield* updateState((current) => {
-          const currentTask = current.tasks.get(taskId);
-          if (!currentTask) {
-            return { state: current, events: [] };
-          }
-
-          const units = normalizeUnits({
-            succeeded: currentTask.units.succeeded,
-            failed: currentTask.units.failed + amount,
-            total: currentTask.units.total,
-          });
-          const nextTasks = new Map(current.tasks);
-          nextTasks.set(
-            taskId,
-            TaskSnapshot({
-              ...currentTask,
-              units,
-              progressSamples: appendProgressSample(
-                currentTask.progressSamples,
-                now,
-                units.processed,
-              ),
-            }),
-          );
-
-          return {
-            state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
-            events: [new TaskAdvancedEvent({ taskId, amount, kind: "failed" })],
-          };
-        }, now);
-      }),
+    incrementSucceeded: (taskId, amount = 1) => incrementCounter(taskId, "succeeded", amount),
+    incrementFailed: (taskId, amount = 1) => incrementCounter(taskId, "failed", amount),
     completeTask: (taskId) =>
       Effect.gen(function* () {
         const now = yield* Clock.currentTimeMillis;
