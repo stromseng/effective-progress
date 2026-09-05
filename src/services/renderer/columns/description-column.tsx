@@ -128,14 +128,7 @@ export const DescriptionColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskR
   const { width, hasMeasured } = useBoxMetrics(ref);
   const spinnerTick = useSpinnerTick();
 
-  const minTreeWidth = rows.reduce(
-    (max, row) => Math.max(max, row.derived.treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
-    MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2,
-  );
-  const preferredWidth = rows.reduce(
-    (max, row) => Math.max(max, row.derived.treePrefixWidth + 2 + row.derived.descriptionWidth),
-    2,
-  );
+  const { minTreeWidth, preferredWidth } = prepareDescription(rows);
 
   return (
     <Box ref={ref} flexDirection="column" flexShrink={1} flexBasis={preferredWidth} minWidth={1}>
