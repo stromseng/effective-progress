@@ -5,6 +5,30 @@ import type { ColumnDef } from "../src";
 import { makeProgressStore } from "../src/services/store/store";
 
 describe("progress render store", () => {
+  test("stops pending publications when the store scope closes", async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        let notifications = 0;
+        const store = yield* Effect.gen(function* () {
+          const store = yield* makeProgressStore;
+          store.subscribe(() => {
+            notifications += 1;
+          });
+          const taskId = yield* store.addTask({ description: "scoped", total: 2 });
+          yield* store.incrementSucceeded(taskId);
+          yield* TestClock.adjust(0);
+          expect(notifications).toBe(1);
+          return store;
+        }).pipe(Effect.scoped);
+
+        const publication = store.getSnapshot();
+        yield* TestClock.adjust(1_000);
+        expect(notifications).toBe(1);
+        expect(store.getSnapshot()).toBe(publication);
+      }).pipe(Effect.provide(TestClock.layer())),
+    );
+  });
+
   test("coalesces rapid task updates into a single published snapshot", async () => {
     let notifications = 0;
 
@@ -43,7 +67,7 @@ describe("progress render store", () => {
         expect(task?.units.failed).toBe(1);
         expect(task?.units.processed).toBe(3);
         expect(publication.events).toHaveLength(3);
-      }).pipe(Effect.provide(TestClock.layer())),
+      }).pipe(Effect.scoped, Effect.provide(TestClock.layer())),
     );
   });
 
@@ -78,219 +102,223 @@ describe("progress render store", () => {
 
         yield* TestClock.adjust(100);
         expect(notifications).toBe(2);
-      }).pipe(Effect.provide(TestClock.layer())),
+      }).pipe(Effect.scoped, Effect.provide(TestClock.layer())),
     );
   });
 
   test("publishes concrete lifecycle event payloads", async () => {
-    const store = await Effect.runPromise(makeProgressStore);
-
-    const taskId = await Effect.runPromise(
-      store.addTask({
-        description: "event-task",
-        total: 5,
-        transient: false,
-        countDisplay: "processedOnly",
-      }),
-    );
-
-    const added = store.getSnapshot().events;
-    expect(added).toHaveLength(1);
-    expect(added[0]).toMatchObject({
-      _tag: "TaskAdded",
-      taskId,
-      parentId: null,
-      description: "event-task",
-      total: 5,
-      transient: false,
-      countDisplay: "processedOnly",
-    });
-
     await Effect.runPromise(
-      store.updateTask(taskId, {
-        description: "event-task-updated",
-        succeeded: 1,
-        failed: 1,
-        total: 6,
-        transient: true,
-        countDisplay: "detailed",
-      }),
-    );
-    await Effect.runPromise(store.incrementSucceeded(taskId, 2));
-    await Effect.runPromise(store.incrementFailed(taskId, 1));
-    await Effect.runPromise(store.completeTask(taskId));
-    store.flush();
+      Effect.gen(function* () {
+        const store = yield* makeProgressStore;
 
-    expect(store.getSnapshot().events).toEqual([
-      expect.objectContaining({
-        _tag: "TaskUpdated",
-        taskId,
-        description: "event-task-updated",
-        succeeded: 1,
-        failed: 1,
-        processed: 2,
-        total: 6,
-        transient: true,
-        countDisplay: "detailed",
-      }),
-      expect.objectContaining({
-        _tag: "TaskAdvanced",
-        taskId,
-        amount: 2,
-        kind: "succeeded",
-      }),
-      expect.objectContaining({
-        _tag: "TaskAdvanced",
-        taskId,
-        amount: 1,
-        kind: "failed",
-      }),
-      expect.objectContaining({
-        _tag: "TaskCompleted",
-        taskId,
-      }),
-      expect.objectContaining({
-        _tag: "TaskRemoved",
-        taskId,
-      }),
-    ]);
+        const taskId = yield* store.addTask({
+          description: "event-task",
+          total: 5,
+          transient: false,
+          countDisplay: "processedOnly",
+        });
+
+        const added = store.getSnapshot().events;
+        expect(added).toHaveLength(1);
+        expect(added[0]).toMatchObject({
+          _tag: "TaskAdded",
+          taskId,
+          parentId: null,
+          description: "event-task",
+          total: 5,
+          transient: false,
+          countDisplay: "processedOnly",
+        });
+
+        yield* store.updateTask(taskId, {
+          description: "event-task-updated",
+          succeeded: 1,
+          failed: 1,
+          total: 6,
+          transient: true,
+          countDisplay: "detailed",
+        });
+        yield* store.incrementSucceeded(taskId, 2);
+        yield* store.incrementFailed(taskId, 1);
+        yield* store.completeTask(taskId);
+        store.flush();
+
+        expect(store.getSnapshot().events).toEqual([
+          expect.objectContaining({
+            _tag: "TaskUpdated",
+            taskId,
+            description: "event-task-updated",
+            succeeded: 1,
+            failed: 1,
+            processed: 2,
+            total: 6,
+            transient: true,
+            countDisplay: "detailed",
+          }),
+          expect.objectContaining({
+            _tag: "TaskAdvanced",
+            taskId,
+            amount: 2,
+            kind: "succeeded",
+          }),
+          expect.objectContaining({
+            _tag: "TaskAdvanced",
+            taskId,
+            amount: 1,
+            kind: "failed",
+          }),
+          expect.objectContaining({
+            _tag: "TaskCompleted",
+            taskId,
+          }),
+          expect.objectContaining({
+            _tag: "TaskRemoved",
+            taskId,
+          }),
+        ]);
+      }).pipe(Effect.scoped),
+    );
   });
 
   test("keeps nested tasks in depth-first render order", async () => {
-    const store = await Effect.runPromise(makeProgressStore);
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* makeProgressStore;
 
-    const parentId = await Effect.runPromise(store.addTask({ description: "parent" }));
-    const childId = await Effect.runPromise(store.addTask({ description: "child", parentId }));
-    const grandchildId = await Effect.runPromise(
-      store.addTask({ description: "grandchild", parentId: childId }),
+        const parentId = yield* store.addTask({ description: "parent" });
+        const childId = yield* store.addTask({ description: "child", parentId });
+        const grandchildId = yield* store.addTask({ description: "grandchild", parentId: childId });
+        const siblingId = yield* store.addTask({ description: "sibling", parentId });
+        const rootSiblingId = yield* store.addTask({ description: "root-sibling" });
+
+        store.flush();
+
+        expect(store.getSnapshot().snapshot.renderOrder).toEqual([
+          { id: parentId, depth: 0 },
+          { id: childId, depth: 1 },
+          { id: grandchildId, depth: 2 },
+          { id: siblingId, depth: 1 },
+          { id: rootSiblingId, depth: 0 },
+        ]);
+      }).pipe(Effect.scoped),
     );
-    const siblingId = await Effect.runPromise(store.addTask({ description: "sibling", parentId }));
-    const rootSiblingId = await Effect.runPromise(store.addTask({ description: "root-sibling" }));
-
-    store.flush();
-
-    expect(store.getSnapshot().snapshot.renderOrder).toEqual([
-      { id: parentId, depth: 0 },
-      { id: childId, depth: 1 },
-      { id: grandchildId, depth: 2 },
-      { id: siblingId, depth: 1 },
-      { id: rootSiblingId, depth: 0 },
-    ]);
   });
 
   test("removes transient subtrees from tasks, render order, and columns", async () => {
-    const store = await Effect.runPromise(makeProgressStore);
-    const columns: ReadonlyArray<ColumnDef<unknown, void>> = [{ render: () => "custom" }];
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* makeProgressStore;
+        const columns: ReadonlyArray<ColumnDef<unknown, void>> = [{ render: () => "custom" }];
 
-    const parentId = await Effect.runPromise(
-      store.addTask({
-        description: "parent",
-        transient: true,
-        columns,
-      }),
-    );
-    const childId = await Effect.runPromise(
-      store.addTask({
-        description: "child",
-        parentId,
-        columns,
-      }),
-    );
-    const grandchildId = await Effect.runPromise(
-      store.addTask({
-        description: "grandchild",
-        parentId: childId,
-        columns,
-      }),
-    );
-    store.flush();
+        const parentId = yield* store.addTask({
+          description: "parent",
+          transient: true,
+          columns,
+        });
+        const childId = yield* store.addTask({
+          description: "child",
+          parentId,
+          columns,
+        });
+        const grandchildId = yield* store.addTask({
+          description: "grandchild",
+          parentId: childId,
+          columns,
+        });
+        store.flush();
 
-    await Effect.runPromise(store.completeTask(parentId));
-    store.flush();
+        yield* store.completeTask(parentId);
+        store.flush();
 
-    const publication = store.getSnapshot();
-    expect(publication.snapshot.tasks.size).toBe(0);
-    expect(publication.snapshot.renderOrder).toEqual([]);
-    expect(publication.snapshot.columns.size).toBe(0);
-    expect(publication.events).toEqual([
-      expect.objectContaining({ _tag: "TaskCompleted", taskId: parentId }),
-      expect.objectContaining({ _tag: "TaskRemoved", taskId: parentId }),
-      expect.objectContaining({ _tag: "TaskRemoved", taskId: childId }),
-      expect.objectContaining({ _tag: "TaskRemoved", taskId: grandchildId }),
-    ]);
+        const publication = store.getSnapshot();
+        expect(publication.snapshot.tasks.size).toBe(0);
+        expect(publication.snapshot.renderOrder).toEqual([]);
+        expect(publication.snapshot.columns.size).toBe(0);
+        expect(publication.events).toEqual([
+          expect.objectContaining({ _tag: "TaskCompleted", taskId: parentId }),
+          expect.objectContaining({ _tag: "TaskRemoved", taskId: parentId }),
+          expect.objectContaining({ _tag: "TaskRemoved", taskId: childId }),
+          expect.objectContaining({ _tag: "TaskRemoved", taskId: grandchildId }),
+        ]);
+      }).pipe(Effect.scoped),
+    );
   });
 
   test("does not publish terminal lifecycle events twice", async () => {
-    const store = await Effect.runPromise(makeProgressStore);
-    let notifications = 0;
-    store.subscribe(() => {
-      notifications += 1;
-    });
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* makeProgressStore;
+        let notifications = 0;
+        store.subscribe(() => {
+          notifications += 1;
+        });
 
-    const completedId = await Effect.runPromise(
-      store.addTask({ description: "completed", transient: false }),
+        const completedId = yield* store.addTask({ description: "completed", transient: false });
+        yield* store.completeTask(completedId);
+        store.flush();
+
+        expect(store.getSnapshot().events).toEqual([
+          expect.objectContaining({ _tag: "TaskCompleted", taskId: completedId }),
+        ]);
+        const afterCompleteNotifications = notifications;
+
+        yield* store.failTask(completedId);
+        store.flush();
+
+        expect(notifications).toBe(afterCompleteNotifications);
+        expect(store.getSnapshot().events).toEqual([
+          expect.objectContaining({ _tag: "TaskCompleted", taskId: completedId }),
+        ]);
+
+        const failedId = yield* store.addTask({ description: "failed", transient: false });
+        store.flush();
+
+        yield* store.failTask(failedId);
+        store.flush();
+
+        expect(store.getSnapshot().events).toEqual([
+          expect.objectContaining({ _tag: "TaskFailed", taskId: failedId }),
+        ]);
+        const afterFailNotifications = notifications;
+
+        yield* store.completeTask(failedId);
+        store.flush();
+
+        expect(notifications).toBe(afterFailNotifications);
+        expect(store.getSnapshot().events).toEqual([
+          expect.objectContaining({ _tag: "TaskFailed", taskId: failedId }),
+        ]);
+      }).pipe(Effect.scoped),
     );
-    await Effect.runPromise(store.completeTask(completedId));
-    store.flush();
-
-    expect(store.getSnapshot().events).toEqual([
-      expect.objectContaining({ _tag: "TaskCompleted", taskId: completedId }),
-    ]);
-    const afterCompleteNotifications = notifications;
-
-    await Effect.runPromise(store.failTask(completedId));
-    store.flush();
-
-    expect(notifications).toBe(afterCompleteNotifications);
-    expect(store.getSnapshot().events).toEqual([
-      expect.objectContaining({ _tag: "TaskCompleted", taskId: completedId }),
-    ]);
-
-    const failedId = await Effect.runPromise(
-      store.addTask({ description: "failed", transient: false }),
-    );
-    store.flush();
-
-    await Effect.runPromise(store.failTask(failedId));
-    store.flush();
-
-    expect(store.getSnapshot().events).toEqual([
-      expect.objectContaining({ _tag: "TaskFailed", taskId: failedId }),
-    ]);
-    const afterFailNotifications = notifications;
-
-    await Effect.runPromise(store.completeTask(failedId));
-    store.flush();
-
-    expect(notifications).toBe(afterFailNotifications);
-    expect(store.getSnapshot().events).toEqual([
-      expect.objectContaining({ _tag: "TaskFailed", taskId: failedId }),
-    ]);
   });
 
   test("unsubscribe stops listener notifications", async () => {
-    const store = await Effect.runPromise(makeProgressStore);
-    let activeNotifications = 0;
-    let removedNotifications = 0;
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* makeProgressStore;
+        let activeNotifications = 0;
+        let removedNotifications = 0;
 
-    store.subscribe(() => {
-      activeNotifications += 1;
-    });
-    const unsubscribe = store.subscribe(() => {
-      removedNotifications += 1;
-    });
+        store.subscribe(() => {
+          activeNotifications += 1;
+        });
+        const unsubscribe = store.subscribe(() => {
+          removedNotifications += 1;
+        });
 
-    await Effect.runPromise(store.addTask({ description: "first" }));
-    expect(activeNotifications).toBe(1);
-    expect(removedNotifications).toBe(1);
+        yield* store.addTask({ description: "first" });
+        expect(activeNotifications).toBe(1);
+        expect(removedNotifications).toBe(1);
 
-    unsubscribe();
+        unsubscribe();
 
-    await Effect.runPromise(store.addTask({ description: "second" }));
-    store.flush();
+        yield* store.addTask({ description: "second" });
+        store.flush();
 
-    expect(activeNotifications).toBe(2);
-    expect(removedNotifications).toBe(1);
+        expect(activeNotifications).toBe(2);
+        expect(removedNotifications).toBe(1);
+      }).pipe(Effect.scoped),
+    );
   });
 
   test("records progress samples only when processed changes", async () => {
@@ -307,7 +335,7 @@ describe("progress render store", () => {
         expect(Option.isSome(task) ? task.value.progressSamples : []).toEqual([
           { timestamp: 0, processed: 0 },
         ]);
-      }).pipe(Effect.provide(TestClock.layer())),
+      }).pipe(Effect.scoped, Effect.provide(TestClock.layer())),
     );
   });
 
@@ -331,7 +359,7 @@ describe("progress render store", () => {
         expect(samples).toHaveLength(1_000);
         expect(samples[0]).toEqual({ timestamp: 0, processed: 6 });
         expect(samples.at(-1)).toEqual({ timestamp: 0, processed: 1_005 });
-      }).pipe(Effect.provide(TestClock.layer())),
+      }).pipe(Effect.scoped, Effect.provide(TestClock.layer())),
     );
   });
 
@@ -358,7 +386,7 @@ describe("progress render store", () => {
           { timestamp: 2_000, processed: 2 },
           { timestamp: 33_000, processed: 3 },
         ]);
-      }).pipe(Effect.provide(TestClock.layer())),
+      }).pipe(Effect.scoped, Effect.provide(TestClock.layer())),
     );
   });
 });
