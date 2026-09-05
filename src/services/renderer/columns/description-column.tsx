@@ -4,6 +4,7 @@ import { useRef } from "react";
 import type { CellInfo, TaskSnapshot } from "../../../types";
 import { useSpinnerTick } from "../context/spinner-context";
 import type { TaskRowModel } from "../../store/types";
+import { isDeterminate } from "../shared/determinate";
 
 const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
 type TaskIndicatorColor = "green" | "yellow" | "red";
@@ -14,11 +15,6 @@ interface TaskIndicator {
 }
 
 const DEFAULT_SPINNER_TYPE: SpinnerName = "dots";
-
-const isDeterminate = (
-  task: TaskSnapshot,
-): task is TaskSnapshot & { readonly units: TaskSnapshot["units"] & { readonly total: number } } =>
-  task.units.total !== undefined;
 
 const getSpinnerFrame = (tick: number, spinnerType: SpinnerName): string => {
   const frames = cliSpinners[spinnerType].frames;
