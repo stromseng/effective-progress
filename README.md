@@ -270,6 +270,24 @@ const program = Progress.task(
 
 If a task does not provide `columns`, the renderer falls back to `Progress.Columns.defaults()`.
 
+## Performance benchmarks
+
+Run `bun run bench` for isolated store-update and column-resolution measurements.
+Each fixture uses three warmup rounds and nine measured rounds, reporting JSON with
+raw samples, median/min/max time, throughput, and runtime information. Task setup,
+correctness assertions, explicit flushes, and console output are outside the timed sections;
+the benchmark does not render a terminal UI or add sleeps.
+
+The store cases update one hot task in stores of 1, 100, and 1,000 tasks. Column cases
+resolve 100 and 1,000 rows using defaults or distinct custom prepare functions. Every
+round checks final counters or prepared/layout output and exits with an error on a mismatch.
+
+To compare a change, run the same benchmark on both revisions with the same Bun
+version and machine, without other CPU-heavy work. Alternate revision order across
+multiple runs and compare medians and sample spread. These microbenchmarks measure
+store/resolver work; use the existing `perf` script and performance examples separately
+to investigate Ink rendering, logging, and end-to-end overhead.
+
 ## Effect compatibility
 
 This release targets Effect `4.0.0-beta.100` or newer compatible v4 prereleases. Effect v4 is still in beta, so its APIs may change between beta releases.
