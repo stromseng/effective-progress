@@ -5,6 +5,41 @@ import type { ColumnDef } from "../src";
 import { makeProgressStore } from "../src/services/store/store";
 
 describe("progress render store", () => {
+  test.each([[NaN], [Infinity], [-Infinity]] as const)(
+    "clears non-finite total %s on creation",
+    async (total) => {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const store = yield* makeProgressStore;
+          const taskId = yield* store.addTask({ description: "non-finite", total });
+          const task = Option.getOrThrow(yield* store.getTask(taskId));
+
+          expect(task.units.total).toBeUndefined();
+          expect(task.units.processed).toBe(0);
+        }).pipe(Effect.scoped),
+      );
+    },
+  );
+
+  test.each([[NaN], [Infinity], [-Infinity]] as const)(
+    "clears non-finite total %s on update",
+    async (total) => {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const store = yield* makeProgressStore;
+          const taskId = yield* store.addTask({ description: "non-finite", total: 5 });
+          yield* store.incrementSucceeded(taskId, 2);
+          yield* store.incrementFailed(taskId);
+          yield* store.updateTask(taskId, { total });
+          const task = Option.getOrThrow(yield* store.getTask(taskId));
+
+          expect(task.units.total).toBeUndefined();
+          expect(task.units).toMatchObject({ succeeded: 2, failed: 1, processed: 3 });
+        }).pipe(Effect.scoped),
+      );
+    },
+  );
+
   test("stops pending publications when the store scope closes", async () => {
     await Effect.runPromise(
       Effect.gen(function* () {

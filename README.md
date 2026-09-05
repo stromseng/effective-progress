@@ -212,8 +212,8 @@ const program = Progress.task(
 
 Manual total behavior:
 
-- negative totals on task creation clear the total and switch to indeterminate rendering
-- negative totals on later `updateTask` calls also clear the total
+- negative or non-finite totals (`NaN`, `Infinity`, `-Infinity`) on task creation clear the total and switch to indeterminate rendering
+- negative or non-finite totals on later `updateTask` calls also clear the total
 - explicit `total: undefined` on `updateTask` clears the total and switches back to indeterminate rendering
 
 ## Typed metadata and custom columns
