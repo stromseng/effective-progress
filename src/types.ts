@@ -150,9 +150,9 @@ export interface RenderRow {
 }
 
 export interface TaskStore {
-  readonly tasks: Map<TaskId, TaskSnapshot>;
+  readonly tasks: ReadonlyMap<TaskId, TaskSnapshot>;
   readonly renderOrder: ReadonlyArray<RenderRow>;
-  readonly columns: Map<TaskId, ReadonlyArray<ColumnDef<any, any>>>;
+  readonly columns: ReadonlyMap<TaskId, ReadonlyArray<ColumnDef<any, any>>>;
 }
 
 export interface ProgressShape {

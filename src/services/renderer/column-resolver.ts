@@ -24,7 +24,7 @@ const DEFAULT_COLUMNS = defaults();
 
 const getColumnsForRow = (
   row: TaskRowModel,
-  columns: Map<TaskId, ReadonlyArray<ColumnDef<any, any>>>,
+  columns: ReadonlyMap<TaskId, ReadonlyArray<ColumnDef<any, any>>>,
 ): ReadonlyArray<ColumnDef<any, any>> => columns.get(row.task.id) ?? DEFAULT_COLUMNS;
 
 const toCellInfo = (row: TaskRowModel): CellInfo<unknown> => row;
@@ -72,7 +72,7 @@ const resolvePreparedGroups = (
 
 export const resolveColumns = (
   rows: ReadonlyArray<TaskRowModel>,
-  columns: Map<TaskId, ReadonlyArray<ColumnDef<any, any>>>,
+  columns: ReadonlyMap<TaskId, ReadonlyArray<ColumnDef<any, any>>>,
 ): ReadonlyArray<ResolvedColumnPosition> => {
   const columnsByRow = rows.map((row) => getColumnsForRow(row, columns));
   const cellInfos = rows.map(toCellInfo);

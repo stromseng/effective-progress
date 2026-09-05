@@ -67,7 +67,11 @@ const benchmarkStore = (taskCount: number) =>
   }).pipe(Effect.scoped);
 
 const makeColumnFixture = (rowCount: number, distinctPrepare: boolean) => {
-  const store: TaskStore = { tasks: new Map(), renderOrder: [], columns: new Map() };
+  const store = {
+    tasks: new Map<TaskId, TaskSnapshot>(),
+    renderOrder: [],
+    columns: new Map<TaskId, ReadonlyArray<ColumnDef<unknown, number>>>(),
+  } satisfies TaskStore;
   const renderOrder: Array<TaskStore["renderOrder"][number]> = [];
 
   for (let index = 0; index < rowCount; index++) {

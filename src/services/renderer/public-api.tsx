@@ -9,7 +9,7 @@ import type { TaskRowModel } from "../store/types";
 
 interface ProgressRendererProps {
   readonly rows: ReadonlyArray<TaskRowModel>;
-  readonly columns: Map<TaskId, ReadonlyArray<ColumnDef<any, any>>>;
+  readonly columns: ReadonlyMap<TaskId, ReadonlyArray<ColumnDef<any, any>>>;
 }
 
 const justifyContentForAlign = (align: ColumnAlign | undefined) => {
