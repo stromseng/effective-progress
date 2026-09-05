@@ -69,7 +69,7 @@ const renderTaskWithEta = (task: Progress.TaskSnapshot, now: number): string =>
 
 const renderWithEta = (now: number): string => renderTaskWithEta(makeTask(), now);
 
-describe("rendererv2 eta column", () => {
+describe("renderer eta column", () => {
   test("renders prefixed eta when task has progress", () => {
     const output = renderWithEta(1_000);
     expect(output).toContain("ETA: 00:01");

@@ -44,7 +44,7 @@ const getTaskByDescription = (
   return task!;
 };
 
-describe("Progress.run", () => {
+describe("Progress task scopes", () => {
   test("plain logs are not swallowed when no tasks are created", async () => {
     const message = "plain-log-no-task";
     const { logs } = await Effect.runPromise(withLogSpy(withStdio(Console.log(message))));
@@ -52,7 +52,7 @@ describe("Progress.run", () => {
     expect(logs.some((args) => args[0] === message)).toBeTrue();
   });
 
-  test("nested run reuses the outer service", async () => {
+  test("nested task reuses the outer service", async () => {
     const reused = await Effect.runPromise(
       withStdio(
         Progress.task(
