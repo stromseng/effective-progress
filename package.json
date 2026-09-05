@@ -52,7 +52,7 @@
     "@effect/language-service": "^0.73.1",
     "@types/bun": "latest",
     "@types/react": "^19.2.14",
-    "effect": "^4.0.0-beta.100",
+    "effect": "^4.0.0-rc.112",
     "knip": "^5.86.0",
     "oxfmt": "^0.32.0",
     "oxlint": "^1.47.0",
@@ -61,7 +61,7 @@
     "typescript": "^5"
   },
   "peerDependencies": {
-    "effect": "^4.0.0-beta.100"
+    "effect": "^4.0.0-rc.112"
   },
   "engines": {
     "node": ">=20.12.0"
