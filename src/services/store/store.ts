@@ -2,21 +2,12 @@ import { Clock, Context, Effect, Layer, Option, Queue } from "effect";
 import type {
   AddTaskOptions,
   ColumnDef,
-  ProgressTaskEvent,
   TaskProgressSample,
   TaskId,
   TaskStore,
   UpdateTaskOptions,
 } from "../../types";
 import { TaskId as makeTaskId, TaskSnapshot } from "../../types";
-import {
-  TaskAddedEvent,
-  TaskAdvancedEvent,
-  TaskCompletedEvent,
-  TaskFailedEvent,
-  TaskRemovedEvent,
-  TaskUpdatedEvent,
-} from "../../types";
 
 interface TaskCounts {
   readonly succeeded: number;
@@ -27,13 +18,8 @@ interface TaskCounts {
 const ETA_SAMPLE_WINDOW_MILLIS = 30_000;
 const ETA_SAMPLE_MAX_LENGTH = 1_000;
 
-export interface RenderPublication {
-  readonly snapshot: TaskStore;
-  readonly events: ReadonlyArray<ProgressTaskEvent>;
-}
-
 export interface ProgressStoreShape {
-  readonly getSnapshot: () => RenderPublication;
+  readonly getSnapshot: () => TaskStore;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
   readonly addTask: (options: AddTaskOptions<any>) => Effect.Effect<TaskId>;
@@ -194,11 +180,6 @@ const subtreeTaskIds = (
   return range === undefined ? [] : renderOrder.slice(range.start, range.end).map((row) => row.id);
 };
 
-interface StateUpdate {
-  readonly state: TaskStore;
-  readonly events: ReadonlyArray<ProgressTaskEvent>;
-}
-
 const removeTransientSubtree = (
   current: TaskStore,
   nextTasks: Map<TaskId, TaskSnapshot>,
@@ -219,7 +200,6 @@ const removeTransientSubtree = (
   }
 
   return {
-    removedTaskIds,
     renderOrder:
       range === undefined
         ? current.renderOrder
@@ -242,11 +222,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
     renderOrder: [],
     columns: new Map<TaskId, ReadonlyArray<ColumnDef<any, any>>>(),
   };
-  let pendingEvents: Array<ProgressTaskEvent> = [];
-  let publishedPublication: RenderPublication = {
-    snapshot: state,
-    events: [],
-  };
+  let publishedSnapshot = state;
   let hasPendingPublish = false;
   let lastPublishAt = -SNAPSHOT_PUBLISH_INTERVAL_MILLIS;
   let latestObservedAt = 0;
@@ -259,15 +235,9 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
   };
 
   const publishNow = (publishedAt: number): void => {
-    const nextPublication: RenderPublication = {
-      snapshot: state,
-      events: [...pendingEvents],
-    };
-
     hasPendingPublish = false;
-    publishedPublication = nextPublication;
+    publishedSnapshot = state;
     notifyListeners();
-    pendingEvents = [];
     lastPublishAt = publishedAt;
   };
 
@@ -304,25 +274,19 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
     yield* Queue.offer(publishQueue, undefined);
   });
 
-  const publish = (update: StateUpdate, now: number): Effect.Effect<void> => {
-    if (update.state === state) {
+  const updateState = (
+    transform: (current: TaskStore) => TaskStore,
+    now: number,
+  ): Effect.Effect<void> => {
+    const nextState = transform(state);
+    if (nextState === state) {
       return Effect.void;
     }
 
     latestObservedAt = now;
-    state = update.state;
-    if (update.events.length > 0) {
-      pendingEvents.push(...update.events);
-    }
+    state = nextState;
     hasPendingPublish = true;
     return schedulePublish;
-  };
-
-  const updateState = (
-    transform: (current: TaskStore) => StateUpdate,
-    now: number,
-  ): Effect.Effect<void> => {
-    return publish(transform(state), now);
   };
 
   const incrementCounter = (taskId: TaskId, kind: "succeeded" | "failed", amount: number) =>
@@ -332,7 +296,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
       yield* updateState((current) => {
         const currentTask = current.tasks.get(taskId);
         if (!currentTask) {
-          return { state: current, events: [] };
+          return current;
         }
 
         const units = normalizeUnits({
@@ -355,10 +319,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
           }),
         );
 
-        return {
-          state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
-          events: [new TaskAdvancedEvent({ taskId, amount, kind })],
-        };
+        return { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns };
       }, now);
     });
 
@@ -369,27 +330,17 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
       yield* updateState((current) => {
         const currentTask = current.tasks.get(taskId);
         if (!currentTask || currentTask.status !== "running") {
-          return { state: current, events: [] };
+          return current;
         }
 
-        const event =
-          status === "done" ? new TaskCompletedEvent({ taskId }) : new TaskFailedEvent({ taskId });
         const nextTasks = new Map(current.tasks);
         if (currentTask.transient) {
           const removedSubtree = removeTransientSubtree(current, nextTasks, taskId);
 
           return {
-            state: {
-              tasks: nextTasks,
-              renderOrder: removedSubtree.renderOrder,
-              columns: removedSubtree.columns,
-            },
-            events: [
-              event,
-              ...removedSubtree.removedTaskIds.map(
-                (removedTaskId) => new TaskRemovedEvent({ taskId: removedTaskId }),
-              ),
-            ],
+            tasks: nextTasks,
+            renderOrder: removedSubtree.renderOrder,
+            columns: removedSubtree.columns,
           };
         }
 
@@ -408,15 +359,12 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
           }),
         );
 
-        return {
-          state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
-          events: [event],
-        };
+        return { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns };
       }, now);
     });
 
   const store: ProgressStoreShape = {
-    getSnapshot: () => publishedPublication,
+    getSnapshot: () => publishedSnapshot,
     subscribe: (listener) => {
       listeners.add(listener);
       return () => {
@@ -470,19 +418,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
               )
             : current.columns;
 
-          return {
-            state: { tasks: nextTasks, renderOrder: nextRenderOrder, columns: nextColumns },
-            events: [
-              new TaskAddedEvent({
-                taskId,
-                parentId,
-                description: task.description,
-                total: task.units.total,
-                transient: task.transient,
-                countDisplay: task.countDisplay,
-              }),
-            ],
-          };
+          return { tasks: nextTasks, renderOrder: nextRenderOrder, columns: nextColumns };
         }, now);
 
         return taskId;
@@ -494,28 +430,12 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
         yield* updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
-            return { state: current, events: [] };
+            return current;
           }
 
           const nextTask = updatedSnapshot(currentTask, options, now);
           const nextTasks = new Map(current.tasks);
           nextTasks.set(taskId, nextTask);
-
-          const events: Array<ProgressTaskEvent> = [
-            new TaskUpdatedEvent({
-              taskId,
-              description: options.description ?? undefined,
-              succeeded: options.succeeded ?? undefined,
-              failed: options.failed ?? undefined,
-              processed:
-                options.succeeded !== undefined || options.failed !== undefined
-                  ? nextTask.units.processed
-                  : undefined,
-              total: hasExplicitTotal(options) ? nextTask.units.total : undefined,
-              transient: options.transient ?? undefined,
-              countDisplay: options.countDisplay ?? undefined,
-            }),
-          ];
 
           if (options.transient !== undefined) {
             for (const candidateId of subtreeTaskIds(current.renderOrder, taskId).slice(1)) {
@@ -526,19 +446,10 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
 
               const nextCandidate = TaskSnapshot({ ...candidate, transient: nextTask.transient });
               nextTasks.set(candidateId, nextCandidate);
-              events.push(
-                new TaskUpdatedEvent({
-                  taskId: candidateId,
-                  transient: nextCandidate.transient,
-                }),
-              );
             }
           }
 
-          return {
-            state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
-            events,
-          };
+          return { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns };
         }, now);
       }),
     incrementSucceeded: (taskId, amount = 1) => incrementCounter(taskId, "succeeded", amount),
@@ -554,16 +465,13 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
         yield* updateState((current) => {
           const currentTask = current.tasks.get(taskId);
           if (!currentTask) {
-            return { state: current, events: [] };
+            return current;
           }
 
           const nextTasks = new Map(current.tasks);
           nextTasks.set(taskId, TaskSnapshot({ ...currentTask, metadata }));
 
-          return {
-            state: { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns },
-            events: [],
-          };
+          return { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns };
         }, now);
       }),
     getMetadata: (taskId) =>
