@@ -75,24 +75,7 @@ const formatElapsedClock = (task: TaskSnapshot, now: number): string => {
   return formatClockDurationSeconds(elapsedMillis / 1000);
 };
 
-export const formatEta = (task: TaskSnapshot): string => {
-  if (task.status !== "running" || !isDeterminate(task)) {
-    return "";
-  }
-
-  const { processed, total } = task.units;
-  const remaining = total - processed;
-  if (processed <= 0 || remaining <= 0) {
-    return "";
-  }
-
-  const etaMillis = getSmoothedEtaMillis(task);
-  if (etaMillis === undefined) {
-    return "";
-  }
-
-  return formatClockDurationSeconds(etaMillis / 1000);
-};
+export const formatEta = (task: TaskSnapshot): string => formatEtaClock(task) ?? "";
 
 const formatEtaClock = (task: TaskSnapshot): string | undefined => {
   if (task.status !== "running" || !isDeterminate(task)) {
