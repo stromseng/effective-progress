@@ -660,10 +660,10 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
   return { store, publisherLoop };
 };
 
-export const makeProgressStore: Effect.Effect<ProgressStoreShape> = Effect.gen(function* () {
+export const makeProgressStore = Effect.gen(function* () {
   const publishQueue = yield* Queue.sliding<void>(1);
   const runtime = makeProgressStoreRuntime(publishQueue);
-  yield* Effect.forkDetach(runtime.publisherLoop);
+  yield* Effect.forkScoped(runtime.publisherLoop);
   return runtime.store;
 });
 
