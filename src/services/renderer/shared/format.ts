@@ -106,8 +106,6 @@ interface DeterminateAmountParts {
   readonly total: string;
 }
 
-type DeterminateProcessedColor = "green" | "yellow" | "red" | "whiteBright";
-
 const formatDeterminateAmountParts = (task: TaskSnapshot): DeterminateAmountParts | undefined => {
   if (!isDeterminate(task)) {
     return undefined;
@@ -124,30 +122,6 @@ const formatDeterminateAmountParts = (task: TaskSnapshot): DeterminateAmountPart
     processed: processedText,
     total: totalText,
   };
-};
-
-export const getDeterminateProcessedColor = (task: TaskSnapshot): DeterminateProcessedColor => {
-  if (!isDeterminate(task)) {
-    return "whiteBright";
-  }
-
-  const { succeeded, failed, processed, total } = task.units;
-  if (task.status === "failed" && processed < total) {
-    return "red";
-  }
-  if (processed >= total && failed === 0) {
-    return "green";
-  }
-  if (processed >= total && failed > 0 && succeeded === 0) {
-    return "red";
-  }
-  if (succeeded > 0 && failed > 0) {
-    return "yellow";
-  }
-  if (failed > 0 && succeeded === 0) {
-    return "red";
-  }
-  return "whiteBright";
 };
 
 export const formatAmount = (task: TaskSnapshot): string => {

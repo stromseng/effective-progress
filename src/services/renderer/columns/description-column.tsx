@@ -1,9 +1,6 @@
 import cliSpinners, { type SpinnerName } from "cli-spinners";
-import { Box, Text, useBoxMetrics, type DOMElement } from "ink";
-import { useRef } from "react";
+import { Text } from "ink";
 import type { CellInfo, TaskSnapshot } from "../../../types";
-import { useSpinnerTick } from "../context/spinner-context";
-import type { TaskRowModel } from "../../store/types";
 import { isDeterminate } from "../shared/determinate";
 
 const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
@@ -120,28 +117,5 @@ export const DescriptionCell = ({
       <TaskIndicatorGlyph task={cell.task} tick={spinnerTick} />
       {` ${cell.task.description}`}
     </Text>
-  );
-};
-
-export const DescriptionColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskRowModel> }) => {
-  const ref = useRef<DOMElement>(null!);
-  const { width, hasMeasured } = useBoxMetrics(ref);
-  const spinnerTick = useSpinnerTick();
-
-  const { minTreeWidth, preferredWidth } = prepareDescription(rows);
-
-  return (
-    <Box ref={ref} flexDirection="column" flexShrink={1} flexBasis={preferredWidth} minWidth={1}>
-      {rows.map((row) => (
-        <Box key={row.task.id} height={1}>
-          <DescriptionCell
-            cell={row}
-            width={hasMeasured ? width : undefined}
-            minTreeWidth={minTreeWidth}
-            spinnerTick={spinnerTick}
-          />
-        </Box>
-      ))}
-    </Box>
   );
 };
