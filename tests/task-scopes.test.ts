@@ -129,54 +129,20 @@ describe("Progress task scopes", () => {
     expect(result).toBeTrue();
   });
 
-  test("task preserves Effect v4 loggers and routes Progress.log through them", async () => {
+  test("task preserves Effect v4 loggers", async () => {
     const { logs } = await Effect.runPromise(
       withLoggerSpy(
         withStdio(
-          Progress.task(
-            Effect.gen(function* () {
-              yield* Effect.logInfo("effect-log");
-              const progress = yield* Progress.Progress;
-              yield* progress.log("progress-log");
-            }),
-            { description: "logger-task", transient: true },
-          ),
+          Progress.task(Effect.logInfo("effect-log"), {
+            description: "logger-task",
+            transient: true,
+          }),
         ),
       ),
     );
-
-    const messages = logs.flatMap((entry) =>
-      Array.isArray(entry.message) ? entry.message : [entry.message],
-    );
-    expect(messages).toContain("effect-log");
-    expect(messages).toContain("progress-log");
-    expect(
-      logs.find((entry) =>
-        (Array.isArray(entry.message) ? entry.message : [entry.message]).includes("effect-log"),
-      )?.logLevel,
-    ).toBe("Info");
-  });
-
-  test("Progress.log forwards zero-argument calls to Effect loggers", async () => {
-    const { logs } = await Effect.runPromise(
-      withLoggerSpy(
-        withStdio(
-          Progress.task(
-            Effect.gen(function* () {
-              const progress = yield* Progress.Progress;
-              yield* progress.log();
-            }),
-            { description: "empty-log-message", transient: true },
-          ),
-        ),
-      ),
-    );
-
-    const emptyMessageLog = logs.find(
-      (entry) => Array.isArray(entry.message) && entry.message.length === 0,
-    );
-    expect(emptyMessageLog).toBeDefined();
-    expect(emptyMessageLog?.logLevel).toBe("Info");
+    expect(logs).toHaveLength(1);
+    expect(logs[0]?.message).toEqual(["effect-log"]);
+    expect(logs[0]?.logLevel).toBe("Info");
   });
 
   test("all returns the values from each effect", async () => {

@@ -142,7 +142,7 @@ Effect.runPromise(program);
 
 - The Ink renderer runs with `patchConsole: true`, so console output is patched by Ink while the app is mounted.
 - `Effect.log*` uses the active Effect v4 `Logger` set, including custom loggers installed with `Logger.layer(...)`.
-- The low-level `progress.log(...)` method emits through `Effect.log`, so it honors the current log level, logger set, annotations, and spans.
+- Use `Effect.log(...)` or `Effect.logInfo(...)` directly; these honor the current log level, logger set, annotations, and spans. The former `progress.log(...)` alias has been removed.
 - Direct `Console` calls still use the currently provided Effect `Console` reference.
 - Formatting and routing remain controlled by the consumer's logger and console configuration.
 
