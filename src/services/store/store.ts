@@ -119,7 +119,6 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions, now
     ...snapshot,
     description: options.description ?? snapshot.description,
     countDisplay: options.countDisplay ?? snapshot.countDisplay,
-    transient: options.transient ?? snapshot.transient,
     units,
     progressSamples: appendProgressSample(snapshot.progressSamples, now, units.processed),
   } satisfies TaskSnapshot;
@@ -161,14 +160,6 @@ const findSubtreeRange = (renderOrder: TaskStore["renderOrder"], taskId: TaskId)
   }
 
   return { start, end };
-};
-
-const subtreeTaskIds = (
-  renderOrder: TaskStore["renderOrder"],
-  taskId: TaskId,
-): ReadonlyArray<TaskId> => {
-  const range = findSubtreeRange(renderOrder, taskId);
-  return range === undefined ? [] : renderOrder.slice(range.start, range.end).map((row) => row.id);
 };
 
 const removeTransientSubtree = (
@@ -417,21 +408,6 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
           const nextTask = updatedSnapshot(currentTask, options, now);
           const nextTasks = new Map(current.tasks);
           nextTasks.set(taskId, nextTask);
-
-          if (options.transient !== undefined) {
-            for (const candidateId of subtreeTaskIds(current.renderOrder, taskId).slice(1)) {
-              const candidate = current.tasks.get(candidateId);
-              if (!candidate) {
-                continue;
-              }
-
-              const nextCandidate = {
-                ...candidate,
-                transient: nextTask.transient,
-              } satisfies TaskSnapshot;
-              nextTasks.set(candidateId, nextCandidate);
-            }
-          }
 
           return { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns };
         }, now);

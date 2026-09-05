@@ -179,7 +179,7 @@ The handle exposes:
 
 - `incrementSucceeded(amount?)`
 - `incrementFailed(amount?)`
-- `update({ description, total, countDisplay, transient, succeeded, failed })`
+- `update({ description, total, countDisplay, succeeded, failed })`
 - `getMetadata`, `setMetadata`, `updateMetadata`
 - `getSnapshot`
 - `complete`
@@ -209,6 +209,8 @@ const program = Progress.task(
   { description: "Manual task", total: 10 },
 );
 ```
+
+Task cleanup policy is fixed at creation. Pass `transient: true` when creating a task to remove its subtree when it finishes. Children inherit a transient parent’s cleanup policy, and a child can opt into transient cleanup under a persistent parent. `updateTask` and `TaskHandle.update` no longer accept `transient`.
 
 Manual total behavior:
 

@@ -92,42 +92,6 @@ describe("transient propagation", () => {
     expect(result.child.transient).toBeTrue();
   });
 
-  test("updating parent transient propagates to descendants", async () => {
-    const result = await Effect.runPromise(
-      withStdio(
-        withProgress(
-          Effect.gen(function* () {
-            const progress = yield* Progress.Progress;
-            const parentId = yield* progress.addTask({
-              description: "parent",
-              transient: false,
-            });
-            const childId = yield* progress.addTask({
-              description: "child",
-              parentId,
-            });
-            const grandchildId = yield* progress.addTask({
-              description: "grandchild",
-              parentId: childId,
-            });
-
-            yield* progress.updateTask(parentId, { transient: true });
-
-            const parent = getTaskOrFail(yield* progress.getTask(parentId), "parent");
-            const child = getTaskOrFail(yield* progress.getTask(childId), "child");
-            const grandchild = getTaskOrFail(yield* progress.getTask(grandchildId), "grandchild");
-
-            return { parent, child, grandchild };
-          }),
-        ),
-      ),
-    );
-
-    expect(result.parent.transient).toBeTrue();
-    expect(result.child.transient).toBeTrue();
-    expect(result.grandchild.transient).toBeTrue();
-  });
-
   test("transient child is removed on completion even under non-transient parent", async () => {
     const result = await Effect.runPromise(
       withStdio(
