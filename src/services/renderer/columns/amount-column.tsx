@@ -1,7 +1,6 @@
 import { Text } from "ink";
 import type { CellInfo, TaskSnapshot } from "../../../types";
-import { isDeterminate } from "../shared/determinate";
-import { formatAmount } from "../shared/format";
+import { getAmountParts } from "../shared/amount-parts";
 import { textWidth } from "../shared/text-width";
 
 export interface AmountLayout {
@@ -12,77 +11,36 @@ export interface AmountLayout {
   readonly preferredWidth: number;
 }
 
-const hasUnknownTotalCounts = (task: TaskSnapshot): boolean =>
-  task.units.total === undefined && task.units.processed > 0;
-
-const hasCountedAmount = (task: TaskSnapshot): boolean =>
-  isDeterminate(task) || hasUnknownTotalCounts(task);
-
-const totalTextFor = (task: TaskSnapshot): string =>
-  task.units.total === undefined ? "?" : `${task.units.total}`;
-
-const emptyAmountLayout: AmountLayout = {
-  hasDetailedRows: false,
-  countWidth: 0,
-  processedWidth: 0,
-  totalWidth: 0,
-  preferredWidth: 0,
-};
-
 export const measureAmountLayout = (rows: ReadonlyArray<CellInfo<unknown>>): AmountLayout => {
-  const countedTasks = rows.flatMap((row) => (hasCountedAmount(row.task) ? [row.task] : []));
-  const hasDetailedRows = countedTasks.some((task) => task.countDisplay === "detailed");
+  let hasDetailedRows = false;
+  let countWidth = 0;
+  let processedWidth = 0;
+  let totalWidth = 0;
+  let indicatorWidth = 0;
 
-  if (countedTasks.length === 0) {
-    const preferredWidth = rows.reduce(
-      (max, row) => Math.max(max, textWidth(formatAmount(row.task))),
-      0,
-    );
-
-    return {
-      ...emptyAmountLayout,
-      preferredWidth,
-    };
+  for (const row of rows) {
+    const parts = getAmountParts(row.task);
+    if (parts.kind === "indicator") {
+      indicatorWidth = Math.max(indicatorWidth, textWidth(parts.text));
+      continue;
+    }
+    hasDetailedRows ||= parts.detailed;
+    processedWidth = Math.max(processedWidth, parts.processed.length);
+    totalWidth = Math.max(totalWidth, parts.total.length);
+    countWidth = Math.max(countWidth, parts.succeeded.length, parts.failed.length);
   }
 
-  const processedWidth = countedTasks.reduce(
-    (max, task) => Math.max(max, `${task.units.processed}`.length),
-    1,
-  );
-  const totalWidth = countedTasks.reduce(
-    (max, task) => Math.max(max, totalTextFor(task).length),
-    1,
-  );
-  const countWidth = hasDetailedRows
-    ? countedTasks.reduce(
-        (max, task) =>
-          Math.max(
-            max,
-            processedWidth,
-            totalWidth,
-            `${task.units.succeeded}`.length,
-            `${task.units.failed}`.length,
-          ),
-        1,
-      )
-    : 0;
-
+  countWidth = hasDetailedRows ? Math.max(countWidth, processedWidth, totalWidth) : 0;
   const countedWidth =
-    (hasDetailedRows ? countWidth + 1 + countWidth + 1 : 0) + processedWidth + 1 + totalWidth;
-  const preferredWidth = rows.reduce((max, row) => {
-    if (hasCountedAmount(row.task)) {
-      return Math.max(max, countedWidth);
-    }
-
-    return Math.max(max, textWidth(formatAmount(row.task)));
-  }, countedWidth);
-
+    processedWidth === 0
+      ? 0
+      : (hasDetailedRows ? 2 * (countWidth + 1) : 0) + processedWidth + 1 + totalWidth;
   return {
     hasDetailedRows,
     countWidth,
     processedWidth,
     totalWidth,
-    preferredWidth,
+    preferredWidth: Math.max(indicatorWidth, countedWidth),
   };
 };
 
@@ -93,23 +51,24 @@ const AmountValue = ({
   readonly task: TaskSnapshot;
   readonly layout: AmountLayout;
 }) => {
-  if (!hasCountedAmount(task)) {
-    return formatAmount(task);
+  const parts = getAmountParts(task);
+  if (parts.kind === "indicator") {
+    return parts.text;
   }
 
-  const processed = `${task.units.processed}`.padStart(layout.processedWidth, " ");
-  const total = totalTextFor(task).padStart(layout.totalWidth, " ");
+  const processed = parts.processed.padStart(layout.processedWidth, " ");
+  const total = parts.total.padStart(layout.totalWidth, " ");
 
   if (!layout.hasDetailedRows) {
     return `${processed}/${total}`;
   }
 
-  if (task.countDisplay !== "detailed") {
+  if (!parts.detailed) {
     return `${" ".repeat(layout.countWidth)} ${" ".repeat(layout.countWidth)} ${processed}/${total}`;
   }
 
-  const succeeded = `${task.units.succeeded}`.padStart(layout.countWidth, " ");
-  const failed = `${task.units.failed}`.padStart(layout.countWidth, " ");
+  const succeeded = parts.succeeded.padStart(layout.countWidth, " ");
+  const failed = parts.failed.padStart(layout.countWidth, " ");
 
   return (
     <>

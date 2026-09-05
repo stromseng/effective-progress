@@ -1,8 +1,6 @@
 import type { TaskSnapshot } from "../../../types";
 import { isDeterminate } from "./determinate";
-
-const showsUnknownTotalCounts = (task: TaskSnapshot): boolean =>
-  task.units.total === undefined && task.units.processed > 0;
+import { getAmountParts } from "./amount-parts";
 
 const formatDurationSeconds = (seconds: number): string => {
   const value = Math.max(0, Math.floor(seconds));
@@ -99,53 +97,11 @@ const formatEtaClock = (task: TaskSnapshot): string | undefined => {
 export const formatElapsedEta = (task: TaskSnapshot, now: number): string =>
   `${formatElapsedClock(task, now)}<${formatEtaClock(task) ?? "00:00"}`;
 
-interface DeterminateAmountParts {
-  readonly succeeded: string;
-  readonly failed: string;
-  readonly processed: string;
-  readonly total: string;
-}
-
-const formatDeterminateAmountParts = (task: TaskSnapshot): DeterminateAmountParts | undefined => {
-  if (!isDeterminate(task)) {
-    return undefined;
-  }
-
-  const totalText = `${task.units.total}`;
-  const width = totalText.length;
-  const processedText = `${task.units.processed}`;
-
-  return {
-    succeeded:
-      task.countDisplay === "detailed" ? `${task.units.succeeded}`.padStart(width, " ") : "",
-    failed: task.countDisplay === "detailed" ? `${task.units.failed}`.padStart(width, " ") : "",
-    processed: processedText,
-    total: totalText,
-  };
-};
-
 export const formatAmount = (task: TaskSnapshot): string => {
-  if (isDeterminate(task)) {
-    const parts = formatDeterminateAmountParts(task);
-    if (parts === undefined) {
-      return "";
-    }
-    if (task.countDisplay === "detailed") {
-      return `${parts.succeeded} ${parts.failed} ${parts.processed}/${parts.total}`;
-    }
-    return `${parts.processed}/${parts.total}`;
+  const parts = getAmountParts(task);
+  if (parts.kind === "indicator") {
+    return parts.text;
   }
-
-  if (showsUnknownTotalCounts(task)) {
-    if (task.countDisplay === "detailed") {
-      return `${task.units.succeeded} ${task.units.failed} ${task.units.processed}/?`;
-    }
-    return `${task.units.processed}/?`;
-  }
-
-  if (task.status === "running") {
-    return "";
-  }
-
-  return task.status === "failed" ? "✗" : "";
+  const processed = `${parts.processed}/${parts.total}`;
+  return parts.detailed ? `${parts.succeeded} ${parts.failed} ${processed}` : processed;
 };
