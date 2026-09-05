@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { renderToString } from "ink";
 import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
-import { DescriptionColumn } from "../src/services/renderer/columns/description-column";
+import { ProgressRenderer } from "../src/services/renderer/public-api";
 import { NowProvider } from "../src/services/renderer/context/now-context";
 import { SpinnerProvider } from "../src/services/renderer/context/spinner-context";
 import type { TaskRowModel } from "../src/services/store/types";
@@ -67,7 +67,10 @@ const renderDescriptionColumn = (rows: ReadonlyArray<TaskRowModel>, spinnerTick?
     renderToString(
       <NowProvider active={false} nowOverride={0}>
         <SpinnerProvider active={false} tickOverride={spinnerTick}>
-          <DescriptionColumn rows={rows} />
+          <ProgressRenderer
+            rows={rows}
+            columns={new Map(rows.map((row) => [row.task.id, [Progress.Columns.description()]]))}
+          />
         </SpinnerProvider>
       </NowProvider>,
     ),
@@ -82,7 +85,7 @@ describe("renderer description tree planning", () => {
         hasNextSibling: false,
         ancestorHasNextSibling: [],
       }),
-      deriveRow(makeTask(2, "child", "running"), {
+      deriveRow(makeTask(2, "child task", "running"), {
         depth: 1,
         hasChildren: false,
         hasNextSibling: false,
