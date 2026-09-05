@@ -279,6 +279,43 @@ describe("progress render store", () => {
     );
   });
 
+  test.each(["completeTask", "failTask"] as const)(
+    "%s removes a nested transient subtree without removing its neighbors",
+    async (finalize) => {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const store = yield* makeProgressStore;
+          const columns: ReadonlyArray<ColumnDef<unknown>> = [{ render: () => "custom" }];
+          const rootId = yield* store.addTask({ description: "root", columns });
+          const leftId = yield* store.addTask({ description: "left", parentId: rootId, columns });
+          const branchId = yield* store.addTask({
+            description: "branch",
+            parentId: rootId,
+            transient: true,
+            columns,
+          });
+          yield* store.addTask({ description: "leaf", parentId: branchId, columns });
+          const rightId = yield* store.addTask({ description: "right", parentId: rootId, columns });
+          const rootSiblingId = yield* store.addTask({ description: "root sibling", columns });
+
+          yield* store[finalize](branchId);
+          store.flush();
+
+          const { snapshot } = store.getSnapshot();
+          const survivingIds = [rootId, leftId, rightId, rootSiblingId];
+          expect([...snapshot.tasks.keys()]).toEqual(survivingIds);
+          expect([...snapshot.columns.keys()]).toEqual(survivingIds);
+          expect(snapshot.renderOrder).toEqual([
+            { id: rootId, depth: 0 },
+            { id: leftId, depth: 1 },
+            { id: rightId, depth: 1 },
+            { id: rootSiblingId, depth: 0 },
+          ]);
+        }).pipe(Effect.scoped),
+      );
+    },
+  );
+
   test("does not publish terminal lifecycle events twice", async () => {
     await Effect.runPromise(
       Effect.gen(function* () {

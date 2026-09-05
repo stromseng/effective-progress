@@ -156,42 +156,28 @@ const findInsertionIndex = (
   return { index: i, depth: parentDepth + 1 };
 };
 
-const removeFromRenderOrder = (
-  renderOrder: ReadonlyArray<TaskStore["renderOrder"][number]>,
-  taskId: TaskId,
-) => {
-  const idx = renderOrder.findIndex((row) => row.id === taskId);
-  if (idx === -1) {
-    return renderOrder;
+/** Finds the half-open range containing a task and all of its descendants. */
+const findSubtreeRange = (renderOrder: TaskStore["renderOrder"], taskId: TaskId) => {
+  const start = renderOrder.findIndex((row) => row.id === taskId);
+  if (start === -1) {
+    return undefined;
   }
 
-  const taskDepth = renderOrder[idx]!.depth;
-  let end = idx + 1;
+  const taskDepth = renderOrder[start]!.depth;
+  let end = start + 1;
   while (end < renderOrder.length && renderOrder[end]!.depth > taskDepth) {
     end++;
   }
 
-  const next = [...renderOrder];
-  next.splice(idx, end - idx);
-  return next;
+  return { start, end };
 };
 
 const subtreeTaskIds = (
-  renderOrder: ReadonlyArray<TaskStore["renderOrder"][number]>,
+  renderOrder: TaskStore["renderOrder"],
   taskId: TaskId,
 ): ReadonlyArray<TaskId> => {
-  const idx = renderOrder.findIndex((row) => row.id === taskId);
-  if (idx === -1) {
-    return [];
-  }
-
-  const taskDepth = renderOrder[idx]!.depth;
-  let end = idx + 1;
-  while (end < renderOrder.length && renderOrder[end]!.depth > taskDepth) {
-    end++;
-  }
-
-  return renderOrder.slice(idx, end).map((row) => row.id);
+  const range = findSubtreeRange(renderOrder, taskId);
+  return range === undefined ? [] : renderOrder.slice(range.start, range.end).map((row) => row.id);
 };
 
 interface StateUpdate {
@@ -204,7 +190,11 @@ const removeTransientSubtree = (
   nextTasks: Map<TaskId, TaskSnapshot>,
   taskId: TaskId,
 ) => {
-  const removedTaskIds = subtreeTaskIds(current.renderOrder, taskId);
+  const range = findSubtreeRange(current.renderOrder, taskId);
+  const removedTaskIds =
+    range === undefined
+      ? []
+      : current.renderOrder.slice(range.start, range.end).map((row) => row.id);
   for (const removedTaskId of removedTaskIds) {
     nextTasks.delete(removedTaskId);
   }
@@ -216,7 +206,10 @@ const removeTransientSubtree = (
 
   return {
     removedTaskIds,
-    renderOrder: removeFromRenderOrder(current.renderOrder, taskId),
+    renderOrder:
+      range === undefined
+        ? current.renderOrder
+        : current.renderOrder.toSpliced(range.start, range.end - range.start),
     columns: nextColumns,
   };
 };
