@@ -24,7 +24,7 @@
 ## Install
 
 ```bash
-bun add effective-progress effect@^4.0.0-beta.100
+bun add effective-progress effect@^4.0.0-rc.112
 ```
 
 ## Usage
@@ -272,4 +272,4 @@ If a task does not provide `columns`, the renderer falls back to `Progress.Colum
 
 ## Effect compatibility
 
-This release targets Effect `4.0.0-beta.100` or newer compatible v4 prereleases. Effect v4 is still in beta, so its APIs may change between beta releases.
+This release targets Effect `4.0.0-rc.112` or newer compatible v4 prereleases. Effect v4 is a release candidate, so its APIs may change before the stable release.
