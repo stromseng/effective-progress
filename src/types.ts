@@ -155,18 +155,22 @@ export interface TaskStore {
   readonly columns: ReadonlyMap<TaskId, ReadonlyArray<ColumnDef<any, any>>>;
 }
 
-export interface ProgressShape {
-  readonly addTask: (options: AddTaskOptions<any>) => Effect.Effect<TaskId>;
+/** Task operations shared by the progress service and its backing store. */
+export interface TaskOperations {
+  readonly addTask: <M>(options: AddTaskOptions<M>) => Effect.Effect<TaskId>;
   readonly updateTask: (taskId: TaskId, options: UpdateTaskOptions) => Effect.Effect<void>;
   readonly incrementSucceeded: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
   readonly incrementFailed: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
   readonly completeTask: (taskId: TaskId) => Effect.Effect<void>;
   readonly failTask: (taskId: TaskId) => Effect.Effect<void>;
-  readonly log: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>;
   readonly getTask: (taskId: TaskId) => Effect.Effect<Option.Option<TaskSnapshot>>;
   readonly listTasks: Effect.Effect<ReadonlyArray<TaskSnapshot>>;
   readonly setMetadata: (taskId: TaskId, metadata: unknown) => Effect.Effect<void>;
   readonly getMetadata: (taskId: TaskId) => Effect.Effect<unknown>;
+}
+
+export interface ProgressShape extends TaskOperations {
+  readonly log: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>;
   /**
    * Runs an effect inside a newly created task scope.
    *

@@ -32,7 +32,7 @@ const makeProgressService = Effect.gen(function* () {
   // Let the renderer fiber start so queued logs are reliably flushed on scope teardown.
   yield* Effect.sleep("0 millis");
 
-  const addTask = (options: AddTaskOptions) =>
+  const addTask = <M>(options: AddTaskOptions<M>) =>
     Effect.gen(function* () {
       const resolvedParentId =
         options.parentId === undefined ? yield* currentParentId : Option.some(options.parentId);
@@ -42,41 +42,33 @@ const makeProgressService = Effect.gen(function* () {
       });
     });
 
-  const updateTask = store.updateTask;
-  const incrementSucceeded = store.incrementSucceeded;
-  const incrementFailed = store.incrementFailed;
-  const completeTask = store.completeTask;
-  const failTask = store.failTask;
-  const getTask = store.getTask;
-  const listTasks = store.listTasks;
-  const setMetadata = store.setMetadata;
-  const getMetadata = store.getMetadata;
-
   const makeTaskHandle = <M>(taskId: TaskId): TaskHandle<M> => ({
     id: taskId,
-    getMetadata: getMetadata(taskId) as Effect.Effect<M>,
-    setMetadata: (metadata) => setMetadata(taskId, metadata),
+    getMetadata: store.getMetadata(taskId) as Effect.Effect<M>,
+    setMetadata: (metadata) => store.setMetadata(taskId, metadata),
     updateMetadata: (f) =>
-      Effect.flatMap(getMetadata(taskId), (current) => setMetadata(taskId, f(current as M))),
-    incrementSucceeded: (amount) => incrementSucceeded(taskId, amount),
-    incrementFailed: (amount) => incrementFailed(taskId, amount),
-    update: (options) => updateTask(taskId, options),
-    complete: completeTask(taskId),
-    fail: failTask(taskId),
-    getSnapshot: getTask(taskId).pipe(Effect.map(Option.getOrThrow)),
+      Effect.flatMap(store.getMetadata(taskId), (current) =>
+        store.setMetadata(taskId, f(current as M)),
+      ),
+    incrementSucceeded: (amount) => store.incrementSucceeded(taskId, amount),
+    incrementFailed: (amount) => store.incrementFailed(taskId, amount),
+    update: (options) => store.updateTask(taskId, options),
+    complete: store.completeTask(taskId),
+    fail: store.failTask(taskId),
+    getSnapshot: store.getTask(taskId).pipe(Effect.map(Option.getOrThrow)),
   });
 
   const autoFinalizeIfRunning = <E>(taskId: TaskId, exit: Exit.Exit<unknown, E>) =>
     Effect.gen(function* () {
-      const task = yield* getTask(taskId);
+      const task = yield* store.getTask(taskId);
       if (Option.isNone(task) || task.value.status !== "running") {
         return;
       }
 
       if (Exit.isSuccess(exit)) {
-        yield* completeTask(taskId);
+        yield* store.completeTask(taskId);
       } else {
-        yield* failTask(taskId);
+        yield* store.failTask(taskId);
       }
     });
 
@@ -136,16 +128,16 @@ const makeProgressService = Effect.gen(function* () {
 
   const service = {
     addTask,
-    updateTask,
-    incrementSucceeded,
-    incrementFailed,
-    completeTask,
-    failTask,
+    updateTask: store.updateTask,
+    incrementSucceeded: store.incrementSucceeded,
+    incrementFailed: store.incrementFailed,
+    completeTask: store.completeTask,
+    failTask: store.failTask,
     log,
-    getTask,
-    listTasks,
-    setMetadata,
-    getMetadata,
+    getTask: store.getTask,
+    listTasks: store.listTasks,
+    setMetadata: store.setMetadata,
+    getMetadata: store.getMetadata,
     task,
   } satisfies ProgressShape;
 
