@@ -5,6 +5,7 @@ import type {
   TaskProgressSample,
   TaskId,
   TaskStore,
+  TaskOperations,
   UpdateTaskOptions,
 } from "../../types";
 import { TaskId as makeTaskId, TaskSnapshot } from "../../types";
@@ -18,20 +19,10 @@ interface TaskCounts {
 const ETA_SAMPLE_WINDOW_MILLIS = 30_000;
 const ETA_SAMPLE_MAX_LENGTH = 1_000;
 
-export interface ProgressStoreShape {
+export interface ProgressStoreShape extends TaskOperations {
   readonly getSnapshot: () => TaskStore;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
-  readonly addTask: (options: AddTaskOptions<any>) => Effect.Effect<TaskId>;
-  readonly updateTask: (taskId: TaskId, options: UpdateTaskOptions) => Effect.Effect<void>;
-  readonly incrementSucceeded: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
-  readonly incrementFailed: (taskId: TaskId, amount?: number) => Effect.Effect<void>;
-  readonly completeTask: (taskId: TaskId) => Effect.Effect<void>;
-  readonly failTask: (taskId: TaskId) => Effect.Effect<void>;
-  readonly getTask: (taskId: TaskId) => Effect.Effect<Option.Option<TaskSnapshot>>;
-  readonly listTasks: Effect.Effect<ReadonlyArray<TaskSnapshot>>;
-  readonly setMetadata: (taskId: TaskId, metadata: unknown) => Effect.Effect<void>;
-  readonly getMetadata: (taskId: TaskId) => Effect.Effect<unknown>;
 }
 
 const hasExplicitTotal = (options: Pick<AddTaskOptions | UpdateTaskOptions, "total">) =>
