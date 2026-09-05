@@ -20,10 +20,12 @@ export interface ResolvedColumnPosition {
   readonly minWidth?: number;
 }
 
+const DEFAULT_COLUMNS = defaults();
+
 const getColumnsForRow = (
   row: TaskRowModel,
   columns: Map<TaskId, ReadonlyArray<ColumnDef<any, any>>>,
-): ReadonlyArray<ColumnDef<any, any>> => columns.get(row.task.id) ?? defaults();
+): ReadonlyArray<ColumnDef<any, any>> => columns.get(row.task.id) ?? DEFAULT_COLUMNS;
 
 const toCellInfo = (row: TaskRowModel): CellInfo<unknown> => row;
 
