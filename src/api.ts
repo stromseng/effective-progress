@@ -207,6 +207,7 @@ export const all: {
             description: options.description,
             total: countEffects(effects),
             transient: options.transient,
+            columns: options.columns,
             countDisplay: allCountDisplay(options.mode),
           },
         );
@@ -268,6 +269,7 @@ export const forEach: {
             description: options.description,
             total: options.total ?? inferTotal(iterable),
             transient: options.transient,
+            columns: options.columns,
             countDisplay: "processedOnly",
           },
         );
