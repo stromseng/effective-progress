@@ -4,7 +4,8 @@ export const inferTotal = (iterable: Iterable<unknown>): number | undefined => {
   }
 
   if (typeof iterable === "string") {
-    return iterable.length;
+    // String iteration yields Unicode code points, not UTF-16 code units.
+    return [...iterable].length;
   }
 
   const candidate = iterable as { length?: unknown; size?: unknown };
