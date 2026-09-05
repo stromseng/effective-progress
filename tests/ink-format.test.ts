@@ -7,7 +7,7 @@ const makeTask = (
   units: Progress.TaskSnapshot["units"],
   status: Progress.TaskStatus,
 ): Progress.TaskSnapshot =>
-  Progress.TaskSnapshot({
+  ({
     id: Progress.TaskId(1),
     parentId: null,
     description: "task",
@@ -22,7 +22,7 @@ const makeTask = (
       { timestamp: 1_000, processed: units.processed },
     ],
     metadata: undefined,
-  });
+  }) satisfies Progress.TaskSnapshot;
 
 describe("determinate amount formatting", () => {
   test("renders only processed/total for processed-only mode", () => {
@@ -35,10 +35,10 @@ describe("determinate amount formatting", () => {
       },
       "failed",
     );
-    const processedOnlyTask = Progress.TaskSnapshot({
+    const processedOnlyTask = {
       ...task,
       countDisplay: "processedOnly",
-    });
+    } satisfies Progress.TaskSnapshot;
 
     expect(formatAmount(processedOnlyTask)).toBe("4/4");
   });
@@ -72,7 +72,7 @@ describe("determinate amount formatting", () => {
   });
 
   test("renders zero-total determinate counts as 0/0", () => {
-    const task = Progress.TaskSnapshot({
+    const task = {
       ...makeTask(
         {
           succeeded: 0,
@@ -83,13 +83,13 @@ describe("determinate amount formatting", () => {
         "done",
       ),
       countDisplay: "processedOnly",
-    });
+    } satisfies Progress.TaskSnapshot;
 
     expect(formatAmount(task)).toBe("0/0");
   });
 
   test("renders processed/? for counted indeterminate tasks", () => {
-    const task = Progress.TaskSnapshot({
+    const task = {
       ...makeTask(
         {
           succeeded: 3,
@@ -99,7 +99,7 @@ describe("determinate amount formatting", () => {
         "failed",
       ),
       countDisplay: "processedOnly",
-    });
+    } satisfies Progress.TaskSnapshot;
 
     expect(formatAmount(task)).toBe("4/?");
   });

@@ -123,20 +123,11 @@ const wrapTrackedEffect = <A, E, R>(
   taskId: TaskId,
   effect: Effect.Effect<A, E, R>,
 ) =>
-  Effect.gen(function* () {
-    const exit = yield* Effect.exit(effect);
-
+  Effect.onExit(effect, (exit) => {
     if (Exit.isSuccess(exit)) {
-      yield* progress.incrementSucceeded(taskId, 1);
-      return exit.value;
+      return progress.incrementSucceeded(taskId);
     }
-
-    if (Cause.hasInterruptsOnly(exit.cause)) {
-      return yield* Effect.failCause(exit.cause);
-    }
-
-    yield* progress.incrementFailed(taskId, 1);
-    return yield* Effect.failCause(exit.cause);
+    return Cause.hasInterruptsOnly(exit.cause) ? Effect.void : progress.incrementFailed(taskId);
   });
 
 const isTaskFullyProcessed = (progress: ProgressShape, taskId: TaskId) =>
@@ -173,36 +164,27 @@ export const all: {
         const progress = yield* Progress;
         return yield* progress.task(
           (handle) =>
-            Effect.gen(function* () {
-              const taskId = handle.id;
-              const exit = yield* Effect.exit(
-                Effect.all(
-                  wrapEffects(effects, (effect) => wrapTrackedEffect(progress, taskId, effect)),
-                  {
-                    concurrency: options.concurrency,
-                    discard: options.discard,
-                    mode: options.mode,
-                  },
-                ),
-              );
-
-              if (Exit.isSuccess(exit)) {
-                yield* progress.completeTask(taskId);
-              } else {
-                if (!isCollectAllMode(options.mode)) {
-                  yield* progress.failTask(taskId);
-                } else if (yield* isTaskFullyProcessed(progress, taskId)) {
-                  yield* progress.completeTask(taskId);
-                } else {
-                  yield* progress.failTask(taskId);
-                }
-              }
-
-              return yield* Exit.match(exit, {
-                onFailure: Effect.failCause,
-                onSuccess: Effect.succeed,
-              });
-            }),
+            Effect.onExit(
+              Effect.all(
+                wrapEffects(effects, (effect) => wrapTrackedEffect(progress, handle.id, effect)),
+                {
+                  concurrency: options.concurrency,
+                  discard: options.discard,
+                  mode: options.mode,
+                },
+              ),
+              (exit) =>
+                Effect.gen(function* () {
+                  // Result mode considers fully accounted work complete even after an abnormal exit.
+                  if (
+                    Exit.isFailure(exit) &&
+                    isCollectAllMode(options.mode) &&
+                    (yield* isTaskFullyProcessed(progress, handle.id))
+                  ) {
+                    yield* handle.complete;
+                  }
+                }),
+            ),
           {
             description: options.description,
             total: countEffects(effects),

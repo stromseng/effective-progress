@@ -26,8 +26,6 @@ const makeProgressService = Effect.gen(function* () {
       : Option.none<TaskId>(),
   );
 
-  const log = (...args: ReadonlyArray<unknown>) => Effect.log(...args);
-
   yield* Effect.forkIn(inkRenderer.run, scope, { startImmediately: true });
   // Let the renderer fiber start so queued logs are reliably flushed on scope teardown.
   yield* Effect.sleep("0 millis");
@@ -58,20 +56,6 @@ const makeProgressService = Effect.gen(function* () {
     getSnapshot: store.getTask(taskId).pipe(Effect.map(Option.getOrThrow)),
   });
 
-  const autoFinalizeIfRunning = <E>(taskId: TaskId, exit: Exit.Exit<unknown, E>) =>
-    Effect.gen(function* () {
-      const task = yield* store.getTask(taskId);
-      if (Option.isNone(task) || task.value.status !== "running") {
-        return;
-      }
-
-      if (Exit.isSuccess(exit)) {
-        yield* store.completeTask(taskId);
-      } else {
-        yield* store.failTask(taskId);
-      }
-    });
-
   const scopedTask = <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
     Effect.gen(function* () {
       const taskId = yield* addTask(options);
@@ -94,18 +78,15 @@ const makeProgressService = Effect.gen(function* () {
       scopedTask(
         Effect.gen(function* () {
           const taskId = yield* Task;
-          const effect =
-            typeof effectOrCallback === "function"
-              ? effectOrCallback(makeTaskHandle(taskId))
-              : effectOrCallback;
-          const exit = yield* Effect.exit(effect);
-
-          yield* autoFinalizeIfRunning(taskId, exit);
-
-          return yield* Exit.match(exit, {
-            onFailure: Effect.failCause,
-            onSuccess: Effect.succeed,
-          });
+          return yield* Effect.onExit(
+            Effect.suspend(() =>
+              typeof effectOrCallback === "function"
+                ? effectOrCallback(makeTaskHandle(taskId))
+                : effectOrCallback,
+            ),
+            // Store finalization is terminal, so explicit completion/failure always wins.
+            (exit) => (Exit.isSuccess(exit) ? store.completeTask(taskId) : store.failTask(taskId)),
+          );
         }),
         options,
       ),
@@ -118,7 +99,6 @@ const makeProgressService = Effect.gen(function* () {
     incrementFailed: store.incrementFailed,
     completeTask: store.completeTask,
     failTask: store.failTask,
-    log,
     getTask: store.getTask,
     listTasks: store.listTasks,
     setMetadata: store.setMetadata,
