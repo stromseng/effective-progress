@@ -7,29 +7,12 @@ import type {
   AddTaskOptions,
   ProgressShape,
   TaskCountDisplay,
+  TaskApi,
   TaskHandle,
   TaskId,
   TrackOptions,
 } from "./types";
 import { inferTotal } from "./utils";
-
-interface PublicTaskApi {
-  <A, E, R>(
-    effect: Effect.Effect<A, E, R>,
-    options: AddTaskOptions,
-  ): Effect.Effect<A, E, Exclude<R, Progress | Task>>;
-  <A, E, R>(
-    options: AddTaskOptions,
-  ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Progress | Task>>;
-  <A, E, R>(
-    f: (handle: TaskHandle<void>) => Effect.Effect<A, E, R>,
-    options: AddTaskOptions<void>,
-  ): Effect.Effect<A, E, Exclude<R, Progress | Task>>;
-  <M, A, E, R>(
-    f: (handle: TaskHandle<M>) => Effect.Effect<A, E, R>,
-    options: AddTaskOptions<M> & { readonly metadata: M },
-  ): Effect.Effect<A, E, Exclude<R, Progress | Task>>;
-}
 
 const provideProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
@@ -55,13 +38,7 @@ export type AllReturn<
     | ReadonlyArray<Effect.Effect<any, any, any>>
     | Record<string, Effect.Effect<any, any, any>>,
   O extends EffectAllExecutionOptions,
-> = [
-  [Arg] extends [ReadonlyArray<Effect.Effect<any, any, any>>]
-    ? Effect.All.ReturnTuple<Arg, Effect.All.IsDiscard<O>, Effect.All.IsResult<O>>
-    : [Arg] extends [Record<string, Effect.Effect<any, any, any>>]
-      ? Effect.All.ReturnObject<Arg, Effect.All.IsDiscard<O>, Effect.All.IsResult<O>>
-      : never,
-] extends [Effect.Effect<infer A, infer E, infer R>]
+> = [Effect.All.Return<Arg, O>] extends [Effect.Effect<infer A, infer E, infer R>]
   ? Effect.Effect<A, E, Exclude<R, Progress | Task>>
   : never;
 
@@ -81,7 +58,7 @@ export type TaskOptions<M = void> = AddTaskOptions<M>;
  * typed `TaskHandle` for task-local updates, typed metadata, and explicit completion or failure,
  * and otherwise auto-finalizes from the callback exit if the task is still `running`.
  */
-export const task: PublicTaskApi = dual(
+export const task: TaskApi<Progress | Task> = dual(
   2,
   <A, E, R>(
     effectOrCallback:
