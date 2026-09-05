@@ -6,24 +6,6 @@ import { Task } from "../types";
 import { Renderer } from "./renderer/renderer";
 import { ProgressStdio } from "./stdio";
 
-interface InternalTaskApi {
-  <A, E, R>(
-    effect: Effect.Effect<A, E, R>,
-    options: AddTaskOptions,
-  ): Effect.Effect<A, E, Exclude<R, Task>>;
-  <A, E, R>(
-    options: AddTaskOptions,
-  ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Task>>;
-  <A, E, R>(
-    f: (handle: TaskHandle<void>) => Effect.Effect<A, E, R>,
-    options: AddTaskOptions<void>,
-  ): Effect.Effect<A, E, Exclude<R, Task>>;
-  <M, A, E, R>(
-    f: (handle: TaskHandle<M>) => Effect.Effect<A, E, R>,
-    options: AddTaskOptions<M> & { readonly metadata: M },
-  ): Effect.Effect<A, E, Exclude<R, Task>>;
-}
-
 interface CurrentParentState {
   readonly owner: symbol;
   readonly taskId: TaskId;
@@ -98,7 +80,7 @@ const makeProgressService = Effect.gen(function* () {
       }
     });
 
-  const scopedTask = dual(2, <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
+  const scopedTask = <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
     Effect.gen(function* () {
       const inheritedParentId = yield* currentParentId;
       const resolvedParentId =
@@ -115,8 +97,7 @@ const makeProgressService = Effect.gen(function* () {
         CurrentParent,
         Option.some({ owner: parentOwner, taskId }),
       );
-    }),
-  ) as InternalTaskApi;
+    });
 
   const task: ProgressShape["task"] = dual(
     2,
