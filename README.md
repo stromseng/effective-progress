@@ -23,6 +23,8 @@
 
 ## Install
 
+Requires Node.js 22 or newer, matching Ink’s runtime requirement.
+
 ```bash
 bun add effective-progress effect@^4.0.0-beta.100
 ```
