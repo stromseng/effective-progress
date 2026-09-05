@@ -27,8 +27,6 @@ const getColumnsForRow = (
   columns: ReadonlyMap<TaskId, ReadonlyArray<ColumnDef<any, any>>>,
 ): ReadonlyArray<ColumnDef<any, any>> => columns.get(row.task.id) ?? DEFAULT_COLUMNS;
 
-const toCellInfo = (row: TaskRowModel): CellInfo<unknown> => row;
-
 const maxDefined = (values: ReadonlyArray<number | undefined>): number | undefined =>
   values.reduce<number | undefined>(
     (maxValue, value) =>
@@ -75,12 +73,11 @@ export const resolveColumns = (
   columns: ReadonlyMap<TaskId, ReadonlyArray<ColumnDef<any, any>>>,
 ): ReadonlyArray<ResolvedColumnPosition> => {
   const columnsByRow = rows.map((row) => getColumnsForRow(row, columns));
-  const cellInfos = rows.map(toCellInfo);
   const maxColumnCount = columnsByRow.reduce((max, defs) => Math.max(max, defs.length), 0);
 
   return Array.from({ length: maxColumnCount }, (_, index) => {
     const defsAtIndex = columnsByRow.map((defs) => defs[index]);
-    const preparedGroups = resolvePreparedGroups(defsAtIndex, cellInfos);
+    const preparedGroups = resolvePreparedGroups(defsAtIndex, rows);
     const entries = defsAtIndex.map((column) =>
       column === undefined
         ? undefined
