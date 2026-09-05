@@ -1,11 +1,16 @@
-import { Brand, Context, Effect, Option } from "effect";
+import { Brand, Context, Effect, Option, Schema } from "effect";
 import type { ReactNode } from "react";
 
-export type TaskId = number & Brand.Brand<"TaskId">;
+const TaskIdSchema = Schema.Number.pipe(Schema.brand("TaskId"));
+
+export type TaskId = typeof TaskIdSchema.Type;
 export const TaskId = Brand.nominal<TaskId>();
 
-export type TaskStatus = "running" | "done" | "failed";
-export type TaskCountDisplay = "processedOnly" | "detailed";
+export const TaskStatusSchema = Schema.Literals(["running", "done", "failed"]);
+
+export type TaskStatus = typeof TaskStatusSchema.Type;
+export const TaskCountDisplaySchema = Schema.Literals(["processedOnly", "detailed"]);
+export type TaskCountDisplay = typeof TaskCountDisplaySchema.Type;
 export type ColumnAlign = "left" | "center" | "right";
 
 export interface TaskTreeInfo {
@@ -104,32 +109,38 @@ export interface UpdateTaskOptions {
 
 export type TrackOptions = Omit<AddTaskOptions, "parentId">;
 
-export interface TaskUnits {
-  readonly succeeded: number;
-  readonly failed: number;
-  readonly processed: number;
-  readonly total?: number;
-}
+export const TaskUnitsSchema = Schema.Struct({
+  succeeded: Schema.Number,
+  failed: Schema.Number,
+  processed: Schema.Number,
+  total: Schema.optional(Schema.Number),
+});
 
-/** A processed-count observation used to estimate ETA from recent throughput. */
-export interface TaskProgressSample {
-  readonly timestamp: number;
-  readonly processed: number;
-}
+export type TaskUnits = typeof TaskUnitsSchema.Type;
 
-export interface TaskSnapshot {
-  readonly id: TaskId;
-  readonly parentId: TaskId | null;
-  readonly description: string;
-  readonly status: TaskStatus;
-  readonly countDisplay: TaskCountDisplay;
-  readonly transient: boolean;
-  readonly units: TaskUnits;
-  readonly startedAt: number;
-  readonly completedAt: number | null;
-  readonly progressSamples: ReadonlyArray<TaskProgressSample>;
-  readonly metadata: unknown;
-}
+// A processed-count observation used to estimate ETA from recent throughput.
+export const TaskProgressSampleSchema = Schema.Struct({
+  timestamp: Schema.Number,
+  processed: Schema.Number,
+});
+
+export type TaskProgressSample = typeof TaskProgressSampleSchema.Type;
+
+export const TaskSnapshotSchema = Schema.Struct({
+  id: TaskIdSchema,
+  parentId: Schema.NullOr(TaskIdSchema),
+  description: Schema.String,
+  status: TaskStatusSchema,
+  countDisplay: TaskCountDisplaySchema,
+  transient: Schema.Boolean,
+  units: TaskUnitsSchema,
+  startedAt: Schema.Number,
+  completedAt: Schema.NullOr(Schema.Number),
+  progressSamples: Schema.Array(TaskProgressSampleSchema),
+  metadata: Schema.Unknown,
+});
+
+export type TaskSnapshot = typeof TaskSnapshotSchema.Type;
 
 export interface RenderRow {
   readonly id: TaskId;
