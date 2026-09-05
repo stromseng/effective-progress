@@ -140,7 +140,7 @@ export const DescriptionColumn = ({ rows }: { readonly rows: ReadonlyArray<TaskR
   return (
     <Box ref={ref} flexDirection="column" flexShrink={1} flexBasis={preferredWidth} minWidth={1}>
       {rows.map((row) => (
-        <Box key={row.task.id as number} height={1}>
+        <Box key={row.task.id} height={1}>
           <DescriptionCell
             cell={row}
             width={hasMeasured ? width : undefined}

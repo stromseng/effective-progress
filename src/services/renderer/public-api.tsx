@@ -54,15 +54,11 @@ const ColumnPosition = ({ position }: { readonly position: ResolvedColumnPositio
             width: hasMeasured ? width : position.flexBasis,
             now,
             spinnerTick,
-            prepared: entry?.prepared as never,
+            prepared: entry?.prepared,
           }) ?? null;
 
         return (
-          <Box
-            key={row.task.id as number}
-            height={1}
-            justifyContent={justifyContentForAlign(column?.align)}
-          >
+          <Box key={row.task.id} height={1} justifyContent={justifyContentForAlign(column?.align)}>
             <RenderedNode node={output} />
           </Box>
         );
