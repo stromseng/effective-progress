@@ -169,6 +169,25 @@ export interface TaskOperations {
   readonly getMetadata: (taskId: TaskId) => Effect.Effect<unknown>;
 }
 
+/** Task overloads shared by both entry points; Provided identifies requirements they supply. */
+export interface TaskApi<Provided> {
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+    options: AddTaskOptions,
+  ): Effect.Effect<A, E, Exclude<R, Provided>>;
+  <A, E, R>(
+    options: AddTaskOptions,
+  ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Provided>>;
+  <A, E, R>(
+    f: (handle: TaskHandle<void>) => Effect.Effect<A, E, R>,
+    options: AddTaskOptions<void>,
+  ): Effect.Effect<A, E, Exclude<R, Provided>>;
+  <M, A, E, R>(
+    f: (handle: TaskHandle<M>) => Effect.Effect<A, E, R>,
+    options: AddTaskOptions<M> & { readonly metadata: M },
+  ): Effect.Effect<A, E, Exclude<R, Provided>>;
+}
+
 export interface ProgressShape extends TaskOperations {
   readonly log: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>;
   /**
@@ -180,23 +199,7 @@ export interface ProgressShape extends TaskOperations {
    *
    * Use `Progress.task(...)` from `src/api.ts` when you want the service to be created automatically if needed.
    */
-  readonly task: {
-    <A, E, R>(
-      effect: Effect.Effect<A, E, R>,
-      options: AddTaskOptions,
-    ): Effect.Effect<A, E, Exclude<R, Task>>;
-    <A, E, R>(
-      options: AddTaskOptions,
-    ): (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Task>>;
-    <A, E, R>(
-      f: (handle: TaskHandle<void>) => Effect.Effect<A, E, R>,
-      options: AddTaskOptions<void>,
-    ): Effect.Effect<A, E, Exclude<R, Task>>;
-    <M, A, E, R>(
-      f: (handle: TaskHandle<M>) => Effect.Effect<A, E, R>,
-      options: AddTaskOptions<M> & { readonly metadata: M },
-    ): Effect.Effect<A, E, Exclude<R, Task>>;
-  };
+  readonly task: TaskApi<Task>;
 }
 
 export class Task extends Context.Service<Task, TaskId>()(
