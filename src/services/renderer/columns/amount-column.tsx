@@ -35,7 +35,7 @@ export const measureAmountLayout = (rows: ReadonlyArray<CellInfo<unknown>>): Amo
 
   if (countedTasks.length === 0) {
     const preferredWidth = rows.reduce(
-      (max, row) => Math.max(max, textWidth(formatAmount(row.task, 0))),
+      (max, row) => Math.max(max, textWidth(formatAmount(row.task))),
       0,
     );
 
@@ -74,7 +74,7 @@ export const measureAmountLayout = (rows: ReadonlyArray<CellInfo<unknown>>): Amo
       return Math.max(max, countedWidth);
     }
 
-    return Math.max(max, textWidth(formatAmount(row.task, 0)));
+    return Math.max(max, textWidth(formatAmount(row.task)));
   }, countedWidth);
 
   return {
@@ -94,7 +94,7 @@ const AmountValue = ({
   readonly layout: AmountLayout;
 }) => {
   if (!hasCountedAmount(task)) {
-    return formatAmount(task, 0);
+    return formatAmount(task);
   }
 
   const processed = `${task.units.processed}`.padStart(layout.processedWidth, " ");
