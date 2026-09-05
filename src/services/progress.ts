@@ -100,15 +100,7 @@ const makeProgressService = Effect.gen(function* () {
 
   const scopedTask = dual(2, <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
     Effect.gen(function* () {
-      const inheritedParentId = yield* currentParentId;
-      const resolvedParentId =
-        options.parentId === undefined ? inheritedParentId : Option.some(options.parentId);
-
-      const taskId = yield* addTask({
-        ...options,
-        parentId: Option.isSome(resolvedParentId) ? resolvedParentId.value : undefined,
-        transient: options.transient,
-      });
+      const taskId = yield* addTask(options);
 
       return yield* Effect.provideService(
         Effect.provideService(effect, Task, taskId),
