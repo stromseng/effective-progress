@@ -56,7 +56,7 @@ const sanitizeTotal = (total: number | undefined) => {
     return undefined;
   }
 
-  return total < 0 ? undefined : total;
+  return !Number.isFinite(total) || total < 0 ? undefined : total;
 };
 
 const normalizeUnits = (counts: TaskCounts) => {
