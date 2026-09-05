@@ -40,6 +40,7 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "check": "bun run typecheck && bun run lint && bun run format:check && knip",
+    "bench": "bun examples/benchmarks.ts",
     "perf": "bun --cpu-prof --cpu-prof-md examples/performance.ts"
   },
   "dependencies": {
