@@ -26,7 +26,7 @@ const deriveRow = (task: Progress.TaskSnapshot): TaskRowModel => ({
 });
 
 const makeTask = (id: number): Progress.TaskSnapshot =>
-  Progress.TaskSnapshot({
+  ({
     id: Progress.TaskId(id),
     parentId: null,
     description: `task-${id}`,
@@ -46,7 +46,7 @@ const makeTask = (id: number): Progress.TaskSnapshot =>
       { timestamp: 1_000, processed: 1 },
     ],
     metadata: undefined,
-  });
+  }) satisfies Progress.TaskSnapshot;
 
 const renderRows = (rows: ReadonlyArray<TaskRowModel>): string =>
   stripAnsi(
