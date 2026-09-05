@@ -91,6 +91,7 @@ export interface TaskHandle<M> {
 export interface AddTaskOptions<M = void> {
   readonly description: string;
   readonly total?: number;
+  /** Cleanup policy is fixed at creation; a transient parent makes its descendants transient. */
   readonly transient?: boolean;
   readonly parentId?: TaskId;
   readonly countDisplay?: TaskCountDisplay;
@@ -103,7 +104,6 @@ export interface UpdateTaskOptions {
   readonly succeeded?: number;
   readonly failed?: number;
   readonly total?: number;
-  readonly transient?: boolean;
   readonly countDisplay?: TaskCountDisplay;
 }
 
