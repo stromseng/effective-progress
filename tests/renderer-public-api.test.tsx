@@ -32,7 +32,7 @@ const makeTask = (
   metadata?: unknown,
   overrides: Partial<Progress.TaskSnapshot> = {},
 ): Progress.TaskSnapshot =>
-  Progress.TaskSnapshot({
+  ({
     id: Progress.TaskId(id),
     parentId: null,
     description,
@@ -53,7 +53,7 @@ const makeTask = (
     ],
     metadata,
     ...overrides,
-  });
+  }) satisfies Progress.TaskSnapshot;
 
 const renderWithColumns = (
   rows: ReadonlyArray<TaskRowModel>,

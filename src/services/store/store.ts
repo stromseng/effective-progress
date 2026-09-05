@@ -8,7 +8,7 @@ import type {
   TaskOperations,
   UpdateTaskOptions,
 } from "../../types";
-import { TaskId as makeTaskId, TaskSnapshot } from "../../types";
+import { TaskId as makeTaskId, type TaskSnapshot } from "../../types";
 
 interface TaskCounts {
   readonly succeeded: number;
@@ -115,14 +115,14 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions, now
           total: hasExplicitTotal(options) ? sanitizeTotal(options.total) : currentUnits.total,
         });
 
-  return TaskSnapshot({
+  return {
     ...snapshot,
     description: options.description ?? snapshot.description,
     countDisplay: options.countDisplay ?? snapshot.countDisplay,
     transient: options.transient ?? snapshot.transient,
     units,
     progressSamples: appendProgressSample(snapshot.progressSamples, now, units.processed),
-  });
+  } satisfies TaskSnapshot;
 };
 
 const findInsertionIndex = (
@@ -297,18 +297,11 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
           total: currentTask.units.total,
         });
         const nextTasks = new Map(current.tasks);
-        nextTasks.set(
-          taskId,
-          TaskSnapshot({
-            ...currentTask,
-            units,
-            progressSamples: appendProgressSample(
-              currentTask.progressSamples,
-              now,
-              units.processed,
-            ),
-          }),
-        );
+        nextTasks.set(taskId, {
+          ...currentTask,
+          units,
+          progressSamples: appendProgressSample(currentTask.progressSamples, now, units.processed),
+        } satisfies TaskSnapshot);
 
         return { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns };
       }, now);
@@ -336,19 +329,16 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
         }
 
         const units = status === "done" ? completedUnits(currentTask.units) : currentTask.units;
-        nextTasks.set(
-          taskId,
-          TaskSnapshot({
-            ...currentTask,
-            status,
-            units,
-            completedAt: now,
-            progressSamples:
-              status === "done"
-                ? appendProgressSample(currentTask.progressSamples, now, units.processed)
-                : currentTask.progressSamples,
-          }),
-        );
+        nextTasks.set(taskId, {
+          ...currentTask,
+          status,
+          units,
+          completedAt: now,
+          progressSamples:
+            status === "done"
+              ? appendProgressSample(currentTask.progressSamples, now, units.processed)
+              : currentTask.progressSamples,
+        } satisfies TaskSnapshot);
 
         return { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns };
       }, now);
@@ -381,7 +371,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
         const now = yield* Clock.currentTimeMillis;
         const parentId = options.parentId ?? null;
         const countDisplay = options.countDisplay ?? parentSnapshot?.countDisplay ?? "detailed";
-        const task = TaskSnapshot({
+        const task = {
           id: taskId,
           parentId,
           description: options.description,
@@ -393,7 +383,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
           completedAt: null,
           progressSamples: [{ timestamp: now, processed: units.processed }],
           metadata: options.metadata,
-        });
+        } satisfies TaskSnapshot;
 
         yield* updateState((current) => {
           const nextTasks = new Map(current.tasks);
@@ -435,7 +425,10 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
                 continue;
               }
 
-              const nextCandidate = TaskSnapshot({ ...candidate, transient: nextTask.transient });
+              const nextCandidate = {
+                ...candidate,
+                transient: nextTask.transient,
+              } satisfies TaskSnapshot;
               nextTasks.set(candidateId, nextCandidate);
             }
           }
@@ -460,7 +453,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
           }
 
           const nextTasks = new Map(current.tasks);
-          nextTasks.set(taskId, TaskSnapshot({ ...currentTask, metadata }));
+          nextTasks.set(taskId, { ...currentTask, metadata } satisfies TaskSnapshot);
 
           return { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns };
         }, now);

@@ -31,7 +31,7 @@ const makeTask = (
   countDisplay: Progress.TaskCountDisplay,
   units: Progress.TaskSnapshot["units"],
 ): Progress.TaskSnapshot =>
-  Progress.TaskSnapshot({
+  ({
     id: Progress.TaskId(id),
     parentId: null,
     description,
@@ -46,7 +46,7 @@ const makeTask = (
       { timestamp: 1_000, processed: units.processed },
     ],
     metadata: undefined,
-  });
+  }) satisfies Progress.TaskSnapshot;
 
 const renderColumns = (rows: ReadonlyArray<TaskRowModel>): string =>
   stripAnsi(

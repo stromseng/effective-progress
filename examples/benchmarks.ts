@@ -3,7 +3,7 @@ import { Effect } from "effect";
 import { resolveColumns } from "../src/services/renderer/column-resolver";
 import { toRenderSnapshot } from "../src/services/store/render-snapshot";
 import { makeProgressStore } from "../src/services/store/store";
-import { TaskId, TaskSnapshot, type ColumnDef, type TaskStore } from "../src/types";
+import { TaskId, type TaskSnapshot, type ColumnDef, type TaskStore } from "../src/types";
 
 const WARMUP_ROUNDS = 3;
 const MEASURED_ROUNDS = 9;
@@ -76,25 +76,22 @@ const makeColumnFixture = (rowCount: number, distinctPrepare: boolean) => {
 
   for (let index = 0; index < rowCount; index++) {
     const id = TaskId(index + 1);
-    store.tasks.set(
+    store.tasks.set(id, {
       id,
-      TaskSnapshot({
-        id,
-        parentId: null,
-        description: `task-${index}`,
-        status: "running",
-        countDisplay: "detailed",
-        transient: false,
-        units: { succeeded: 25, failed: 0, processed: 25, total: 100 },
-        startedAt: 0,
-        completedAt: null,
-        progressSamples: [
-          { timestamp: 0, processed: 0 },
-          { timestamp: 1_000, processed: 25 },
-        ],
-        metadata: undefined,
-      }),
-    );
+      parentId: null,
+      description: `task-${index}`,
+      status: "running",
+      countDisplay: "detailed",
+      transient: false,
+      units: { succeeded: 25, failed: 0, processed: 25, total: 100 },
+      startedAt: 0,
+      completedAt: null,
+      progressSamples: [
+        { timestamp: 0, processed: 0 },
+        { timestamp: 1_000, processed: 25 },
+      ],
+      metadata: undefined,
+    } satisfies TaskSnapshot);
     renderOrder.push({ id, depth: 0 });
     if (distinctPrepare) {
       const column: ColumnDef<unknown, number> = {

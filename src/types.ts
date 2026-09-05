@@ -142,8 +142,6 @@ export const TaskSnapshotSchema = Schema.Struct({
 
 export type TaskSnapshot = typeof TaskSnapshotSchema.Type;
 
-export const TaskSnapshot = (snapshot: TaskSnapshot): TaskSnapshot => snapshot;
-
 export interface RenderRow {
   readonly id: TaskId;
   readonly depth: number;
@@ -202,54 +200,3 @@ export interface ProgressShape extends TaskOperations {
 export class Task extends Context.Service<Task, TaskId>()(
   "stromseng.dev/effective-progress/Task",
 ) {}
-
-export class TaskAddedEvent extends Schema.TaggedClass<TaskAddedEvent>()("TaskAdded", {
-  taskId: TaskIdSchema,
-  parentId: Schema.NullOr(TaskIdSchema),
-  description: Schema.String,
-  total: Schema.optional(Schema.Number),
-  transient: Schema.Boolean,
-  countDisplay: TaskCountDisplaySchema,
-}) {}
-
-export class TaskUpdatedEvent extends Schema.TaggedClass<TaskUpdatedEvent>()("TaskUpdated", {
-  taskId: TaskIdSchema,
-  description: Schema.optional(Schema.String),
-  succeeded: Schema.optional(Schema.Number),
-  failed: Schema.optional(Schema.Number),
-  processed: Schema.optional(Schema.Number),
-  total: Schema.optional(Schema.Number),
-  transient: Schema.optional(Schema.Boolean),
-  countDisplay: Schema.optional(TaskCountDisplaySchema),
-}) {}
-
-export class TaskAdvancedEvent extends Schema.TaggedClass<TaskAdvancedEvent>()("TaskAdvanced", {
-  taskId: TaskIdSchema,
-  amount: Schema.Number,
-  kind: Schema.Literals(["succeeded", "failed"]),
-}) {}
-
-export class TaskCompletedEvent extends Schema.TaggedClass<TaskCompletedEvent>()("TaskCompleted", {
-  taskId: TaskIdSchema,
-}) {}
-
-export class TaskFailedEvent extends Schema.TaggedClass<TaskFailedEvent>()("TaskFailed", {
-  taskId: TaskIdSchema,
-}) {}
-
-export class TaskRemovedEvent extends Schema.TaggedClass<TaskRemovedEvent>()("TaskRemoved", {
-  taskId: TaskIdSchema,
-}) {}
-
-export const ProgressTaskEventSchema = Schema.Union([
-  TaskAddedEvent,
-  TaskUpdatedEvent,
-  TaskAdvancedEvent,
-  TaskCompletedEvent,
-  TaskFailedEvent,
-  TaskRemovedEvent,
-]);
-
-export type ProgressTaskEvent = typeof ProgressTaskEventSchema.Type;
-
-export const decodeProgressTaskEvent = Schema.decodeUnknownSync(ProgressTaskEventSchema);
