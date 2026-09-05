@@ -73,7 +73,7 @@ const renderDescriptionColumn = (rows: ReadonlyArray<TaskRowModel>, spinnerTick?
     ),
   );
 
-describe("rendererv2 description tree planning", () => {
+describe("renderer description tree planning", () => {
   test("renders the spinner after the tree prefix", () => {
     const rows = [
       deriveRow(makeTask(1, "root", "running"), {

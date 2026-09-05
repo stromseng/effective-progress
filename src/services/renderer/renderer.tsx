@@ -25,7 +25,7 @@ const ProgressRoot = ({ store }: { readonly store: ProgressStoreShape }) => {
   );
 };
 
-const makeRendererv2InkRendererService = Effect.gen(function* () {
+const makeRendererService = Effect.gen(function* () {
   const store = yield* ProgressStore;
   const stdio = yield* ProgressStdio;
   const proot = <ProgressRoot store={store} />;
@@ -61,5 +61,5 @@ const makeRendererv2InkRendererService = Effect.gen(function* () {
 export class Renderer extends Context.Service<Renderer, RendererShape>()(
   "stromseng.dev/effective-progress/Renderer",
 ) {
-  static readonly layer = Layer.effect(Renderer, makeRendererv2InkRendererService);
+  static readonly layer = Layer.effect(Renderer, makeRendererService);
 }

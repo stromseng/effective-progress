@@ -59,7 +59,7 @@ const renderColumns = (rows: ReadonlyArray<TaskRowModel>): string =>
     ),
   );
 
-describe("rendererv2 progress columns", () => {
+describe("renderer progress columns", () => {
   test("renders amount values for all rows", () => {
     const output = renderColumns([
       deriveRow(

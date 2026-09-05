@@ -70,7 +70,7 @@ const renderWithColumns = (
     ),
   );
 
-describe("rendererv2 public api", () => {
+describe("renderer public api", () => {
   test("renders null when there are no rows", () => {
     const output = renderWithColumns([], new Map());
     expect(output).toBe("");

@@ -59,7 +59,7 @@ const renderRows = (rows: ReadonlyArray<TaskRowModel>): string =>
     ),
   ).trimEnd();
 
-describe("rendererv2 row rendering", () => {
+describe("renderer row rendering", () => {
   test("renders all rows directly without virtual scrolling", () => {
     const rows = Array.from({ length: 12 }, (_, index) => deriveRow(makeTask(index + 1)));
     const output = renderRows(rows);
