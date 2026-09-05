@@ -87,38 +87,23 @@ export const resolveColumns = (
           },
     );
 
+    const resolveSize = (key: "flexGrow" | "flexShrink" | "flexBasis" | "minWidth") =>
+      maxDefined(
+        entries.map((entry) =>
+          entry === undefined
+            ? undefined
+            : resolveColumnSizeValue(entry.column[key], entry.prepared),
+        ),
+      );
+
     return {
       index,
       rows,
       entries,
-      flexGrow: maxDefined(
-        entries.map((entry) =>
-          entry === undefined
-            ? undefined
-            : resolveColumnSizeValue(entry.column.flexGrow, entry.prepared),
-        ),
-      ),
-      flexShrink: maxDefined(
-        entries.map((entry) =>
-          entry === undefined
-            ? undefined
-            : resolveColumnSizeValue(entry.column.flexShrink, entry.prepared),
-        ),
-      ),
-      flexBasis: maxDefined(
-        entries.map((entry) =>
-          entry === undefined
-            ? undefined
-            : resolveColumnSizeValue(entry.column.flexBasis, entry.prepared),
-        ),
-      ),
-      minWidth: maxDefined(
-        entries.map((entry) =>
-          entry === undefined
-            ? undefined
-            : resolveColumnSizeValue(entry.column.minWidth, entry.prepared),
-        ),
-      ),
+      flexGrow: resolveSize("flexGrow"),
+      flexShrink: resolveSize("flexShrink"),
+      flexBasis: resolveSize("flexBasis"),
+      minWidth: resolveSize("minWidth"),
     };
   });
 };
