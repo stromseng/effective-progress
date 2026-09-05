@@ -55,52 +55,25 @@ const sameTreePrefixInputs = (left: TaskRowModel["tree"], right: TaskRowModel["t
   left.hasNextSibling === right.hasNextSibling &&
   arraysEqual(left.ancestorHasNextSibling, right.ancestorHasNextSibling);
 
-const sameTree = (left: TaskRowModel["tree"], right: TaskRowModel["tree"]): boolean =>
-  sameTreePrefixInputs(left, right) && left.hasChildren === right.hasChildren;
-
 const deriveRow = (
   task: OrderedTask["snapshot"],
-  tree: TaskRowModel["tree"],
+  treePrefix: string,
   previousRow: TaskRowModel | undefined,
 ): TaskRowModel["derived"] => {
-  if (previousRow !== undefined && previousRow.task === task && sameTree(previousRow.tree, tree)) {
-    return previousRow.derived;
-  }
-
-  const treePrefix =
-    previousRow !== undefined && sameTreePrefixInputs(previousRow.tree, tree)
-      ? previousRow.derived.treePrefix
-      : renderTreePrefix(tree);
-  const treePrefixWidth =
-    previousRow !== undefined && sameTreePrefixInputs(previousRow.tree, tree)
-      ? previousRow.derived.treePrefixWidth
-      : // Tree prefixes are built from fixed box-drawing glyphs we treat as single-cell.
-        treePrefix.length;
-
+  // Tree prefixes are built from fixed box-drawing glyphs we treat as single-cell.
+  const treePrefixWidth = treePrefix.length;
   const descriptionWidth =
     previousRow !== undefined && previousRow.task.description === task.description
       ? previousRow.derived.descriptionWidth
       : textWidth(task.description);
-
-  const isDeterminate =
-    previousRow !== undefined && previousRow.task.units.total === task.units.total
-      ? previousRow.derived.isDeterminate
-      : task.units.total !== undefined;
-
-  const hasRenderableProgress =
-    previousRow !== undefined &&
-    previousRow.task.units.total === task.units.total &&
-    previousRow.task.units.processed === task.units.processed
-      ? previousRow.derived.hasRenderableProgress
-      : task.units.total !== undefined || task.units.processed > 0;
 
   return {
     treePrefix,
     treePrefixWidth,
     descriptionWidth,
     treePrefixedDescriptionWidth: treePrefixWidth + descriptionWidth,
-    hasRenderableProgress,
-    isDeterminate,
+    hasRenderableProgress: task.units.total !== undefined || task.units.processed > 0,
+    isDeterminate: task.units.total !== undefined,
   };
 };
 
@@ -139,20 +112,20 @@ const computeTreeInfo = (
 
     ancestorStateByDepth[depth] = hasNextSiblingByIndex[index] ?? false;
 
-    if (
-      previousRow !== undefined &&
-      previousRow.task === entry.snapshot &&
-      sameTree(previousRow.tree, tree)
-    ) {
+    const prefixUnchanged =
+      previousRow !== undefined && sameTreePrefixInputs(previousRow.tree, tree);
+    const treeUnchanged = prefixUnchanged && previousRow.tree.hasChildren === tree.hasChildren;
+
+    if (treeUnchanged && previousRow.task === entry.snapshot) {
       return previousRow;
     }
 
-    const derived = deriveRow(entry.snapshot, tree, previousRow);
+    const treePrefix = prefixUnchanged ? previousRow.derived.treePrefix : renderTreePrefix(tree);
 
     return {
       task: entry.snapshot,
-      tree: previousRow !== undefined && sameTree(previousRow.tree, tree) ? previousRow.tree : tree,
-      derived,
+      tree: treeUnchanged ? previousRow.tree : tree,
+      derived: deriveRow(entry.snapshot, treePrefix, previousRow),
     };
   });
 };
