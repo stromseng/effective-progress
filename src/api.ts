@@ -118,10 +118,10 @@ const isCollectAllMode = (mode: EffectAllExecutionOptions["mode"]) => mode === "
 const allCountDisplay = (mode: EffectAllExecutionOptions["mode"]): TaskCountDisplay =>
   isCollectAllMode(mode) ? "detailed" : "processedOnly";
 
-const wrapTrackedEffect = (
+const wrapTrackedEffect = <A, E, R>(
   progress: ProgressShape,
   taskId: TaskId,
-  effect: Effect.Effect<any, any, any>,
+  effect: Effect.Effect<A, E, R>,
 ) =>
   Effect.gen(function* () {
     const exit = yield* Effect.exit(effect);
@@ -274,5 +274,5 @@ export const forEach: {
           },
         );
       }),
-    ) as Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress | Task>>,
+    ),
 );
