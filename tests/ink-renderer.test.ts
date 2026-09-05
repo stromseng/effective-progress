@@ -36,6 +36,21 @@ const captureStdioOutput = async <A, E, R>(
 };
 
 describe("Ink renderer integration", () => {
+  test.each(["all", "forEach"] as const)("%s renders custom columns", async (method) => {
+    const options = {
+      description: "custom collection",
+      columns: [{ render: () => "CUSTOM_COLLECTION_COLUMN" }],
+    };
+    const program =
+      method === "all"
+        ? Progress.all([Effect.void], options)
+        : Progress.forEach([1], () => Effect.void, options);
+
+    const { output } = await captureStdioOutput(program, { isTTY: false });
+
+    expect(output).toContain("CUSTOM_COLLECTION_COLUMN");
+  });
+
   test("renders nested task rows", async () => {
     const program = Progress.task(
       Effect.gen(function* () {
