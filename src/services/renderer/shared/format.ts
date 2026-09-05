@@ -1,9 +1,5 @@
 import type { TaskSnapshot } from "../../../types";
-
-const isDeterminate = (
-  task: TaskSnapshot,
-): task is TaskSnapshot & { readonly units: TaskSnapshot["units"] & { readonly total: number } } =>
-  task.units.total !== undefined;
+import { isDeterminate } from "./determinate";
 
 const showsUnknownTotalCounts = (task: TaskSnapshot): boolean =>
   task.units.total === undefined && task.units.processed > 0;
