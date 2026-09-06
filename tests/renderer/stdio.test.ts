@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
-import * as Progress from "../src";
-import { createMockStdio } from "./helpers/mock-stdio";
+import * as Progress from "../../src";
+import { createMockStdio } from "../helpers/mock-stdio";
 
 describe("ProgressStdio", () => {
   test("mock service can override stdout and stderr metadata independently", async () => {

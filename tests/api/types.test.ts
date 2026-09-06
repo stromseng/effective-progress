@@ -1,6 +1,6 @@
 import { expectTypeOf, test } from "bun:test";
 import { Context, Effect, Result } from "effect";
-import * as Progress from "../src";
+import * as Progress from "../../src";
 
 class Dependency extends Context.Service<Dependency, { readonly value: number }>()(
   "test/Dependency",

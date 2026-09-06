@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { Console, Effect } from "effect";
 import stripAnsi from "strip-ansi";
-import * as Progress from "../src";
-import { createMockStdio } from "./helpers/mock-stdio";
+import * as Progress from "../../src";
+import { createMockStdio } from "../helpers/mock-stdio";
 
 const captureStdioOutput = async <A, E>(
   effect: Effect.Effect<A, E, Progress.ProgressStdio>,

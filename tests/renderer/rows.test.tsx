@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import * as Progress from "../src";
-import { makeTaskSnapshot, makeRow as deriveRow, renderRows } from "./helpers/renderer";
+import * as Progress from "../../src";
+import { makeTaskSnapshot, makeRow as deriveRow, renderRows } from "../helpers/renderer";
 
 const makeTask = (id: number): Progress.TaskSnapshot =>
   makeTaskSnapshot({

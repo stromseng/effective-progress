@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import * as Progress from "../src";
-import { makeTaskSnapshot, makeRow as deriveRow, renderRows } from "./helpers/renderer";
-import { resolveColumns } from "../src/renderer/column-layout";
-import type { TaskRowModel } from "../src/renderer/row-model";
+import * as Progress from "../../src";
+import { makeTaskSnapshot, makeRow as deriveRow, renderRows } from "../helpers/renderer";
+import { resolveColumns } from "../../src/renderer/column-layout";
+import type { TaskRowModel } from "../../src/renderer/row-model";
 
 const makeTask = <M,>(
   id: number,

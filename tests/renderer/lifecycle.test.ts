@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { Effect, Exit } from "effect";
-import { Progress } from "../src/services/progress";
-import { Renderer } from "../src/renderer/renderer";
+import { Progress } from "../../src/services/progress";
+import { Renderer } from "../../src/renderer/renderer";
 
 test.each([false, true])(
   "renderer starts before work and releases on scope exit (failure: %s)",

@@ -1,12 +1,12 @@
 import { expect, onTestFinished, test } from "bun:test";
 import { render, Text } from "ink";
 import stripAnsi from "strip-ansi";
-import { useNow, useSpinnerTick, type Column } from "../src";
-import { NowProvider } from "../src/renderer/context/now-context";
-import { SpinnerProvider } from "../src/renderer/context/spinner-context";
-import { ProgressTable } from "../src/renderer/progress-table";
-import { createMockStdio } from "./helpers/mock-stdio";
-import { makeRows, makeTaskSnapshot } from "./helpers/renderer";
+import { useNow, useSpinnerTick, type Column } from "../../src";
+import { NowProvider } from "../../src/renderer/context/now-context";
+import { SpinnerProvider } from "../../src/renderer/context/spinner-context";
+import { ProgressTable } from "../../src/renderer/progress-table";
+import { createMockStdio } from "../helpers/mock-stdio";
+import { makeRows, makeTaskSnapshot } from "../helpers/renderer";
 
 test("clock hooks update only subscribed cells and can unsubscribe and resume", async () => {
   const calls = { column: 0, spinner: 0, now: 0 };

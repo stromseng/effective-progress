@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { Console, Effect, Exit, Logger, Option, Result } from "effect";
 import { pipe } from "effect/Function";
-import * as Progress from "../src";
-import { Renderer } from "../src/renderer/renderer";
-import { createMockStdio } from "./helpers/mock-stdio";
+import * as Progress from "../../src";
+import { Renderer } from "../../src/renderer/renderer";
+import { createMockStdio } from "../helpers/mock-stdio";
 
 const withLogSpy = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {

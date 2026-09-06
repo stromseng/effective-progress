@@ -37,8 +37,8 @@ creating a fresh preparation function inside each factory would split shared gro
 Keep clock subscriptions in the cells that need them; the store publish interval,
 spinner clock, elapsed-time clock, and Ink frame limit serve different purposes.
 
-Relevant tests are `tests/prepare-rows.test.ts` for row reuse,
-`tests/prepare-columns.test.ts` for preparation identity and binding,
-`tests/column-layout.test.tsx` for mixed columns and sizing, and
-`tests/renderer-clock-hooks.test.tsx` for selective clock updates. The renderer and
+Relevant tests are `tests/renderer/prepare-rows.test.ts` for row reuse,
+`tests/renderer/prepare-columns.test.ts` for preparation identity and binding,
+`tests/renderer/column-layout.test.tsx` for mixed columns and sizing, and
+`tests/renderer/clock-hooks.test.tsx` for selective clock updates. The renderer and
 column tests also exercise nested output, narrow widths, amounts, bars, and ETA.

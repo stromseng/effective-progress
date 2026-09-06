@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Effect, Option } from "effect";
-import * as Progress from "../src";
-import { createMockStdio } from "./helpers/mock-stdio";
+import * as Progress from "../../src";
+import { createMockStdio } from "../helpers/mock-stdio";
 
 const withStdio = <A, E, R>(effect: Effect.Effect<A, E, R>) => {
   const stdio = createMockStdio();

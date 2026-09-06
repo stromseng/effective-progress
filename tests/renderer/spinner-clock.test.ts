@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { getSpinnerTickAtTime } from "../src/renderer/hooks/use-spinner-clock";
+import { getSpinnerTickAtTime } from "../../src/renderer/hooks/use-spinner-clock";
 
 describe("spinner clock", () => {
   test("advances frames from elapsed time instead of callback count", () => {

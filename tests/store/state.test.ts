@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { Effect, Option } from "effect";
 import { TestClock } from "effect/testing";
-import type { ColumnDef } from "../src";
-import { makeProgressStore } from "../src/services/store/store";
+import type { ColumnDef } from "../../src";
+import { makeProgressStore } from "../../src/services/store/store";
 
-describe("progress render store", () => {
+describe("progress store state and publication", () => {
   test.each([[NaN], [Infinity], [-Infinity]] as const)(
     "clears non-finite total %s on creation",
     async (total) => {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Schema } from "effect";
-import * as Progress from "../src";
+import * as Progress from "../../src";
 
 describe("types and schemas", () => {
   test("TaskSnapshot validates with progress samples", () => {
