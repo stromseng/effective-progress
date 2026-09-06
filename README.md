@@ -276,6 +276,36 @@ binds each prepared value to its definition before rendering cells.
 
 If a task does not provide `columns`, the renderer falls back to `Progress.Columns.defaults()`.
 
+### Clock hooks for custom cells
+
+`render(cell, ctx)` receives `width` and `prepared`. For animated or timed output,
+return a React component that calls `useSpinnerTick()` or `useNow()`. Hooks belong
+inside the component, not directly inside the column's render callback.
+
+```tsx
+import { Text } from "ink";
+import { useNow, type ColumnDef, type TaskSnapshot } from "effective-progress";
+
+const AgeCell = ({ task }: { readonly task: TaskSnapshot }) => {
+  const now = useNow(task.status === "running");
+  const seconds = Math.floor(((task.completedAt ?? now) - task.startedAt) / 1_000);
+  return <Text>{`${seconds}s`}</Text>;
+};
+
+const ageColumn: ColumnDef = {
+  render: ({ task }) => <AgeCell task={task} />,
+};
+```
+
+`useNow` follows the shared one-second clock; `useSpinnerTick` follows the shared
+spinner clock. Both accept an optional `active` boolean (default `true`). Passing
+`false` returns `0` without subscribing. Built-in cells unsubscribe when their task
+finishes. These hooks consume the progress renderer's providers; they do not create
+per-cell timers.
+
+**Migration:** `ctx.now` and `ctx.spinnerTick` have been removed. Move those reads
+into a returned React component using the corresponding hook.
+
 ## Performance benchmarks
 
 Run `bun run bench` for isolated store-update and column-resolution measurements.
@@ -293,6 +323,16 @@ version and machine, without other CPU-heavy work. Alternate revision order acro
 multiple runs and compare medians and sample spread. These microbenchmarks measure
 store/resolver work; use the existing `perf` script and performance examples separately
 to investigate Ink rendering, logging, and end-to-end overhead.
+
+Run `bun run bench:render` for mounted React/Ink rendering measurements. It uses
+100 rows with the four default columns, two warmup rounds and seven measured rounds
+of 30 frames each. Cases advance the spinner with all tasks or one task running,
+advance elapsed time with one task running, and update one task's counters. Each
+frame waits for Ink to flush. Debug mode disables output throttling and writes go
+to a sink, so timings include reconciliation, layout, and output generation but
+exclude physical terminal latency, real timer delays, and store publication.
+JSON includes raw timings and column callback counts; compare the same harness
+and runtime across revisions. Single-task frames also include snapshot derivation.
 
 ## Effect compatibility
 

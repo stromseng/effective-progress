@@ -24,4 +24,5 @@ export const SpinnerProvider = ({
   return <SpinnerContext.Provider value={tick}>{children}</SpinnerContext.Provider>;
 };
 
-export const useSpinnerTick = (): number => use(SpinnerContext);
+/** Subscribe to the shared spinner clock. Disabled cells return 0 without subscribing. */
+export const useSpinnerTick = (active = true): number => (active ? use(SpinnerContext) : 0);

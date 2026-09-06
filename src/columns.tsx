@@ -61,12 +61,7 @@ export const description = (): ColumnDef<unknown, DescriptionPrepared> => ({
   flexBasis: (prepared) => prepared.preferredWidth,
   minWidth: 1,
   render: (cell, ctx) => (
-    <DescriptionCell
-      cell={cell}
-      width={ctx.width}
-      minTreeWidth={ctx.prepared.minTreeWidth}
-      spinnerTick={ctx.spinnerTick}
-    />
+    <DescriptionCell cell={cell} width={ctx.width} minTreeWidth={ctx.prepared.minTreeWidth} />
   ),
 });
 
@@ -98,14 +93,14 @@ export const amount = (): ColumnDef<unknown, AmountLayout> => ({
 export const elapsed = (): ColumnDef<unknown> => ({
   align: "right",
   flexShrink: 0,
-  render: ({ task }, ctx) => <ElapsedCell task={task} now={ctx.now} />,
+  render: ({ task }) => <ElapsedCell task={task} />,
 });
 
 export const elapsedEta = (): ColumnDef<unknown> => ({
   align: "right",
   flexShrink: 0,
   minWidth: 11,
-  render: ({ task }, ctx) => <ElapsedEtaCell task={task} now={ctx.now} />,
+  render: ({ task }) => <ElapsedEtaCell task={task} />,
 });
 
 export const eta = (): ColumnDef<unknown> => ({

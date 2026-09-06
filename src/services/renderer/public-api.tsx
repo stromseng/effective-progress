@@ -3,8 +3,6 @@ import { Box, Text, useBoxMetrics, type DOMElement } from "ink";
 import type { ReactElement, ReactNode } from "react";
 import { useRef } from "react";
 import type { ColumnAlign, Column, TaskId } from "../../types";
-import { useNow } from "./context/now-context";
-import { useSpinnerTick } from "./context/spinner-context";
 import { resolveColumns, type ResolvedColumnPosition } from "./column-resolver";
 import type { TaskRowModel } from "../store/types";
 
@@ -34,8 +32,6 @@ const RenderedNode = ({ node }: { readonly node: ReactNode }) => {
 const ColumnPosition = ({ position }: { readonly position: ResolvedColumnPosition }) => {
   const ref = useRef<DOMElement>(null!);
   const { width, hasMeasured } = useBoxMetrics(ref);
-  const now = useNow();
-  const spinnerTick = useSpinnerTick();
 
   return (
     <Box
@@ -51,8 +47,6 @@ const ColumnPosition = ({ position }: { readonly position: ResolvedColumnPositio
         const output =
           column?.render(row, {
             width: hasMeasured ? width : position.flexBasis,
-            now,
-            spinnerTick,
           }) ?? null;
 
         return (

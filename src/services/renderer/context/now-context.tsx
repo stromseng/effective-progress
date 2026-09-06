@@ -17,4 +17,5 @@ export const NowProvider = ({ active, children, nowOverride }: NowProviderProps)
   return <NowContext.Provider value={now}>{children}</NowContext.Provider>;
 };
 
-export const useNow = (): number => use(NowContext);
+/** Subscribe to the shared one-second clock. Disabled cells return 0 without subscribing. */
+export const useNow = (active = true): number => (active ? use(NowContext) : 0);
