@@ -18,7 +18,7 @@ export interface ProgressService extends TaskOperations {
    * The callback form exposes a typed `TaskHandle` for metadata and explicit lifecycle control, and
    * also auto-finalizes from the callback exit if the handle did not already finalize the task.
    *
-   * Use `Progress.task(...)` from `src/api.ts` when you want the service to be created automatically if needed.
+   * Use `Progress.task(...)` from `src/api/task.ts` when you want the service to be created automatically if needed.
    */
   readonly task: TaskApi<Task>;
 }

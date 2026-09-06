@@ -1,23 +1,12 @@
 import { Cause, Effect, Exit, Option } from "effect";
 import { dual } from "effect/Function";
 import type { Concurrency } from "effect/Types";
-import { Progress } from "./services/progress";
-import { Task } from "./tasks/current-task";
-import type { AddTaskOptions, TrackOptions } from "./tasks/options";
-import type { ProgressService } from "./services/progress";
-import type { TaskCountDisplay, TaskId } from "./task-model";
-import type { TaskHandle } from "./tasks/task-handle";
-import { adaptTaskApi } from "./tasks/task-api";
-import { inferTotal } from "./utils";
-
-const provideProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  Effect.gen(function* () {
-    const existing = yield* Effect.serviceOption(Progress);
-    if (Option.isSome(existing)) {
-      return yield* Effect.provideService(effect, Progress, existing.value);
-    }
-    return yield* Effect.scoped(Effect.provide(effect, Progress.layer, { local: true }));
-  });
+import { Progress, type ProgressService } from "../services/progress";
+import type { Task } from "../tasks/current-task";
+import type { TrackOptions } from "../tasks/options";
+import type { TaskCountDisplay, TaskId } from "../task-model";
+import { provideProgress } from "./provide-progress";
+import { inferTotal } from "./infer-total";
 
 export interface EffectExecutionOptions {
   readonly concurrency?: Concurrency;
@@ -44,30 +33,6 @@ export interface ForEachExecutionOptions extends EffectExecutionOptions {
 
 export type ForEachOptions = Omit<TrackOptions, "countDisplay"> & ForEachExecutionOptions;
 
-export type TaskOptions<M = void> = AddTaskOptions<M>;
-
-/**
- * Runs an effect inside a task, creating and providing a `Progress` service automatically when one
- * is not already present in the environment.
- *
- * The effect form tracks success and failure from the effect exit. The callback form exposes a
- * typed `TaskHandle` for task-local updates, typed metadata, and explicit completion or failure,
- * and otherwise auto-finalizes from the callback exit if the task is still `running`.
- */
-export const task = adaptTaskApi<Progress | Task>(
-  <M, A, E, R>(
-    callback: (handle: TaskHandle<M>) => Effect.Effect<A, E, R>,
-    options: AddTaskOptions<M> & { readonly metadata: M },
-  ) =>
-    // SAFETY: The service supplies Task and provideProgress supplies Progress; nested Excludes are equivalent.
-    provideProgress(
-      Effect.gen(function* () {
-        const progress = yield* Progress;
-        return yield* progress.task(callback, options);
-      }),
-    ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>,
-);
-
 type AllArg =
   | ReadonlyArray<Effect.Effect<any, any, any>>
   | Record<string, Effect.Effect<any, any, any>>;
@@ -88,7 +53,7 @@ const isCollectAllMode = (mode: EffectAllExecutionOptions["mode"]) => mode === "
 const allCountDisplay = (mode: EffectAllExecutionOptions["mode"]): TaskCountDisplay =>
   isCollectAllMode(mode) ? "detailed" : "processedOnly";
 
-const wrapTrackedEffect = <A, E, R>(
+const trackEffectOutcome = <A, E, R>(
   progress: ProgressService,
   taskId: TaskId,
   effect: Effect.Effect<A, E, R>,
@@ -100,15 +65,18 @@ const wrapTrackedEffect = <A, E, R>(
     return Cause.hasInterruptsOnly(exit.cause) ? Effect.void : progress.incrementFailed(taskId);
   });
 
-const isTaskFullyProcessed = (progress: ProgressService, taskId: TaskId) =>
+/** Result mode marks fully accounted work done even when the collection exits abnormally. */
+const completeAccountedResultTask = (progress: ProgressService, taskId: TaskId) =>
   Effect.gen(function* () {
     const taskOption = yield* progress.getTask(taskId);
     if (Option.isNone(taskOption)) {
-      return false;
+      return;
     }
 
     const { processed, total } = taskOption.value.units;
-    return total !== undefined && processed >= total;
+    if (total !== undefined && processed >= total) {
+      yield* progress.completeTask(taskId);
+    }
   });
 
 /**
@@ -137,7 +105,7 @@ export const all: {
           (handle) =>
             Effect.onExit(
               Effect.all(
-                wrapEffects(effects, (effect) => wrapTrackedEffect(progress, handle.id, effect)),
+                wrapEffects(effects, (effect) => trackEffectOutcome(progress, handle.id, effect)),
                 {
                   concurrency: options.concurrency,
                   discard: options.discard,
@@ -145,16 +113,9 @@ export const all: {
                 },
               ),
               (exit) =>
-                Effect.gen(function* () {
-                  // Result mode considers fully accounted work complete even after an abnormal exit.
-                  if (
-                    Exit.isFailure(exit) &&
-                    isCollectAllMode(options.mode) &&
-                    (yield* isTaskFullyProcessed(progress, handle.id))
-                  ) {
-                    yield* handle.complete;
-                  }
-                }),
+                Exit.isFailure(exit) && isCollectAllMode(options.mode)
+                  ? completeAccountedResultTask(progress, handle.id)
+                  : Effect.void,
             ),
           {
             description: options.description,
@@ -196,7 +157,7 @@ export const forEach: {
           (handle) =>
             Effect.forEach(
               iterable,
-              (item, index) => wrapTrackedEffect(progress, handle.id, f(item, index)),
+              (item, index) => trackEffectOutcome(progress, handle.id, f(item, index)),
               {
                 concurrency: options.concurrency,
                 discard: options.discard,

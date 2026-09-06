@@ -1,4 +1,15 @@
-export * from "./api";
+export {
+  task,
+  all,
+  forEach,
+  type TaskOptions,
+  type EffectExecutionOptions,
+  type EffectAllExecutionOptions,
+  type AllOptions,
+  type AllReturn,
+  type ForEachExecutionOptions,
+  type ForEachOptions,
+} from "./api";
 export * as Columns from "./columns";
 export { Progress, type ProgressService } from "./services/progress";
 export { ProgressStdio, type ProgressStdioService } from "./services/stdio";

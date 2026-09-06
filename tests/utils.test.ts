@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { inferTotal } from "../src/utils";
+import { inferTotal } from "../src/api/infer-total";
 
 describe("inferTotal", () => {
   test.each([
