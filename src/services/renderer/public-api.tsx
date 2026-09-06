@@ -2,7 +2,7 @@ import { Predicate } from "effect";
 import { Box, Text, useBoxMetrics, type DOMElement } from "ink";
 import type { ReactElement, ReactNode } from "react";
 import { useRef } from "react";
-import type { ColumnAlign, ColumnDef, TaskId } from "../../types";
+import type { ColumnAlign, Column, TaskId } from "../../types";
 import { useNow } from "./context/now-context";
 import { useSpinnerTick } from "./context/spinner-context";
 import { resolveColumns, type ResolvedColumnPosition } from "./column-resolver";
@@ -10,7 +10,7 @@ import type { TaskRowModel } from "../store/types";
 
 interface ProgressRendererProps {
   readonly rows: ReadonlyArray<TaskRowModel>;
-  readonly columns: ReadonlyMap<TaskId, ReadonlyArray<ColumnDef<any, any>>>;
+  readonly columns: ReadonlyMap<TaskId, ReadonlyArray<Column>>;
 }
 
 const justifyContentForAlign = (align: ColumnAlign | undefined) => {
@@ -47,15 +47,12 @@ const ColumnPosition = ({ position }: { readonly position: ResolvedColumnPositio
       minWidth={position.minWidth}
     >
       {position.rows.map((row, rowIndex) => {
-        const entry = position.entries[rowIndex];
-        const column = entry?.column;
-        const cell = row;
+        const column = position.entries[rowIndex];
         const output =
-          column?.render(cell, {
+          column?.render(row, {
             width: hasMeasured ? width : position.flexBasis,
             now,
             spinnerTick,
-            prepared: entry?.prepared,
           }) ?? null;
 
         return (

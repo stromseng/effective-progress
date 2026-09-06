@@ -270,6 +270,10 @@ const program = Progress.task(
 - sizing hints with `flexGrow`, `flexShrink`, `flexBasis`, and `minWidth`
 - `align` with `"left"`, `"center"`, or `"right"`
 
+Use `ColumnDef<M, P>` to author a column with typed metadata and prepared data, and
+`Column<M>` for a list containing columns with different prepared types. The renderer
+binds each prepared value to its definition before rendering cells.
+
 If a task does not provide `columns`, the renderer falls back to `Progress.Columns.defaults()`.
 
 ## Performance benchmarks

@@ -1,7 +1,7 @@
 import { Clock, Context, Effect, Layer, Option, Queue } from "effect";
 import type {
   AddTaskOptions,
-  ColumnDef,
+  Column,
   TaskProgressSample,
   TaskId,
   TaskStore,
@@ -205,7 +205,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
   let state: TaskStore = {
     tasks: new Map<TaskId, TaskSnapshot>(),
     renderOrder: [],
-    columns: new Map<TaskId, ReadonlyArray<ColumnDef<any, any>>>(),
+    columns: new Map<TaskId, ReadonlyArray<Column>>(),
   };
   let publishedSnapshot = state;
   let hasPendingPublish = false;

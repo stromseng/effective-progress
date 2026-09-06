@@ -96,7 +96,7 @@ const makeColumnFixture = (rowCount: number, distinctPrepare: boolean) => {
     if (distinctPrepare) {
       const column: ColumnDef<unknown, number> = {
         prepare: (cells) => index + cells.reduce((sum, cell) => sum + cell.task.units.processed, 0),
-        render: () => null,
+        render: (_cell, { prepared }) => String(prepared),
       };
       store.columns.set(id, [column]);
     }
@@ -108,15 +108,15 @@ const makeColumnFixture = (rowCount: number, distinctPrepare: boolean) => {
   };
 };
 
-// Compare layout/prepared output without comparing newly allocated render function identities.
+// Compare layout and rendered output without exposing prepared data or comparing callback identities.
 const columnOutput = (positions: ReturnType<typeof resolveColumns>) =>
-  positions.map(({ index, flexGrow, flexShrink, flexBasis, minWidth, entries }) => ({
+  positions.map(({ index, flexGrow, flexShrink, flexBasis, minWidth, entries, rows }) => ({
     index,
     flexGrow,
     flexShrink,
     flexBasis,
     minWidth,
-    prepared: entries.map((entry) => entry?.prepared),
+    output: entries.map((entry, index) => entry?.render(rows[index]!, { now: 0, spinnerTick: 0 })),
   }));
 
 const benchmarkColumns = (rowCount: number, distinctPrepare: boolean): Measurement => {
@@ -126,7 +126,9 @@ const benchmarkColumns = (rowCount: number, distinctPrepare: boolean): Measureme
   for (const position of result) {
     assert.equal(position.entries.length, rowCount);
     if (distinctPrepare) {
-      position.entries.forEach((entry, index) => assert.equal(entry?.prepared, index + 25));
+      position.entries.forEach((entry, index) =>
+        assert.equal(entry?.render(rows[index]!, { now: 0, spinnerTick: 0 }), String(index + 25)),
+      );
     }
   }
   const expected = columnOutput(result);
