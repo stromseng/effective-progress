@@ -12,6 +12,4 @@ export interface TaskOperations {
   readonly failTask: (taskId: TaskId) => Effect.Effect<void>;
   readonly getTask: (taskId: TaskId) => Effect.Effect<Option.Option<TaskSnapshot>>;
   readonly listTasks: Effect.Effect<ReadonlyArray<TaskSnapshot>>;
-  readonly setMetadata: <M>(taskId: TaskId, metadata: M) => Effect.Effect<void>;
-  readonly getMetadata: (taskId: TaskId) => Effect.Effect<unknown>;
 }

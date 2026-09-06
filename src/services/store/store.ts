@@ -19,6 +19,9 @@ export interface ProgressStoreService extends TaskOperations {
   readonly getPublishedSnapshot: () => TaskStore;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
+  /** Internal metadata operations are exposed publicly only through a typed task handle. */
+  readonly setMetadata: <M>(taskId: TaskId, metadata: M) => Effect.Effect<void>;
+  readonly getMetadata: (taskId: TaskId) => Effect.Effect<unknown>;
   readonly updateMetadata: (
     taskId: TaskId,
     f: (metadata: TaskSnapshot["metadata"]) => TaskSnapshot["metadata"],

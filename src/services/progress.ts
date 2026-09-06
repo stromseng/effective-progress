@@ -101,8 +101,6 @@ const makeProgressService = Effect.gen(function* () {
     failTask: store.failTask,
     getTask: store.getTask,
     listTasks: store.listTasks,
-    setMetadata: store.setMetadata,
-    getMetadata: store.getMetadata,
     task,
   } satisfies ProgressService;
 
