@@ -6,7 +6,7 @@ import { Renderer } from "../src/services/renderer/renderer";
 const withProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   effect.pipe(
     Effect.provide(Progress.Progress.layer),
-    Effect.provideService(Renderer, { run: Effect.never }),
+    Effect.provideService(Renderer, { start: Effect.void }),
     Effect.scoped,
   );
 

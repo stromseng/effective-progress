@@ -15,7 +15,6 @@ interface CurrentParentState {
 const makeProgressService = Effect.gen(function* () {
   const inkRenderer = yield* Renderer;
   const store = yield* ProgressStore;
-  const scope = yield* Effect.scope;
   const parentOwner = Symbol();
 
   // Each Progress service has its own task store, but they all share CurrentParent.
@@ -26,9 +25,7 @@ const makeProgressService = Effect.gen(function* () {
       : Option.none<TaskId>(),
   );
 
-  yield* Effect.forkIn(inkRenderer.run, scope, { startImmediately: true });
-  // Let the renderer fiber start so queued logs are reliably flushed on scope teardown.
-  yield* Effect.sleep("0 millis");
+  yield* inkRenderer.start;
 
   const addTask = <M>(options: AddTaskOptions<M>) =>
     Effect.gen(function* () {
