@@ -31,11 +31,11 @@
     "access": "public"
   },
   "scripts": {
-    "prepare": "effect-language-service patch",
+    "prepare": "effect-tsgo patch --typescript --typescript-package @typescript/native",
     "build": "tsdown",
     "prepublishOnly": "bun run build",
     "test": "bun test",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bun node_modules/@typescript/native/bin/tsc --noEmit",
     "lint": "oxlint .",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
@@ -51,10 +51,11 @@
     "react": "^19.2.4"
   },
   "devDependencies": {
-    "@effect/language-service": "^0.73.1",
+    "@effect/tsgo": "0.38.0",
     "@oxlint/plugins": "1.78.0",
     "@types/bun": "latest",
     "@types/react": "^19.2.14",
+    "@typescript/native": "npm:typescript@7.0.2",
     "effect": "^4.0.0-rc.112",
     "knip": "^5.86.0",
     "oxfmt": "^0.32.0",

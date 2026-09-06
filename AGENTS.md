@@ -14,7 +14,7 @@ This is a greenfield project. Pre-1.0.0 — breaking changes are allowed to occu
 - **Test runner:** Bun (`bun test`)
 - **Linter:** oxlint (`bun run lint`)
 - **Formatter:** oxfmt (`bun run format`, `bun run format:check`)
-- **Type checking:** `bun run typecheck`
+- **Type checking:** TypeScript 7 (TSGO) with `@effect/tsgo` via `bun run typecheck`
 
 ## Commands
 
