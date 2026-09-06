@@ -199,9 +199,9 @@ if (Option.isSome(metadata)) {
 
 Task mutation rules:
 
-- Completion and failure freeze the retained task's fields, counters, timestamps,
-  progress samples, and metadata. Later writes are no-ops, and metadata update
-  callbacks are not invoked. Retained tasks remain readable through `Some`.
+- Completion and failure make later task API writes no-ops, including counter,
+  field, and metadata updates. Metadata update callbacks are not invoked. Retained
+  tasks remain readable through `Some`; metadata objects are not deep-frozen.
 - Counter values stay finite and nonnegative. Non-finite counter inputs preserve
   the previous value; if the resulting succeeded-plus-failed sum would overflow to
   infinity, both counter changes are ignored. Finite counts may still exceed the
