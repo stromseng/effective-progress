@@ -1,0 +1,231 @@
+{
+  "clockHooksRevision": "1b39190",
+  "memoizationRevision": "241c3cd",
+  "aggregation": "Median of 14 samples per scenario per revision: two runs, each with two warmup rounds and seven measured rounds.",
+  "clockHooksRuns": [
+    {
+      "runtime": {
+        "bun": "1.3.13",
+        "platform": "darwin",
+        "arch": "arm64"
+      },
+      "rows": 100,
+      "framesPerSample": 30,
+      "warmupRounds": 2,
+      "measuredRounds": 7,
+      "results": [
+        {
+          "scenario": "spinner-all",
+          "medianMillis": 955.7917910000001,
+          "samplesMillis": [
+            955.7917910000001, 961.30825, 967.5454169999994, 953.9214169999996, 979.6018749999994,
+            955.1399590000001, 951.0802909999993
+          ],
+          "columnRenderCallsPerSample": [0, 0, 0, 0, 0, 0, 0]
+        },
+        {
+          "scenario": "spinner-one",
+          "medianMillis": 951.3297500000008,
+          "samplesMillis": [
+            951.3297500000008, 952.4219580000008, 941.7520829999994, 944.3051669999986,
+            968.0283749999999, 972.6469169999982, 944.364625000002
+          ],
+          "columnRenderCallsPerSample": [0, 0, 0, 0, 0, 0, 0]
+        },
+        {
+          "scenario": "now-one",
+          "medianMillis": 958.713375000003,
+          "samplesMillis": [
+            963.9906659999979, 953.1719999999987, 962.8104170000006, 947.0042079999985,
+            938.9762919999994, 960.1231660000012, 958.713375000003
+          ],
+          "columnRenderCallsPerSample": [0, 0, 0, 0, 0, 0, 0]
+        },
+        {
+          "scenario": "task-one",
+          "medianMillis": 1117.7742079999953,
+          "samplesMillis": [
+            1104.431708, 1123.7586249999986, 1118.132207999999, 1106.3062910000008,
+            1109.9721660000068, 1129.421000000002, 1117.7742079999953
+          ],
+          "columnRenderCallsPerSample": [18000, 18000, 18000, 18000, 18000, 18000, 18000]
+        }
+      ]
+    },
+    {
+      "runtime": {
+        "bun": "1.3.13",
+        "platform": "darwin",
+        "arch": "arm64"
+      },
+      "rows": 100,
+      "framesPerSample": 30,
+      "warmupRounds": 2,
+      "measuredRounds": 7,
+      "results": [
+        {
+          "scenario": "spinner-all",
+          "medianMillis": 981.711542,
+          "samplesMillis": [
+            973.218042, 981.711542, 960.4772909999992, 987.3855410000006, 952.4206249999997,
+            1092.7543750000004, 1161.9717499999988
+          ],
+          "columnRenderCallsPerSample": [0, 0, 0, 0, 0, 0, 0]
+        },
+        {
+          "scenario": "spinner-one",
+          "medianMillis": 983.8924160000006,
+          "samplesMillis": [
+            1014.6374580000011, 964.3522919999996, 983.8924160000006, 949.178750000001,
+            1004.8261670000011, 1043.6292499999981, 973.9595410000002
+          ],
+          "columnRenderCallsPerSample": [0, 0, 0, 0, 0, 0, 0]
+        },
+        {
+          "scenario": "now-one",
+          "medianMillis": 1043.0403750000005,
+          "samplesMillis": [
+            1043.0403750000005, 1042.6835000000028, 1022.5416669999977, 1059.0115829999995,
+            1028.3697090000023, 1069.0805, 1106.2597920000007
+          ],
+          "columnRenderCallsPerSample": [0, 0, 0, 0, 0, 0, 0]
+        },
+        {
+          "scenario": "task-one",
+          "medianMillis": 1170.6705000000002,
+          "samplesMillis": [
+            1184.2417910000004, 1153.3891250000015, 1238.127708, 1259.7919580000016,
+            1131.6409170000043, 1152.2903329999972, 1170.6705000000002
+          ],
+          "columnRenderCallsPerSample": [18000, 18000, 18000, 18000, 18000, 18000, 18000]
+        }
+      ]
+    }
+  ],
+  "memoizationRuns": [
+    {
+      "runtime": {
+        "bun": "1.3.13",
+        "platform": "darwin",
+        "arch": "arm64"
+      },
+      "rows": 100,
+      "framesPerSample": 30,
+      "warmupRounds": 2,
+      "measuredRounds": 7,
+      "results": [
+        {
+          "scenario": "spinner-all",
+          "medianMillis": 972.2866249999997,
+          "samplesMillis": [
+            969.8235829999999, 971.0992080000001, 985.3139580000006, 972.2866249999997, 975.931458,
+            987.8292080000001, 961.1371669999999
+          ],
+          "columnRenderCallsPerSample": [0, 0, 0, 0, 0, 0, 0]
+        },
+        {
+          "scenario": "spinner-one",
+          "medianMillis": 1002.2337919999991,
+          "samplesMillis": [
+            975.2270000000008, 960.6929999999993, 974.5767080000005, 1002.2337919999991,
+            1065.689375, 1062.1150000000016, 1052.6526249999988
+          ],
+          "columnRenderCallsPerSample": [0, 0, 0, 0, 0, 0, 0]
+        },
+        {
+          "scenario": "now-one",
+          "medianMillis": 1013.5213330000006,
+          "samplesMillis": [
+            1026.4180829999968, 1016.1840420000008, 1105.135542, 1013.5213330000006,
+            984.8736250000002, 1002.5410840000004, 980.070083999999
+          ],
+          "columnRenderCallsPerSample": [0, 0, 0, 0, 0, 0, 0]
+        },
+        {
+          "scenario": "task-one",
+          "medianMillis": 1089.312291000002,
+          "samplesMillis": [
+            1059.4134589999994, 1089.3837079999976, 1143.194875000001, 1056.237165999999,
+            1092.9467919999952, 1074.7106249999997, 1089.312291000002
+          ],
+          "columnRenderCallsPerSample": [9030, 9030, 9030, 9030, 9030, 9030, 9030]
+        }
+      ]
+    },
+    {
+      "runtime": {
+        "bun": "1.3.13",
+        "platform": "darwin",
+        "arch": "arm64"
+      },
+      "rows": 100,
+      "framesPerSample": 30,
+      "warmupRounds": 2,
+      "measuredRounds": 7,
+      "results": [
+        {
+          "scenario": "spinner-all",
+          "medianMillis": 1018.5161659999994,
+          "samplesMillis": [
+            992.6430829999999, 999.7930409999994, 1020.0388329999996, 1032.4638340000001,
+            1077.980541, 1018.5161659999994, 953.7786669999987
+          ],
+          "columnRenderCallsPerSample": [0, 0, 0, 0, 0, 0, 0]
+        },
+        {
+          "scenario": "spinner-one",
+          "medianMillis": 1013.3149999999987,
+          "samplesMillis": [
+            1040.4370419999996, 974.5537499999991, 982.1843749999989, 1032.2165839999998,
+            1069.8762920000008, 1013.3149999999987, 1005.3494580000006
+          ],
+          "columnRenderCallsPerSample": [0, 0, 0, 0, 0, 0, 0]
+        },
+        {
+          "scenario": "now-one",
+          "medianMillis": 1027.7221250000002,
+          "samplesMillis": [
+            1006.2089169999999, 1031.403875, 1027.7221250000002, 1065.8286659999976,
+            1057.3864170000015, 995.5487909999974, 964.9621249999982
+          ],
+          "columnRenderCallsPerSample": [0, 0, 0, 0, 0, 0, 0]
+        },
+        {
+          "scenario": "task-one",
+          "medianMillis": 1173.5591249999998,
+          "samplesMillis": [
+            1173.5591249999998, 1170.9346670000014, 1176.0594999999994, 1184.575874999995,
+            1185.7877080000035, 1153.9631660000014, 1141.245084000002
+          ],
+          "columnRenderCallsPerSample": [9030, 9030, 9030, 9030, 9030, 9030, 9030]
+        }
+      ]
+    }
+  ],
+  "comparison": [
+    {
+      "scenario": "spinner-all",
+      "clockHooksMedianMillis": 964.4268334999997,
+      "memoizationMedianMillis": 986.5715830000004,
+      "timeReductionPercent": -2.296156507760694
+    },
+    {
+      "scenario": "spinner-one",
+      "clockHooksMedianMillis": 966.1903334999997,
+      "memoizationMedianMillis": 1009.3322289999996,
+      "timeReductionPercent": -4.465154949720884
+    },
+    {
+      "scenario": "now-one",
+      "clockHooksMedianMillis": 993.2661664999978,
+      "memoizationMedianMillis": 1014.8526875000007,
+      "timeReductionPercent": -2.173286650452222
+    },
+    {
+      "scenario": "task-one",
+      "clockHooksMedianMillis": 1130.5309585000032,
+      "memoizationMedianMillis": 1142.2199795000015,
+      "timeReductionPercent": -1.0339408144565354
+    }
+  ]
+}
