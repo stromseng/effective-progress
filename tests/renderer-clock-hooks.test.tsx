@@ -2,9 +2,9 @@ import { expect, onTestFinished, test } from "bun:test";
 import { render, Text } from "ink";
 import stripAnsi from "strip-ansi";
 import { useNow, useSpinnerTick, type Column } from "../src";
-import { NowProvider } from "../src/services/renderer/context/now-context";
-import { SpinnerProvider } from "../src/services/renderer/context/spinner-context";
-import { ProgressRenderer } from "../src/services/renderer/public-api";
+import { NowProvider } from "../src/renderer/context/now-context";
+import { SpinnerProvider } from "../src/renderer/context/spinner-context";
+import { ProgressTable } from "../src/renderer/progress-table";
 import { createMockStdio } from "./helpers/mock-stdio";
 import { makeRows, makeTaskSnapshot } from "./helpers/renderer";
 
@@ -36,7 +36,7 @@ test("clock hooks update only subscribed cells and can unsubscribe and resume", 
   ];
   const task = makeTaskSnapshot();
   const columns = new Map([[task.id, definitions]]);
-  let content = <ProgressRenderer rows={makeRows([task])} columns={columns} />;
+  let content = <ProgressTable rows={makeRows([task])} columns={columns} />;
   const tree = (tick: number, now: number) => (
     <NowProvider active={false} nowOverride={now}>
       <SpinnerProvider active={false} tickOverride={tick}>
@@ -65,7 +65,7 @@ test("clock hooks update only subscribed cells and can unsubscribe and resume", 
   expect(stripAnsi(io.stdout.getOutput())).toContain("now:2000");
 
   content = (
-    <ProgressRenderer
+    <ProgressTable
       rows={makeRows([{ ...task, status: "done", completedAt: 2_000 }])}
       columns={columns}
     />
@@ -77,7 +77,7 @@ test("clock hooks update only subscribed cells and can unsubscribe and resume", 
   await instance.waitUntilRenderFlush();
   expect(calls).toEqual(stopped);
 
-  content = <ProgressRenderer rows={makeRows([task])} columns={columns} />;
+  content = <ProgressTable rows={makeRows([task])} columns={columns} />;
   instance.rerender(tree(2, 3_000));
   await instance.waitUntilRenderFlush();
   const resumed = { ...calls };

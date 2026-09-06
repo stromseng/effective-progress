@@ -2,11 +2,11 @@ import { renderToString } from "ink";
 import stripAnsi from "strip-ansi";
 import type { TaskSnapshot, TaskStore } from "../../src/types";
 import { TaskId } from "../../src/types";
-import { NowProvider } from "../../src/services/renderer/context/now-context";
-import { SpinnerProvider } from "../../src/services/renderer/context/spinner-context";
-import { ProgressRenderer } from "../../src/services/renderer/public-api";
-import { toRenderSnapshot } from "../../src/services/store/render-snapshot";
-import type { TaskRowModel } from "../../src/services/store/types";
+import { NowProvider } from "../../src/renderer/context/now-context";
+import { SpinnerProvider } from "../../src/renderer/context/spinner-context";
+import { ProgressTable } from "../../src/renderer/progress-table";
+import { prepareRows } from "../../src/renderer/prepare-rows";
+import type { TaskRowModel } from "../../src/renderer/row-model";
 
 export const makeTaskSnapshot = (overrides: Partial<TaskSnapshot> = {}): TaskSnapshot => ({
   id: TaskId(1),
@@ -31,7 +31,7 @@ export const makeRows = (
   tasks: ReadonlyArray<TaskSnapshot>,
   renderOrder: TaskStore["renderOrder"] = tasks.map(({ id }) => ({ id, depth: 0 })),
 ): ReadonlyArray<TaskRowModel> =>
-  toRenderSnapshot({
+  prepareRows({
     tasks: new Map(tasks.map((task) => [task.id, task])),
     renderOrder,
     columns: new Map(),
@@ -55,7 +55,7 @@ export const renderRows = (
     renderToString(
       <NowProvider active={false} nowOverride={now}>
         <SpinnerProvider active={false} tickOverride={spinnerTick}>
-          <ProgressRenderer rows={rows} columns={columns} />
+          <ProgressTable rows={rows} columns={columns} />
         </SpinnerProvider>
       </NowProvider>,
     ),

@@ -56,10 +56,10 @@ describe("progress render store", () => {
           return store;
         }).pipe(Effect.scoped);
 
-        const publication = store.getSnapshot();
+        const publication = store.getPublishedSnapshot();
         yield* TestClock.adjust(1_000);
         expect(notifications).toBe(1);
-        expect(store.getSnapshot()).toBe(publication);
+        expect(store.getPublishedSnapshot()).toBe(publication);
       }).pipe(Effect.provide(TestClock.layer())),
     );
   });
@@ -81,8 +81,8 @@ describe("progress render store", () => {
         });
 
         expect(notifications).toBe(1);
-        const initialSnapshot = store.getSnapshot();
-        expect(store.getSnapshot()).toBe(initialSnapshot);
+        const initialSnapshot = store.getPublishedSnapshot();
+        expect(store.getPublishedSnapshot()).toBe(initialSnapshot);
 
         yield* store.incrementSucceeded(taskId, 1);
         yield* store.incrementSucceeded(taskId, 1);
@@ -90,15 +90,17 @@ describe("progress render store", () => {
 
         expect(notifications).toBe(1);
 
+        expect(Option.getOrThrow(yield* store.getTask(taskId)).units.processed).toBe(3);
+
         yield* TestClock.adjust(99);
         expect(notifications).toBe(1);
-        expect(store.getSnapshot()).toBe(initialSnapshot);
+        expect(store.getPublishedSnapshot()).toBe(initialSnapshot);
         expect(initialSnapshot.tasks.get(taskId)?.units.processed).toBe(0);
 
         yield* TestClock.adjust(1);
         expect(notifications).toBe(2);
 
-        const publication = store.getSnapshot();
+        const publication = store.getPublishedSnapshot();
         expect(publication).not.toBe(initialSnapshot);
         const task = publication.tasks.get(taskId);
         expect(publication.renderOrder).toHaveLength(1);
@@ -135,7 +137,7 @@ describe("progress render store", () => {
         store.flush();
 
         expect(notifications).toBe(2);
-        const task = store.getSnapshot().tasks.get(taskId);
+        const task = store.getPublishedSnapshot().tasks.get(taskId);
         expect(task?.units.total).toBe(4);
         expect(task?.units.processed).toBe(2);
 
@@ -158,7 +160,7 @@ describe("progress render store", () => {
 
         store.flush();
 
-        expect(store.getSnapshot().renderOrder).toEqual([
+        expect(store.getPublishedSnapshot().renderOrder).toEqual([
           { id: parentId, depth: 0 },
           { id: childId, depth: 1 },
           { id: grandchildId, depth: 2 },
@@ -195,7 +197,7 @@ describe("progress render store", () => {
         yield* store.completeTask(parentId);
         store.flush();
 
-        const publication = store.getSnapshot();
+        const publication = store.getPublishedSnapshot();
         expect(publication.tasks.size).toBe(0);
         expect(publication.renderOrder).toEqual([]);
         expect(publication.columns.size).toBe(0);
@@ -225,7 +227,7 @@ describe("progress render store", () => {
           yield* store[finalize](branchId);
           store.flush();
 
-          const snapshot = store.getSnapshot();
+          const snapshot = store.getPublishedSnapshot();
           const survivingIds = [rootId, leftId, rightId, rootSiblingId];
           expect([...snapshot.tasks.keys()]).toEqual(survivingIds);
           expect([...snapshot.columns.keys()]).toEqual(survivingIds);
@@ -253,14 +255,14 @@ describe("progress render store", () => {
         yield* store.completeTask(completedId);
         store.flush();
 
-        expect(store.getSnapshot().tasks.get(completedId)?.status).toBe("done");
+        expect(store.getPublishedSnapshot().tasks.get(completedId)?.status).toBe("done");
         const afterCompleteNotifications = notifications;
 
         yield* store.failTask(completedId);
         store.flush();
 
         expect(notifications).toBe(afterCompleteNotifications);
-        expect(store.getSnapshot().tasks.get(completedId)?.status).toBe("done");
+        expect(store.getPublishedSnapshot().tasks.get(completedId)?.status).toBe("done");
 
         const failedId = yield* store.addTask({ description: "failed", transient: false });
         store.flush();
@@ -268,14 +270,14 @@ describe("progress render store", () => {
         yield* store.failTask(failedId);
         store.flush();
 
-        expect(store.getSnapshot().tasks.get(failedId)?.status).toBe("failed");
+        expect(store.getPublishedSnapshot().tasks.get(failedId)?.status).toBe("failed");
         const afterFailNotifications = notifications;
 
         yield* store.completeTask(failedId);
         store.flush();
 
         expect(notifications).toBe(afterFailNotifications);
-        expect(store.getSnapshot().tasks.get(failedId)?.status).toBe("failed");
+        expect(store.getPublishedSnapshot().tasks.get(failedId)?.status).toBe("failed");
       }).pipe(Effect.scoped),
     );
   });

@@ -1,26 +1,19 @@
 import { Clock, Context, Effect, Layer, Option, Queue } from "effect";
-import type {
-  AddTaskOptions,
-  Column,
-  TaskProgressSample,
-  TaskId,
-  TaskStore,
-  TaskOperations,
-  UpdateTaskOptions,
-} from "../../types";
+import type { Column, TaskId, TaskStore, TaskOperations } from "../../types";
 import { TaskId as makeTaskId, type TaskSnapshot } from "../../types";
-
-interface TaskCounts {
-  readonly succeeded: number;
-  readonly failed: number;
-  readonly total?: number;
-}
-
-const ETA_SAMPLE_WINDOW_MILLIS = 30_000;
-const ETA_SAMPLE_MAX_LENGTH = 1_000;
+import {
+  appendProgressSample,
+  createTaskSnapshot,
+  finalizeTaskSnapshot,
+  normalizeUnits,
+  updatedSnapshot,
+} from "./task-state";
+import { findInsertionIndex, removeTransientSubtree } from "./task-tree";
+import { createSnapshotPublisher } from "./snapshot-publisher";
 
 export interface ProgressStoreService extends TaskOperations {
-  readonly getSnapshot: () => TaskStore;
+  /** The renderer reads throttled snapshots; task operations read current state. */
+  readonly getPublishedSnapshot: () => TaskStore;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
   readonly updateMetadata: (
@@ -28,172 +21,6 @@ export interface ProgressStoreService extends TaskOperations {
     f: (metadata: TaskSnapshot["metadata"]) => TaskSnapshot["metadata"],
   ) => Effect.Effect<void>;
 }
-
-const hasExplicitTotal = (options: Pick<AddTaskOptions | UpdateTaskOptions, "total">) =>
-  Object.prototype.hasOwnProperty.call(options, "total");
-
-const sanitizeTotal = (total: number | undefined) => {
-  if (total === undefined) {
-    return undefined;
-  }
-
-  return !Number.isFinite(total) || total < 0 ? undefined : total;
-};
-
-const normalizeUnits = (counts: TaskCounts) => {
-  const succeeded = Math.max(0, counts.succeeded);
-  const failed = Math.max(0, counts.failed);
-
-  return counts.total === undefined
-    ? {
-        succeeded,
-        failed,
-        processed: succeeded + failed,
-      }
-    : {
-        succeeded,
-        failed,
-        processed: succeeded + failed,
-        total: counts.total,
-      };
-};
-
-/** Completes remaining known work, or records the observed total for an unknown-total task. */
-const completedUnits = (units: TaskSnapshot["units"]): TaskSnapshot["units"] => {
-  if (units.total === undefined) {
-    return units.processed > 0 ? normalizeUnits({ ...units, total: units.processed }) : units;
-  }
-
-  return units.processed < units.total
-    ? normalizeUnits({
-        ...units,
-        succeeded: units.succeeded + (units.total - units.processed),
-      })
-    : units;
-};
-
-/**
- * Returns a new progress sample deque with the latest processed count appended.
- *
- * Samples are retained for the ETA rolling window and capped by count so very chatty tasks do not
- * grow memory without bound.
- */
-const appendProgressSample = (
-  samples: ReadonlyArray<TaskProgressSample> | undefined,
-  now: number,
-  processed: number,
-): ReadonlyArray<TaskProgressSample> => {
-  const previousSamples = samples ?? [];
-  const lastSample = previousSamples.at(-1);
-  if (lastSample?.processed === processed) {
-    return previousSamples;
-  }
-
-  // Keep one sample immediately before the rolling window when possible. That gives the ETA
-  // calculation a usable delta even just after old samples age out of the 30s window.
-  const windowStart = now - ETA_SAMPLE_WINDOW_MILLIS;
-  const appendedLength = previousSamples.length + 1;
-  let firstRetainedIndex = Math.max(0, appendedLength - ETA_SAMPLE_MAX_LENGTH);
-  while (
-    firstRetainedIndex + 1 < previousSamples.length &&
-    previousSamples[firstRetainedIndex + 1]!.timestamp < windowStart
-  ) {
-    firstRetainedIndex++;
-  }
-
-  return [...previousSamples.slice(firstRetainedIndex), { timestamp: now, processed }];
-};
-
-/** Applies mutable task fields; the mutation boundary records progress samples. */
-const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => {
-  const currentUnits = snapshot.units;
-  const units =
-    options.succeeded === undefined &&
-    options.failed === undefined &&
-    options.total === undefined &&
-    !hasExplicitTotal(options)
-      ? currentUnits
-      : normalizeUnits({
-          succeeded: options.succeeded ?? currentUnits.succeeded,
-          failed: options.failed ?? currentUnits.failed,
-          total: hasExplicitTotal(options) ? sanitizeTotal(options.total) : currentUnits.total,
-        });
-
-  return {
-    ...snapshot,
-    description: options.description ?? snapshot.description,
-    countDisplay: options.countDisplay ?? snapshot.countDisplay,
-    units,
-  } satisfies TaskSnapshot;
-};
-
-const findInsertionIndex = (
-  renderOrder: ReadonlyArray<TaskStore["renderOrder"][number]>,
-  parentId: TaskId | null,
-) => {
-  if (parentId === null) {
-    return { index: renderOrder.length, depth: 0 };
-  }
-
-  const parentIdx = renderOrder.findIndex((row) => row.id === parentId);
-  if (parentIdx === -1) {
-    return { index: renderOrder.length, depth: 0 };
-  }
-
-  const parentDepth = renderOrder[parentIdx]!.depth;
-  let i = parentIdx + 1;
-  while (i < renderOrder.length && renderOrder[i]!.depth > parentDepth) {
-    i++;
-  }
-
-  return { index: i, depth: parentDepth + 1 };
-};
-
-/** Finds the half-open range containing a task and all of its descendants. */
-const findSubtreeRange = (renderOrder: TaskStore["renderOrder"], taskId: TaskId) => {
-  const start = renderOrder.findIndex((row) => row.id === taskId);
-  if (start === -1) {
-    return undefined;
-  }
-
-  const taskDepth = renderOrder[start]!.depth;
-  let end = start + 1;
-  while (end < renderOrder.length && renderOrder[end]!.depth > taskDepth) {
-    end++;
-  }
-
-  return { start, end };
-};
-
-const removeTransientSubtree = (
-  current: TaskStore,
-  nextTasks: Map<TaskId, TaskSnapshot>,
-  taskId: TaskId,
-) => {
-  const range = findSubtreeRange(current.renderOrder, taskId);
-  const removedTaskIds =
-    range === undefined
-      ? []
-      : current.renderOrder.slice(range.start, range.end).map((row) => row.id);
-  for (const removedTaskId of removedTaskIds) {
-    nextTasks.delete(removedTaskId);
-  }
-
-  const nextColumns = new Map(current.columns);
-  for (const removedTaskId of removedTaskIds) {
-    nextColumns.delete(removedTaskId);
-  }
-
-  return {
-    renderOrder:
-      range === undefined
-        ? current.renderOrder
-        : current.renderOrder.toSpliced(range.start, range.end - range.start),
-    columns: nextColumns,
-  };
-};
-
-const SNAPSHOT_PUBLISH_INTERVAL_MILLIS = 100;
 
 interface ProgressStoreRuntime {
   readonly store: ProgressStoreService;
@@ -207,57 +34,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
     renderOrder: [],
     columns: new Map<TaskId, ReadonlyArray<Column>>(),
   };
-  let publishedSnapshot = state;
-  let hasPendingPublish = false;
-  let lastPublishAt = -SNAPSHOT_PUBLISH_INTERVAL_MILLIS;
-  let latestObservedAt = 0;
-  const listeners = new Set<() => void>();
-
-  const notifyListeners = (): void => {
-    for (const listener of listeners) {
-      listener();
-    }
-  };
-
-  const publishNow = (publishedAt: number): void => {
-    hasPendingPublish = false;
-    publishedSnapshot = state;
-    notifyListeners();
-    lastPublishAt = publishedAt;
-  };
-
-  const publisherLoop = Effect.forever(
-    Effect.gen(function* () {
-      yield* Queue.take(publishQueue);
-
-      const now = yield* Clock.currentTimeMillis;
-      const waitMillis = Math.max(0, SNAPSHOT_PUBLISH_INTERVAL_MILLIS - (now - lastPublishAt));
-      if (waitMillis > 0) {
-        yield* Effect.sleep(waitMillis);
-      }
-      if (!hasPendingPublish) {
-        return;
-      }
-
-      const publishAt = yield* Clock.currentTimeMillis;
-      publishNow(publishAt);
-    }),
-  );
-
-  const schedulePublish: Effect.Effect<void> = Effect.gen(function* () {
-    if (!hasPendingPublish) {
-      return;
-    }
-
-    const now = yield* Clock.currentTimeMillis;
-    const waitMillis = Math.max(0, SNAPSHOT_PUBLISH_INTERVAL_MILLIS - (now - lastPublishAt));
-    if (waitMillis === 0) {
-      publishNow(now);
-      return;
-    }
-
-    yield* Queue.offer(publishQueue, undefined);
-  });
+  const publisher = createSnapshotPublisher(state, publishQueue);
 
   const updateState = (
     transform: (current: TaskStore) => TaskStore,
@@ -268,10 +45,8 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
       return Effect.void;
     }
 
-    latestObservedAt = now;
     state = nextState;
-    hasPendingPublish = true;
-    return schedulePublish;
+    return publisher.publish(state, now);
   };
 
   /** Replaces a task and records progress in one synchronous state transition. Undefined removes its subtree. */
@@ -313,66 +88,24 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
     }));
 
   const finalizeTask = (taskId: TaskId, status: "done" | "failed") =>
-    modifyTask(taskId, (task, now) => {
-      if (task.status !== "running") {
-        return task;
-      }
-      if (task.transient) {
-        return undefined;
-      }
-      return {
-        ...task,
-        status,
-        units: status === "done" ? completedUnits(task.units) : task.units,
-        completedAt: now,
-      };
-    });
+    modifyTask(taskId, (task, now) => finalizeTaskSnapshot(task, status, now));
 
   const store: ProgressStoreService = {
-    getSnapshot: () => publishedSnapshot,
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    flush: () => {
-      if (!hasPendingPublish) {
-        return;
-      }
-      publishNow(latestObservedAt);
-    },
+    getPublishedSnapshot: publisher.getPublishedSnapshot,
+    subscribe: publisher.subscribe,
+    flush: publisher.flush,
     addTask: (options) =>
       Effect.gen(function* () {
         const taskId = makeTaskId(++nextTaskId);
-        const units = normalizeUnits({
-          succeeded: 0,
-          failed: 0,
-          total: sanitizeTotal(options.total),
-        });
         const parentSnapshot =
           options.parentId === undefined ? undefined : state.tasks.get(options.parentId);
         const now = yield* Clock.currentTimeMillis;
-        const parentId = options.parentId ?? null;
-        const countDisplay = options.countDisplay ?? parentSnapshot?.countDisplay ?? "detailed";
-        const task = {
-          id: taskId,
-          parentId,
-          description: options.description,
-          status: "running",
-          countDisplay,
-          transient: (parentSnapshot?.transient ?? false) || (options.transient ?? false),
-          units,
-          startedAt: now,
-          completedAt: null,
-          progressSamples: [{ timestamp: now, processed: units.processed }],
-          metadata: options.metadata,
-        } satisfies TaskSnapshot;
+        const task = createTaskSnapshot(taskId, options, parentSnapshot, now);
 
         yield* updateState((current) => {
           const nextTasks = new Map(current.tasks);
           nextTasks.set(taskId, task);
-          const { index, depth } = findInsertionIndex(current.renderOrder, parentId);
+          const { index, depth } = findInsertionIndex(current.renderOrder, task.parentId);
           const nextRenderOrder = [...current.renderOrder];
           nextRenderOrder.splice(index, 0, { id: taskId, depth });
 
@@ -402,7 +135,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
       }),
   };
 
-  return { store, publisherLoop };
+  return { store, publisherLoop: publisher.publisherLoop };
 };
 
 export const makeProgressStore = Effect.gen(function* () {

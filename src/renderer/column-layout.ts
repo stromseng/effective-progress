@@ -1,7 +1,7 @@
-import { defaults } from "../../columns";
-import type { Column, TaskId } from "../../types";
-import { prepareColumns, type ResolvedColumn } from "./column-runtime";
-import type { TaskRowModel } from "../store/types";
+import { defaults } from "../columns/defaults";
+import type { Column, TaskId } from "../types";
+import { prepareColumns, type ResolvedColumn } from "./prepare-columns";
+import type { TaskRowModel } from "./row-model";
 
 export interface ResolvedColumnPosition {
   readonly index: number;

@@ -1,5 +1,5 @@
-import { resolveColumnSizeValue } from "../../columns";
-import type { CellInfo, Column, ColumnAlign, ColumnDef, ColumnRenderContext } from "../../types";
+import { resolveColumnSizeValue } from "../columns/column-size";
+import type { CellInfo, Column, ColumnAlign, ColumnDef, ColumnRenderContext } from "../types";
 import type { ReactNode } from "react";
 
 type PrepareFn = NonNullable<Column["prepare"]>;

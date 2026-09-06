@@ -1,6 +1,6 @@
-import type { TaskStore } from "../../types";
-import { textWidth } from "../renderer/shared/text-width";
-import type { OrderedTask, TaskRowModel } from "./types";
+import type { TaskStore } from "../types";
+import { textWidth } from "./shared/text-width";
+import type { OrderedTask, TaskRowModel } from "./row-model";
 
 const orderedVisibleTasks = (store: TaskStore): ReadonlyArray<OrderedTask> =>
   store.renderOrder.flatMap((row) => {
@@ -130,7 +130,7 @@ const computeTreeInfo = (
   });
 };
 
-export const toRenderSnapshot = (
+export const prepareRows = (
   store: TaskStore,
   previousSnapshot?: RenderSnapshot,
 ): RenderSnapshot => {

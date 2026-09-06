@@ -1,8 +1,8 @@
+import type { CellInfo, ColumnDef, TaskSnapshot } from "../types";
 import cliSpinners, { type SpinnerName } from "cli-spinners";
 import { Text } from "ink";
-import type { CellInfo, TaskSnapshot } from "../../../types";
-import { useSpinnerTick } from "../context/spinner-context";
-import { isDeterminate } from "../shared/determinate";
+import { useSpinnerTick } from "../renderer/context/spinner-context";
+import { isDeterminate } from "../renderer/shared/determinate";
 
 const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
 type TaskIndicatorColor = "green" | "yellow" | "red";
@@ -59,9 +59,7 @@ export interface DescriptionPrepared {
   readonly preferredWidth: number;
 }
 
-export const prepareDescription = (
-  rows: ReadonlyArray<CellInfo<unknown>>,
-): DescriptionPrepared => ({
+const prepareDescription = (rows: ReadonlyArray<CellInfo<unknown>>): DescriptionPrepared => ({
   minTreeWidth: rows.reduce(
     (max, row) => Math.max(max, row.derived.treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
     MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2,
@@ -85,7 +83,7 @@ const TaskIndicatorGlyph = ({
   return <Text color={indicator.color}>{indicator.symbol}</Text>;
 };
 
-export const DescriptionCell = ({
+const DescriptionCell = ({
   cell,
   width,
   minTreeWidth,
@@ -117,3 +115,13 @@ export const DescriptionCell = ({
     </Text>
   );
 };
+
+export const description = (): ColumnDef<unknown, DescriptionPrepared> => ({
+  prepare: prepareDescription,
+  flexShrink: 1,
+  flexBasis: (prepared) => prepared.preferredWidth,
+  minWidth: 1,
+  render: (cell, ctx) => (
+    <DescriptionCell cell={cell} width={ctx.width} minTreeWidth={ctx.prepared.minTreeWidth} />
+  ),
+});

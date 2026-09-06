@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { Effect } from "effect";
-import { resolveColumns } from "../src/services/renderer/column-resolver";
-import { toRenderSnapshot } from "../src/services/store/render-snapshot";
+import { resolveColumns } from "../src/renderer/column-layout";
+import { prepareRows } from "../src/renderer/prepare-rows";
 import { ProgressStore } from "../src/services/store/store";
 import { TaskId, type TaskSnapshot, type ColumnDef, type TaskStore } from "../src/types";
 
@@ -54,7 +54,7 @@ const benchmarkStore = (taskCount: number) =>
 
       // Publication and correctness checks are outside the timed section.
       store.flush();
-      const tasks = store.getSnapshot().tasks;
+      const tasks = store.getPublishedSnapshot().tasks;
       assert.equal(tasks.size, taskCount);
       for (const [id, task] of tasks) {
         assert.equal(task.units.succeeded, id === hotTaskId ? (round + 1) * STORE_UPDATES : 0);
@@ -103,7 +103,7 @@ const makeColumnFixture = (rowCount: number, distinctPrepare: boolean) => {
   }
 
   return {
-    rows: toRenderSnapshot({ ...store, renderOrder }).rows,
+    rows: prepareRows({ ...store, renderOrder }).rows,
     columns: store.columns,
   };
 };

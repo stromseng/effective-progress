@@ -1,4 +1,4 @@
-import type { TaskSnapshot } from "../../../types";
+import type { TaskSnapshot } from "../../types";
 
 type AmountParts =
   | { readonly kind: "indicator"; readonly text: string }

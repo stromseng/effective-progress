@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { TaskId, type TaskSnapshot, type TaskStore } from "../src/types";
-import { toRenderSnapshot } from "../src/services/store/render-snapshot";
+import { prepareRows } from "../src/renderer/prepare-rows";
 
 const makeTask = (id: number, description: string): TaskSnapshot => ({
   id: TaskId(id),
@@ -26,14 +26,14 @@ describe("render snapshot reuse", () => {
   test("reuses unchanged rows and tree data while updating progress flags and text widths", () => {
     const root = makeTask(1, "root");
     const child = { ...makeTask(2, "下载"), parentId: root.id };
-    const first = toRenderSnapshot(
+    const first = prepareRows(
       makeStore([
         [root, 0],
         [child, 1],
       ]),
     );
     const counted = { ...child, units: { succeeded: 1, failed: 0, processed: 1 } };
-    const second = toRenderSnapshot(
+    const second = prepareRows(
       makeStore([
         [root, 0],
         [counted, 1],
@@ -54,7 +54,7 @@ describe("render snapshot reuse", () => {
     });
 
     const renamed = { ...counted, description: "download", units: { ...counted.units, total: 2 } };
-    const third = toRenderSnapshot(
+    const third = prepareRows(
       makeStore([
         [root, 0],
         [renamed, 1],
@@ -73,13 +73,13 @@ describe("render snapshot reuse", () => {
     const child = { ...makeTask(2, "child"), parentId: root.id };
     const leaf = { ...makeTask(3, "leaf"), parentId: child.id };
     const sibling = { ...makeTask(4, "sibling"), parentId: root.id };
-    const first = toRenderSnapshot(
+    const first = prepareRows(
       makeStore([
         [root, 0],
         [child, 1],
       ]),
     );
-    const second = toRenderSnapshot(
+    const second = prepareRows(
       makeStore([
         [root, 0],
         [child, 1],
@@ -93,7 +93,7 @@ describe("render snapshot reuse", () => {
     expect(second.rows[1]!.derived.treePrefix).toBe("└─ ");
     expect(second.rows[2]!.derived.treePrefix).toBe("   └─ ");
 
-    const third = toRenderSnapshot(
+    const third = prepareRows(
       makeStore([
         [root, 0],
         [child, 1],

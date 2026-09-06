@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import * as Progress from "../src";
-import { getTaskIndicator } from "../src/services/renderer/columns/description-column";
-import { formatAmount } from "../src/services/renderer/shared/format";
+import { getTaskIndicator } from "../src/columns/description";
+import { formatAmount } from "../src/renderer/shared/format";
 
 const makeTask = (
   units: Progress.TaskSnapshot["units"],
