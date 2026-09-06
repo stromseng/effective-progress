@@ -75,7 +75,7 @@
       }
     },
     {
-      "files": ["examples/benchmarks.ts"],
+      "files": ["examples/benchmarks.ts", "examples/renderBenchmarks.ts"],
       "rules": {
         "automation/no-global-json": "off"
       }

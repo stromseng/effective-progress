@@ -38,8 +38,6 @@ export interface CellInfo<M = unknown> {
 
 export interface ColumnRenderContext<P = void> {
   readonly width?: number;
-  readonly now: number;
-  readonly spinnerTick: number;
   readonly prepared: P;
 }
 

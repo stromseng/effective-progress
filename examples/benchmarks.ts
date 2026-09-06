@@ -116,7 +116,7 @@ const columnOutput = (positions: ReturnType<typeof resolveColumns>) =>
     flexShrink,
     flexBasis,
     minWidth,
-    output: entries.map((entry, index) => entry?.render(rows[index]!, { now: 0, spinnerTick: 0 })),
+    output: entries.map((entry, index) => entry?.render(rows[index]!, {})),
   }));
 
 const benchmarkColumns = (rowCount: number, distinctPrepare: boolean): Measurement => {
@@ -127,7 +127,7 @@ const benchmarkColumns = (rowCount: number, distinctPrepare: boolean): Measureme
     assert.equal(position.entries.length, rowCount);
     if (distinctPrepare) {
       position.entries.forEach((entry, index) =>
-        assert.equal(entry?.render(rows[index]!, { now: 0, spinnerTick: 0 }), String(index + 25)),
+        assert.equal(entry?.render(rows[index]!, {}), String(index + 25)),
       );
     }
   }
