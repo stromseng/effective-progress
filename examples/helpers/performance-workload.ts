@@ -4,7 +4,7 @@ import * as Progress from "../../src";
 type WorkloadSize = "short" | "long";
 
 /** Shared workload parameters keep standalone and comparison runs in sync. */
-export const makePerformanceWorkload = (size: WorkloadSize = "short") => {
+export const createPerformanceWorkload = (size: WorkloadSize = "short") => {
   const prefix = size === "long" ? "Long performance" : "Performance";
   const WORKERS = 16;
   const BATCHES_PER_WORKER = 8;
@@ -102,7 +102,7 @@ export const makePerformanceWorkload = (size: WorkloadSize = "short") => {
 };
 
 export const runPerformanceComparison = async (size: WorkloadSize = "short"): Promise<void> => {
-  const { bareProgram, progressRun } = makePerformanceWorkload(size);
+  const { bareProgram, progressRun } = createPerformanceWorkload(size);
   console.log("Running bare (no Progress)...\n");
   const bareStart = performance.now();
   await Effect.runPromise(bareProgram);

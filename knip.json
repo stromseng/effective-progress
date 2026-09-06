@@ -1,5 +1,12 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["examples/**/*.ts", "tests/**/*.ts", "tests/**/*.tsx"],
+  "entry": [
+    "examples/**/*.ts",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "tools/oxlint/anti-slop/index.ts",
+    "tools/oxlint/anti-slop/effect/index.ts",
+    "tools/oxlint/automation/index.ts"
+  ],
   "project": ["src/**/*.ts", "src/**/*.tsx", "examples/**/*.ts", "tests/**/*.ts", "tests/**/*.tsx"]
 }

@@ -5,7 +5,7 @@ import { Progress } from "./services/progress";
 import { Task } from "./types";
 import type {
   AddTaskOptions,
-  ProgressShape,
+  ProgressService,
   TaskCountDisplay,
   TaskApi,
   TaskHandle,
@@ -66,10 +66,13 @@ export const task: TaskApi<Progress | Task> = dual(
       | ((handle: TaskHandle<any>) => Effect.Effect<A, E, R>),
     options: TaskOptions<any>,
   ) => {
+    // SAFETY: provideProgress supplies Progress and progress.task supplies Task for both overloads.
     return provideProgress(
       Effect.gen(function* () {
         const progress = yield* Progress;
-        return yield* progress.task(effectOrCallback as any, options);
+        return yield* Effect.isEffect(effectOrCallback)
+          ? progress.task(effectOrCallback, options)
+          : progress.task(effectOrCallback, options);
       }),
     ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>;
   },
@@ -96,7 +99,7 @@ const allCountDisplay = (mode: EffectAllExecutionOptions["mode"]): TaskCountDisp
   isCollectAllMode(mode) ? "detailed" : "processedOnly";
 
 const wrapTrackedEffect = <A, E, R>(
-  progress: ProgressShape,
+  progress: ProgressService,
   taskId: TaskId,
   effect: Effect.Effect<A, E, R>,
 ) =>
@@ -107,7 +110,7 @@ const wrapTrackedEffect = <A, E, R>(
     return Cause.hasInterruptsOnly(exit.cause) ? Effect.void : progress.incrementFailed(taskId);
   });
 
-const isTaskFullyProcessed = (progress: ProgressShape, taskId: TaskId) =>
+const isTaskFullyProcessed = (progress: ProgressService, taskId: TaskId) =>
   Effect.gen(function* () {
     const taskOption = yield* progress.getTask(taskId);
     if (Option.isNone(taskOption)) {
@@ -136,6 +139,7 @@ export const all: {
     effects: Arg,
     options: Omit<TrackOptions, "total" | "countDisplay"> & O,
   ) =>
+    // SAFETY: Wrapping preserves Effect.all keys, values, errors and mode; task supplies Progress and Task.
     provideProgress(
       Effect.gen(function* () {
         const progress = yield* Progress;

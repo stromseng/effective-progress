@@ -16,7 +16,7 @@ const getTaskOrFail = (
   label: string,
 ): Progress.TaskSnapshot => {
   expect(Option.isSome(task), `Expected task "${label}" to exist`).toBeTrue();
-  return (task as Option.Some<Progress.TaskSnapshot>).value;
+  return Option.getOrThrow(task);
 };
 
 describe("transient propagation", () => {

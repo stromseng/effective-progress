@@ -1,3 +1,4 @@
+import { Predicate } from "effect";
 import { Box, Text, useBoxMetrics, type DOMElement } from "ink";
 import type { ReactElement, ReactNode } from "react";
 import { useRef } from "react";
@@ -23,7 +24,7 @@ const justifyContentForAlign = (align: ColumnAlign | undefined) => {
 };
 
 const RenderedNode = ({ node }: { readonly node: ReactNode }) => {
-  if (typeof node === "string" || typeof node === "number") {
+  if (Predicate.isString(node) || Predicate.isNumber(node)) {
     return <Text wrap="truncate-end">{node}</Text>;
   }
 

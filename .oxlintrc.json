@@ -3,6 +3,82 @@
   "plugins": null,
   "categories": {},
   "rules": {
-    "require-yield": "allow"
-  }
+    "require-yield": "allow",
+    "anti-slop/no-chained-type-assertions": "error",
+    "anti-slop/no-conditional-empty-object-spread": "error",
+    "anti-slop/no-known-value-widening": "error",
+    "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-object-parameters": "error",
+    "anti-slop/no-reflect-apply": "error",
+    "anti-slop/no-reflect-get": "error",
+    "anti-slop/no-runtime-typeof": "error",
+    "anti-slop/no-unsafe-dictionary-type": "error",
+    "anti-slop/no-shape-in-symbol-names": "error",
+    "anti-slop/no-unknown-parameters": "error",
+    "anti-slop/no-unknown-returns": "error",
+    "anti-slop/no-unknown-type-aliases": "error",
+    "anti-slop/no-widen-then-assert": "error",
+    "anti-slop/require-safety-comment-for-type-assertion": "error",
+    "anti-slop-effect/no-service-constructor-imports": "error",
+    "automation/no-banned-type-assertions": "error",
+    "automation/no-ambient-nondeterminism": "error",
+    "automation/no-cascading-layer-provide": "error",
+    "automation/no-direct-browser-storage": "error",
+    "automation/no-direct-fetch": "error",
+    "automation/no-disable-validation": "error",
+    "automation/no-effect-asvoid": "error",
+    "automation/no-global-json": "error",
+    "automation/no-in-operator": "error",
+    "automation/no-nested-effect-array-methods": "error",
+    "automation/no-nested-layer-provide": "error",
+    "automation/no-shadowed-standard-array-static": "error",
+    "automation/no-silent-error-swallow": "error",
+    "automation/no-static-effect-service-forwarders": "error",
+    "automation/no-switch": "error",
+    "automation/no-try-catch": "error",
+    "automation/no-typeof-object": "error",
+    "automation/pipe-max-arguments": "error",
+    "automation/prefer-effect-match": "error",
+    "automation/prefer-option-from-nullable": "error",
+    "automation/no-react-component-inner-functions": "error",
+    "automation/no-sql-type-parameter": "error"
+  },
+  "ignorePatterns": [".agents/**", "tools/oxlint/anti-slop/**", "tools/oxlint/automation/**"],
+  "jsPlugins": [
+    {
+      "name": "anti-slop",
+      "specifier": "./tools/oxlint/anti-slop/index.ts"
+    },
+    {
+      "name": "anti-slop-effect",
+      "specifier": "./tools/oxlint/anti-slop/effect/index.ts"
+    },
+    {
+      "name": "automation",
+      "specifier": "./tools/oxlint/automation/index.ts"
+    }
+  ],
+  "overrides": [
+    {
+      "files": [
+        "src/services/renderer/hooks/use-now-clock.ts",
+        "src/services/renderer/hooks/use-spinner-clock.ts"
+      ],
+      "rules": {
+        "automation/no-ambient-nondeterminism": [
+          "error",
+          {
+            "allowedDateBasenames": ["use-now-clock.ts", "use-spinner-clock.ts"],
+            "allowedDateExtensions": []
+          }
+        ]
+      }
+    },
+    {
+      "files": ["examples/benchmarks.ts"],
+      "rules": {
+        "automation/no-global-json": "off"
+      }
+    }
+  ]
 }

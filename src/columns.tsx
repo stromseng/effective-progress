@@ -1,3 +1,4 @@
+import { Predicate } from "effect";
 import type { ColumnDef, ColumnSizeValue } from "./types";
 import {
   AmountCell,
@@ -34,7 +35,7 @@ const resolveBarSize = (size: number | "fullwidth" | undefined): number | "fullw
     return size;
   }
 
-  if (typeof size !== "number" || !Number.isFinite(size)) {
+  if (size === undefined || !Number.isFinite(size)) {
     return DEFAULT_BAR_SIZE;
   }
 
@@ -125,7 +126,7 @@ export const resolveColumnSizeValue = <P,>(
   value: ColumnSizeValue<P> | undefined,
   prepared: P,
 ): number | undefined => {
-  if (typeof value === "function") {
+  if (Predicate.isFunction(value)) {
     return value(prepared);
   }
 

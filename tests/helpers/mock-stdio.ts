@@ -1,5 +1,5 @@
-import { PassThrough } from "node:stream";
-import type { ProgressStdioShape } from "../../src/services/stdio";
+import { PassThrough, type Writable } from "node:stream";
+import type { ProgressStdioService } from "../../src/services/stdio";
 
 interface MockWriteStreamOptions {
   readonly isTTY: boolean;
@@ -19,7 +19,7 @@ interface MockStdioOptions {
 }
 
 export interface MockStdioHandle {
-  readonly service: ProgressStdioShape;
+  readonly service: ProgressStdioService;
   readonly stdout: MockWriteStreamHandle;
   readonly stderr: MockWriteStreamHandle;
 }
@@ -31,23 +31,20 @@ const createMockWriteStream = (options: MockWriteStreamOptions): MockWriteStream
   const rows = options.rows ?? 0;
 
   stream.setEncoding("utf8");
-  stream.on("data", (chunk) => {
-    output += typeof chunk === "string" ? chunk : chunk.toString("utf8");
+  stream.on("data", (chunk: string) => {
+    output += chunk;
   });
 
-  const writeStream = stream as unknown as NodeJS.WriteStream & {
-    isTTY?: boolean;
-    columns?: number;
-    rows?: number;
-    getWindowSize?: () => [number, number];
-  };
-  writeStream.isTTY = options.isTTY;
-  writeStream.columns = columns;
-  writeStream.rows = rows;
-  writeStream.getWindowSize = () => [columns, rows];
+  const writeStream: Writable = Object.assign(stream, {
+    isTTY: options.isTTY,
+    columns,
+    rows,
+    getWindowSize: (): [number, number] => [columns, rows],
+  });
 
   return {
-    stream: writeStream,
+    // SAFETY: The Writable has the TTY fields assigned above; Ink only uses that surface.
+    stream: writeStream as NodeJS.WriteStream,
     getOutput: () => output,
     clear: () => {
       output = "";

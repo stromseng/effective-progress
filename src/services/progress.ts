@@ -1,7 +1,7 @@
 import { Context, Effect, Exit, Layer, Option } from "effect";
 import { dual } from "effect/Function";
 import { ProgressStore } from "./store/store";
-import type { AddTaskOptions, ProgressShape, TaskHandle, TaskId } from "../types";
+import type { AddTaskOptions, ProgressService, TaskHandle, TaskId } from "../types";
 import { Task } from "../types";
 import { Renderer } from "./renderer/renderer";
 import { ProgressStdio } from "./stdio";
@@ -42,10 +42,12 @@ const makeProgressService = Effect.gen(function* () {
 
   const makeTaskHandle = <M>(taskId: TaskId): TaskHandle<M> => ({
     id: taskId,
+    // SAFETY: This handle belongs to the task created with metadata M; handle writes preserve M.
     getMetadata: store.getMetadata(taskId) as Effect.Effect<M>,
     setMetadata: (metadata) => store.setMetadata(taskId, metadata),
     updateMetadata: (f) =>
       Effect.flatMap(store.getMetadata(taskId), (current) =>
+        // SAFETY: The task handle reads the same metadata M established at task creation.
         store.setMetadata(taskId, f(current as M)),
       ),
     incrementSucceeded: (amount) => store.incrementSucceeded(taskId, amount),
@@ -67,7 +69,7 @@ const makeProgressService = Effect.gen(function* () {
       );
     });
 
-  const task: ProgressShape["task"] = dual(
+  const task: ProgressService["task"] = dual(
     2,
     <A, E, R>(
       effectOrCallback:
@@ -80,9 +82,9 @@ const makeProgressService = Effect.gen(function* () {
           const taskId = yield* Task;
           return yield* Effect.onExit(
             Effect.suspend(() =>
-              typeof effectOrCallback === "function"
-                ? effectOrCallback(makeTaskHandle(taskId))
-                : effectOrCallback,
+              Effect.isEffect(effectOrCallback)
+                ? effectOrCallback
+                : effectOrCallback(makeTaskHandle(taskId)),
             ),
             // Store finalization is terminal, so explicit completion/failure always wins.
             (exit) => (Exit.isSuccess(exit) ? store.completeTask(taskId) : store.failTask(taskId)),
@@ -104,7 +106,7 @@ const makeProgressService = Effect.gen(function* () {
     setMetadata: store.setMetadata,
     getMetadata: store.getMetadata,
     task,
-  } satisfies ProgressShape;
+  } satisfies ProgressService;
 
   return Progress.of(service);
 });
@@ -131,14 +133,16 @@ const CurrentParent = Context.Reference<Option.Option<CurrentParentState>>(
   { defaultValue: Option.none },
 );
 
-export class Progress extends Context.Service<Progress, ProgressShape>()(
+export class Progress extends Context.Service<Progress, ProgressService>()(
   "stromseng.dev/effective-progress/Progress",
 ) {
   static readonly layer = Layer.effect(Progress, makeProgressService).pipe(
     Layer.provide(
       serviceOptionDefaultLayer(Renderer, Renderer.layer).pipe(
-        Layer.provideMerge(serviceOptionDefaultLayer(ProgressStdio, ProgressStdio.layer)),
-        Layer.provideMerge(ProgressStore.layer),
+        Layer.provideMerge([
+          serviceOptionDefaultLayer(ProgressStdio, ProgressStdio.layer),
+          ProgressStore.layer,
+        ]),
       ),
     ),
   );

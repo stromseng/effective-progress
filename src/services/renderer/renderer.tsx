@@ -3,17 +3,17 @@ import { render } from "ink";
 import { NowProvider } from "./context/now-context";
 import { SpinnerProvider } from "./context/spinner-context";
 import { ProgressRenderer } from "./public-api";
-import { ProgressStore, type ProgressStoreShape } from "../store/store";
+import { ProgressStore, type ProgressStoreService } from "../store/store";
 import { useProgressRenderView } from "./hooks/use-progress-render-view";
 import { ProgressStdio } from "../stdio";
 
-interface RendererShape {
+interface RendererService {
   readonly run: Effect.Effect<void>;
 }
 
 const MAX_FPS = 24;
 
-const ProgressRoot = ({ store }: { readonly store: ProgressStoreShape }) => {
+const ProgressRoot = ({ store }: { readonly store: ProgressStoreService }) => {
   const { renderSnapshot, hasRunningTasks, storeSnapshot } = useProgressRenderView(store);
 
   return (
@@ -55,10 +55,10 @@ const makeRendererService = Effect.gen(function* () {
         ),
       ),
     ),
-  } satisfies RendererShape;
+  } satisfies RendererService;
 });
 
-export class Renderer extends Context.Service<Renderer, RendererShape>()(
+export class Renderer extends Context.Service<Renderer, RendererService>()(
   "stromseng.dev/effective-progress/Renderer",
 ) {
   static readonly layer = Layer.effect(Renderer, makeRendererService);

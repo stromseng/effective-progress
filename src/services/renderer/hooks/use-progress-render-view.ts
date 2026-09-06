@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import type { ProgressStoreShape } from "../../store/store";
+import type { ProgressStoreService } from "../../store/store";
 import type { TaskStore } from "../../../types";
 import { toRenderSnapshot, type RenderSnapshot } from "../../store/render-snapshot";
 
@@ -24,7 +24,7 @@ const useRenderSnapshot = (storeSnapshot: TaskStore): RenderSnapshot => {
   return renderSnapshot;
 };
 
-export const useProgressRenderView = (store: ProgressStoreShape): ProgressRenderView => {
+export const useProgressRenderView = (store: ProgressStoreService): ProgressRenderView => {
   const storeSnapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const renderSnapshot = useRenderSnapshot(storeSnapshot);
 

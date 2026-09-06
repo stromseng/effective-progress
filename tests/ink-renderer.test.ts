@@ -4,8 +4,8 @@ import stripAnsi from "strip-ansi";
 import * as Progress from "../src";
 import { createMockStdio } from "./helpers/mock-stdio";
 
-const captureStdioOutput = async <A, E, R>(
-  effect: Effect.Effect<A, E, R>,
+const captureStdioOutput = async <A, E>(
+  effect: Effect.Effect<A, E, Progress.ProgressStdio>,
   options: {
     readonly isTTY: boolean;
     readonly columns?: number;
@@ -17,11 +17,7 @@ const captureStdioOutput = async <A, E, R>(
   });
 
   const result = await Effect.runPromise(
-    effect.pipe(Effect.provideService(Progress.ProgressStdio, stdio.service)) as Effect.Effect<
-      A,
-      E,
-      never
-    >,
+    effect.pipe(Effect.provideService(Progress.ProgressStdio, stdio.service)),
   );
 
   return {

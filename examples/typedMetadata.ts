@@ -1,11 +1,10 @@
-import { Data, Effect, Logger } from "effect";
+import { Data, Effect, Logger, Random } from "effect";
 import * as Progress from "../src";
 
-const randomMillis = (base: number, jitter: number) =>
-  Math.max(80, Math.round(base + (Math.random() * 2 - 1) * jitter));
-
 const sleepRandom = (base: number, jitter: number) =>
-  Effect.sleep(`${randomMillis(base, jitter)} millis`);
+  Effect.flatMap(Random.nextBetween(-jitter, jitter), (offset) =>
+    Effect.sleep(`${Math.max(80, Math.round(base + offset))} millis`),
+  );
 
 // --- Typed metadata example ---
 // Each model evaluation task carries structured metadata that gets
@@ -21,8 +20,8 @@ class EvalError extends Data.TaggedError("EvalError")<{
 const runEval = (model: string, script: string) =>
   Effect.gen(function* () {
     yield* sleepRandom(1200, 400);
-    const score = Math.round(Math.random() * 40 + 60);
-    const passed = Math.random() > 0.15;
+    const score = Math.round(yield* Random.nextBetween(60, 100));
+    const passed = (yield* Random.next) > 0.15;
     if (!passed) {
       return yield* new EvalError({ message: `${model}/${script} failed` });
     }
