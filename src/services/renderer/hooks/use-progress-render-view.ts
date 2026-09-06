@@ -25,7 +25,11 @@ const useRenderSnapshot = (storeSnapshot: TaskStore): RenderSnapshot => {
 };
 
 export const useProgressRenderView = (store: ProgressStoreService): ProgressRenderView => {
-  const storeSnapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  const storeSnapshot = useSyncExternalStore(
+    store.subscribe,
+    store.getPublishedSnapshot,
+    store.getPublishedSnapshot,
+  );
   const renderSnapshot = useRenderSnapshot(storeSnapshot);
 
   return {
