@@ -63,7 +63,7 @@ const cachePhaseColumn = (): Progress.ColumnDef<CacheMeta> => ({
   render: ({ task }) => task.metadata.phase,
 });
 
-const buildColumns = (): ReadonlyArray<Progress.ColumnDef<BuildMeta, any>> => [
+const buildColumns = (): ReadonlyArray<Progress.Column<BuildMeta>> => [
   Progress.Columns.description(),
   Progress.Columns.bar(),
   buildBranchColumn(),
@@ -72,7 +72,7 @@ const buildColumns = (): ReadonlyArray<Progress.ColumnDef<BuildMeta, any>> => [
   Progress.Columns.elapsed(),
 ];
 
-const migrationColumns = (): ReadonlyArray<Progress.ColumnDef<MigrationMeta, any>> => [
+const migrationColumns = (): ReadonlyArray<Progress.Column<MigrationMeta>> => [
   Progress.Columns.description(),
   Progress.Columns.bar(),
   migrationDatabaseColumn(),
@@ -81,7 +81,7 @@ const migrationColumns = (): ReadonlyArray<Progress.ColumnDef<MigrationMeta, any
   Progress.Columns.elapsed(),
 ];
 
-const cacheColumns = (): ReadonlyArray<Progress.ColumnDef<CacheMeta, any>> => [
+const cacheColumns = (): ReadonlyArray<Progress.Column<CacheMeta>> => [
   Progress.Columns.description(),
   Progress.Columns.bar(),
   cacheRegionColumn(),

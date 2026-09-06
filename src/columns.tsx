@@ -1,5 +1,5 @@
 import { Predicate } from "effect";
-import type { ColumnDef, ColumnSizeValue } from "./types";
+import type { Column, ColumnDef, ColumnSizeValue } from "./types";
 import {
   AmountCell,
   measureAmountLayout,
@@ -55,7 +55,7 @@ export const spacer = <M = unknown>({
   minWidth,
 });
 
-export const description = (): ColumnDef<any, DescriptionPrepared> => ({
+export const description = (): ColumnDef<unknown, DescriptionPrepared> => ({
   prepare: prepareDescription,
   flexShrink: 1,
   flexBasis: (prepared) => prepared.preferredWidth,
@@ -70,7 +70,7 @@ export const description = (): ColumnDef<any, DescriptionPrepared> => ({
   ),
 });
 
-export const bar = ({ size }: BarOptions = {}): ColumnDef<any, BarPrepared> => {
+export const bar = ({ size }: BarOptions = {}): ColumnDef<unknown, BarPrepared> => {
   const resolvedSize = resolveBarSize(size);
 
   return {
@@ -89,38 +89,33 @@ export const bar = ({ size }: BarOptions = {}): ColumnDef<any, BarPrepared> => {
   };
 };
 
-export const amount = (): ColumnDef<any, AmountLayout> => ({
+export const amount = (): ColumnDef<unknown, AmountLayout> => ({
   prepare: measureAmountLayout,
   align: "right",
   render: ({ task }, ctx) => <AmountCell task={task} layout={ctx.prepared} />,
 });
 
-export const elapsed = (): ColumnDef<any> => ({
+export const elapsed = (): ColumnDef<unknown> => ({
   align: "right",
   flexShrink: 0,
   render: ({ task }, ctx) => <ElapsedCell task={task} now={ctx.now} />,
 });
 
-export const elapsedEta = (): ColumnDef<any> => ({
+export const elapsedEta = (): ColumnDef<unknown> => ({
   align: "right",
   flexShrink: 0,
   minWidth: 11,
   render: ({ task }, ctx) => <ElapsedEtaCell task={task} now={ctx.now} />,
 });
 
-export const eta = (): ColumnDef<any> => ({
+export const eta = (): ColumnDef<unknown> => ({
   align: "right",
   flexShrink: 0,
   minWidth: 8,
   render: ({ task }) => <EtaCell task={task} />,
 });
 
-export const defaults = (): ReadonlyArray<ColumnDef<any, any>> => [
-  description(),
-  bar(),
-  amount(),
-  elapsedEta(),
-];
+export const defaults = (): ReadonlyArray<Column> => [description(), bar(), amount(), elapsedEta()];
 
 export const resolveColumnSizeValue = <P,>(
   value: ColumnSizeValue<P> | undefined,

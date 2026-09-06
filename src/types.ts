@@ -59,6 +59,9 @@ export interface ColumnDef<M = unknown, P = void> {
   readonly minWidth?: ColumnSizeValue<P>;
 }
 
+/** Heterogeneous storage erases prepared types and, by default, metadata. Task options retain M. */
+export type Column<M = any> = ColumnDef<M, any>;
+
 /**
  * A typed facade over a single task created through the callback form of `task(...)`.
  *
@@ -96,7 +99,7 @@ export interface AddTaskOptions<M = void> {
   readonly parentId?: TaskId;
   readonly countDisplay?: TaskCountDisplay;
   readonly metadata?: M;
-  readonly columns?: ReadonlyArray<ColumnDef<M, any>>;
+  readonly columns?: ReadonlyArray<Column<M>>;
 }
 
 export interface UpdateTaskOptions {
@@ -150,7 +153,7 @@ export interface RenderRow {
 export interface TaskStore {
   readonly tasks: ReadonlyMap<TaskId, TaskSnapshot>;
   readonly renderOrder: ReadonlyArray<RenderRow>;
-  readonly columns: ReadonlyMap<TaskId, ReadonlyArray<ColumnDef<any, any>>>;
+  readonly columns: ReadonlyMap<TaskId, ReadonlyArray<Column>>;
 }
 
 /** Task operations shared by the progress service and its backing store. */
