@@ -4,10 +4,10 @@ import { makeTaskSnapshot, makeRow as deriveRow, renderRows } from "./helpers/re
 import { resolveColumns } from "../src/services/renderer/column-resolver";
 import type { TaskRowModel } from "../src/services/store/types";
 
-const makeTask = (
+const makeTask = <M,>(
   id: number,
   description: string,
-  metadata?: unknown,
+  metadata?: M,
   overrides: Partial<Progress.TaskSnapshot> = {},
 ): Progress.TaskSnapshot =>
   makeTaskSnapshot({ id: Progress.TaskId(id), description, metadata, ...overrides });

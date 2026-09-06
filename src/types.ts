@@ -163,7 +163,7 @@ export interface TaskOperations {
   readonly failTask: (taskId: TaskId) => Effect.Effect<void>;
   readonly getTask: (taskId: TaskId) => Effect.Effect<Option.Option<TaskSnapshot>>;
   readonly listTasks: Effect.Effect<ReadonlyArray<TaskSnapshot>>;
-  readonly setMetadata: (taskId: TaskId, metadata: unknown) => Effect.Effect<void>;
+  readonly setMetadata: <M>(taskId: TaskId, metadata: M) => Effect.Effect<void>;
   readonly getMetadata: (taskId: TaskId) => Effect.Effect<unknown>;
 }
 
@@ -186,7 +186,7 @@ export interface TaskApi<Provided> {
   ): Effect.Effect<A, E, Exclude<R, Provided>>;
 }
 
-export interface ProgressShape extends TaskOperations {
+export interface ProgressService extends TaskOperations {
   /**
    * Runs an effect inside a newly created task scope.
    *

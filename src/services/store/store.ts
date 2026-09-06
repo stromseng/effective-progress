@@ -19,7 +19,7 @@ interface TaskCounts {
 const ETA_SAMPLE_WINDOW_MILLIS = 30_000;
 const ETA_SAMPLE_MAX_LENGTH = 1_000;
 
-export interface ProgressStoreShape extends TaskOperations {
+export interface ProgressStoreService extends TaskOperations {
   readonly getSnapshot: () => TaskStore;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
@@ -193,7 +193,7 @@ const removeTransientSubtree = (
 const SNAPSHOT_PUBLISH_INTERVAL_MILLIS = 100;
 
 interface ProgressStoreRuntime {
-  readonly store: ProgressStoreShape;
+  readonly store: ProgressStoreService;
   readonly publisherLoop: Effect.Effect<never>;
 }
 
@@ -335,7 +335,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
       }, now);
     });
 
-  const store: ProgressStoreShape = {
+  const store: ProgressStoreService = {
     getSnapshot: () => publishedSnapshot,
     subscribe: (listener) => {
       listeners.add(listener);
@@ -384,10 +384,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
           nextRenderOrder.splice(index, 0, { id: taskId, depth });
 
           const nextColumns = options.columns
-            ? new Map(current.columns).set(
-                taskId,
-                options.columns as ReadonlyArray<ColumnDef<any, any>>,
-              )
+            ? new Map(current.columns).set(taskId, options.columns)
             : current.columns;
 
           return { tasks: nextTasks, renderOrder: nextRenderOrder, columns: nextColumns };
@@ -451,7 +448,7 @@ export const makeProgressStore = Effect.gen(function* () {
   return runtime.store;
 });
 
-export class ProgressStore extends Context.Service<ProgressStore, ProgressStoreShape>()(
+export class ProgressStore extends Context.Service<ProgressStore, ProgressStoreService>()(
   "stromseng.dev/effective-progress/ProgressStore",
 ) {
   static readonly layer = Layer.effect(ProgressStore, makeProgressStore);

@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { makePerformanceWorkload } from "./helpers/performance-workload";
+import { createPerformanceWorkload } from "./helpers/performance-workload";
 
-const { progressRun } = makePerformanceWorkload("long");
+const { progressRun } = createPerformanceWorkload("long");
 await Effect.runPromise(progressRun);

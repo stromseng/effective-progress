@@ -1,11 +1,10 @@
-import { Effect, Logger } from "effect";
+import { Effect, Logger, Random } from "effect";
 import * as Progress from "../src";
 
-const randomMillis = (base: number, jitter: number) =>
-  Math.max(80, Math.round(base + (Math.random() * 2 - 1) * jitter));
-
 const sleepRandom = (base: number, jitter: number) =>
-  Effect.sleep(`${randomMillis(base, jitter)} millis`);
+  Effect.flatMap(Random.nextBetween(-jitter, jitter), (offset) =>
+    Effect.sleep(`${Math.max(80, Math.round(base + offset))} millis`),
+  );
 
 const stages = ["fetch", "transform", "persist"] as const;
 const services = ["identity", "catalog"] as const;

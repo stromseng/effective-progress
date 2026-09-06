@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { Effect } from "effect";
 import { resolveColumns } from "../src/services/renderer/column-resolver";
 import { toRenderSnapshot } from "../src/services/store/render-snapshot";
-import { makeProgressStore } from "../src/services/store/store";
+import { ProgressStore } from "../src/services/store/store";
 import { TaskId, type TaskSnapshot, type ColumnDef, type TaskStore } from "../src/types";
 
 const WARMUP_ROUNDS = 3;
@@ -33,7 +33,7 @@ const summarize = ({ name, operations, samplesMillis }: Measurement) => {
 // Measure updates to one hot task while varying the size of the task Map copied by the store.
 const benchmarkStore = (taskCount: number) =>
   Effect.gen(function* () {
-    const store = yield* makeProgressStore;
+    const store = yield* ProgressStore;
     const taskIds: TaskId[] = [];
     for (let index = 0; index < taskCount; index++) {
       taskIds.push(yield* store.addTask({ description: `task-${index}` }));
@@ -64,7 +64,7 @@ const benchmarkStore = (taskCount: number) =>
     }
 
     return { name: `store: ${taskCount} tasks`, operations: STORE_UPDATES, samplesMillis };
-  }).pipe(Effect.scoped);
+  }).pipe(Effect.provide(ProgressStore.layer), Effect.scoped);
 
 const makeColumnFixture = (rowCount: number, distinctPrepare: boolean) => {
   const store = {

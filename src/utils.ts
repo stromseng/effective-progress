@@ -1,20 +1,21 @@
+import { Predicate } from "effect";
+
 export const inferTotal = (iterable: Iterable<unknown>): number | undefined => {
   if (Array.isArray(iterable)) {
     return iterable.length;
   }
 
-  if (typeof iterable === "string") {
+  if (Predicate.isString(iterable)) {
     // String iteration yields Unicode code points, not UTF-16 code units.
     return [...iterable].length;
   }
 
-  const candidate = iterable as { length?: unknown; size?: unknown };
-  if (typeof candidate.length === "number") {
-    return candidate.length;
+  if (Predicate.hasProperty(iterable, "length") && Predicate.isNumber(iterable.length)) {
+    return iterable.length;
   }
 
-  if (typeof candidate.size === "number") {
-    return candidate.size;
+  if (Predicate.hasProperty(iterable, "size") && Predicate.isNumber(iterable.size)) {
+    return iterable.size;
   }
 
   return undefined;

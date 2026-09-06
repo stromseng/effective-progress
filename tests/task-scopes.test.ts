@@ -246,7 +246,7 @@ describe("Progress task scopes", () => {
 
     expect(result).toEqual([undefined, undefined]);
     expect(
-      logs.some((args) => typeof args[0] === "string" && args[0].startsWith(capturedPrefix)),
+      logs.some((args) => args[0] === `${capturedPrefix}:a` || args[0] === `${capturedPrefix}:b`),
     ).toBeTrue();
   });
 
