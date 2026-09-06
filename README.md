@@ -184,11 +184,6 @@ The handle exposes:
 - `complete`
 - `fail`
 
-Metadata is read and updated through the typed callback handle. The Progress service
-does not expose metadata getters or setters by task ID. When migrating from
-`progress.setMetadata(id, value)`, keep the handle supplied by `Progress.task` and
-call `handle.setMetadata(value)` instead.
-
 When you need lower-level control, the `Progress` service is available inside the effect and exposes APIs like `addTask`, `updateTask`, `incrementSucceeded(taskId, amount)`, and `completeTask(taskId)`.
 
 The primary v4-style service layers are exposed as `Progress.layer` and `ProgressStdio.layer`.
