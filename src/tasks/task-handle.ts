@@ -1,4 +1,5 @@
-import type { Effect, Option } from "effect";
+import type { ProgressStoreService } from "../services/store/store";
+import { Effect, Option } from "effect";
 import type { TaskId, TaskSnapshot } from "../task-model";
 import type { UpdateTaskOptions } from "./options";
 
@@ -31,3 +32,28 @@ export interface TaskHandle<M> {
   /** Reads the latest snapshot, or None if the task was removed. */
   readonly getSnapshot: Effect.Effect<Option.Option<TaskSnapshot>>;
 }
+
+/** Binds typed task-local operations to the task created with metadata M. */
+export const bindTaskHandle = <M>(store: ProgressStoreService, taskId: TaskId): TaskHandle<M> => ({
+  id: taskId,
+  getMetadata: store.getTask(taskId).pipe(
+    Effect.map(
+      Option.map((task) => {
+        // SAFETY: This task was created with M; only its typed handle exposes metadata writes.
+        return task.metadata as M;
+      }),
+    ),
+  ),
+  setMetadata: (metadata) => store.setMetadata(taskId, metadata),
+  updateMetadata: (f) =>
+    store.updateMetadata(taskId, (current) =>
+      // SAFETY: The task handle reads the same metadata M established at task creation.
+      f(current as M),
+    ),
+  incrementSucceeded: (amount) => store.incrementSucceeded(taskId, amount),
+  incrementFailed: (amount) => store.incrementFailed(taskId, amount),
+  update: (options) => store.updateTask(taskId, options),
+  complete: store.completeTask(taskId),
+  fail: store.failTask(taskId),
+  getSnapshot: store.getTask(taskId),
+});
