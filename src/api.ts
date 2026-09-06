@@ -7,11 +7,11 @@ import type {
   AddTaskOptions,
   ProgressService,
   TaskCountDisplay,
-  TaskApi,
   TaskHandle,
   TaskId,
   TrackOptions,
 } from "./types";
+import { adaptTaskApi } from "./task-api";
 import { inferTotal } from "./utils";
 
 const provideProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
@@ -58,24 +58,18 @@ export type TaskOptions<M = void> = AddTaskOptions<M>;
  * typed `TaskHandle` for task-local updates, typed metadata, and explicit completion or failure,
  * and otherwise auto-finalizes from the callback exit if the task is still `running`.
  */
-export const task: TaskApi<Progress | Task> = dual(
-  2,
-  <A, E, R>(
-    effectOrCallback:
-      | Effect.Effect<A, E, R>
-      | ((handle: TaskHandle<any>) => Effect.Effect<A, E, R>),
-    options: TaskOptions<any>,
-  ) => {
-    // SAFETY: provideProgress supplies Progress and progress.task supplies Task for both overloads.
-    return provideProgress(
+export const task = adaptTaskApi<Progress | Task>(
+  <M, A, E, R>(
+    callback: (handle: TaskHandle<M>) => Effect.Effect<A, E, R>,
+    options: AddTaskOptions<M> & { readonly metadata: M },
+  ) =>
+    // SAFETY: The service supplies Task and provideProgress supplies Progress; nested Excludes are equivalent.
+    provideProgress(
       Effect.gen(function* () {
         const progress = yield* Progress;
-        return yield* Effect.isEffect(effectOrCallback)
-          ? progress.task(effectOrCallback, options)
-          : progress.task(effectOrCallback, options);
+        return yield* progress.task(callback, options);
       }),
-    ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>;
-  },
+    ) as Effect.Effect<A, E, Exclude<R, Progress | Task>>,
 );
 
 type AllArg =

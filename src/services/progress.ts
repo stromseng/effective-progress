@@ -1,5 +1,5 @@
 import { Context, Effect, Exit, Layer, Option } from "effect";
-import { dual } from "effect/Function";
+import { adaptTaskApi } from "../task-api";
 import { ProgressStore } from "./store/store";
 import type { AddTaskOptions, ProgressService, TaskHandle, TaskId } from "../types";
 import { Task } from "../types";
@@ -58,40 +58,24 @@ const makeProgressService = Effect.gen(function* () {
     getSnapshot: store.getTask(taskId).pipe(Effect.map(Option.getOrThrow)),
   });
 
-  const scopedTask = <A, E, R>(effect: Effect.Effect<A, E, R>, options: AddTaskOptions) =>
-    Effect.gen(function* () {
-      const taskId = yield* addTask(options);
-
-      return yield* Effect.provideService(
-        Effect.provideService(effect, Task, taskId),
-        CurrentParent,
-        Option.some({ owner: parentOwner, taskId }),
-      );
-    });
-
-  const task: ProgressService["task"] = dual(
-    2,
-    <A, E, R>(
-      effectOrCallback:
-        | Effect.Effect<A, E, R>
-        | ((handle: TaskHandle<any>) => Effect.Effect<A, E, R>),
-      options: AddTaskOptions<any>,
+  const task = adaptTaskApi<Task>(
+    <M, A, E, R>(
+      callback: (handle: TaskHandle<M>) => Effect.Effect<A, E, R>,
+      options: AddTaskOptions<M>,
     ) =>
-      scopedTask(
-        Effect.gen(function* () {
-          const taskId = yield* Task;
-          return yield* Effect.onExit(
-            Effect.suspend(() =>
-              Effect.isEffect(effectOrCallback)
-                ? effectOrCallback
-                : effectOrCallback(makeTaskHandle(taskId)),
-            ),
-            // Store finalization is terminal, so explicit completion/failure always wins.
-            (exit) => (Exit.isSuccess(exit) ? store.completeTask(taskId) : store.failTask(taskId)),
-          );
-        }),
-        options,
-      ),
+      Effect.gen(function* () {
+        const taskId = yield* addTask(options);
+        const handle = makeTaskHandle<M>(taskId);
+        const work = Effect.onExit(
+          Effect.suspend(() => callback(handle)),
+          // Explicit completion/failure wins because store finalization is terminal.
+          (exit) => (Exit.isSuccess(exit) ? store.completeTask(taskId) : store.failTask(taskId)),
+        );
+        return yield* work.pipe(
+          Effect.provideService(Task, taskId),
+          Effect.provideService(CurrentParent, Option.some({ owner: parentOwner, taskId })),
+        );
+      }),
   );
 
   const service = {
