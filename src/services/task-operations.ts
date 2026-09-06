@@ -2,7 +2,7 @@ import type { Effect, Option } from "effect";
 import type { TaskId, TaskSnapshot } from "../task-model";
 import type { AddTaskOptions, UpdateTaskOptions } from "../tasks/options";
 
-/** Task operations shared by the progress service and its backing store. */
+/** Task operations shared by the service and store. Mutations of finalized or removed tasks are no-ops. */
 export interface TaskOperations {
   readonly addTask: <M>(options: AddTaskOptions<M>) => Effect.Effect<TaskId>;
   readonly updateTask: (taskId: TaskId, options: UpdateTaskOptions) => Effect.Effect<void>;

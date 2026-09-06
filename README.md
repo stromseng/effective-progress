@@ -197,6 +197,19 @@ if (Option.isSome(metadata)) {
 }
 ```
 
+Task mutation rules:
+
+- Completion and failure freeze the retained task's fields, counters, timestamps,
+  progress samples, and metadata. Later writes are no-ops, and metadata update
+  callbacks are not invoked. Retained tasks remain readable through `Some`.
+- Counter values stay finite and nonnegative. Non-finite counter inputs preserve
+  the previous value; if the resulting succeeded-plus-failed sum would overflow to
+  infinity, both counter changes are ignored. Finite counts may still exceed the
+  total, and negative finite values are clamped to zero.
+- Totals retain their existing rules: negative or non-finite totals become unknown.
+- A missing or removed parent ID creates a root task with `parentId: null`, without
+  inheriting policies from the absent parent.
+
 When you need lower-level control, the `Progress` service is available inside the effect and exposes APIs like `addTask`, `updateTask`, `incrementSucceeded(taskId, amount)`, and `completeTask(taskId)`.
 
 The primary v4-style service layers are exposed as `Progress.layer` and `ProgressStdio.layer`.

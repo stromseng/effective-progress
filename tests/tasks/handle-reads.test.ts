@@ -94,3 +94,43 @@ test("retained tasks remain readable after completion", async () => {
   expect(result.metadata).toEqual(Option.some(42));
   expect(Option.getOrThrow(result.snapshot).status).toBe("done");
 });
+
+test.each(["complete", "fail"] as const)("freezes all task fields after %s", async (finalize) => {
+  await Effect.runPromise(
+    withProgress(
+      Progress.task(
+        (handle) =>
+          Effect.gen(function* () {
+            yield* handle.incrementSucceeded(2);
+            yield* handle.incrementFailed(1);
+            yield* handle[finalize];
+            const before = Option.getOrThrow(yield* handle.getSnapshot);
+            let updaterCalled = false;
+
+            yield* handle.update({
+              description: "changed",
+              total: 50,
+              succeeded: 20,
+              failed: 10,
+              countDisplay: "processedOnly",
+            });
+            yield* handle.incrementSucceeded();
+            yield* handle.incrementFailed();
+            yield* handle.setMetadata(99);
+            yield* handle.updateMetadata((value) => {
+              updaterCalled = true;
+              return value + 1;
+            });
+            yield* handle.complete;
+            yield* handle.fail;
+
+            expect(Option.getOrThrow(yield* handle.getSnapshot)).toBe(before);
+            expect(yield* handle.getMetadata).toEqual(Option.some(42));
+            expect(updaterCalled).toBeFalse();
+            expect(before.status).toBe(finalize === "complete" ? "done" : "failed");
+          }),
+        { description: "finalized", metadata: 42, total: 5 },
+      ),
+    ),
+  );
+});
