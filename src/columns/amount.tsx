@@ -1,8 +1,8 @@
 import type { CellInfo, ColumnDef } from "./types";
 import type { TaskSnapshot } from "../task-model";
 import { Text } from "ink";
-import { getAmountParts } from "../renderer/shared/amount-parts";
-import { textWidth } from "../renderer/shared/text-width";
+import { getAmountParts } from "./amount-parts";
+import { textWidth } from "../terminal/text-width";
 
 export interface AmountLayout {
   readonly hasDetailedRows: boolean;

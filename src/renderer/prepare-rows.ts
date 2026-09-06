@@ -1,5 +1,5 @@
 import type { ProgressState } from "../services/store/types";
-import { textWidth } from "./shared/text-width";
+import { textWidth } from "../terminal/text-width";
 import type { CellInfo } from "../columns/types";
 
 interface OrderedTask {

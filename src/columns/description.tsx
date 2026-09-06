@@ -3,7 +3,7 @@ import type { TaskSnapshot } from "../task-model";
 import cliSpinners, { type SpinnerName } from "cli-spinners";
 import { Text } from "ink";
 import { useSpinnerTick } from "../renderer/context/spinner-context";
-import { isDeterminate } from "../renderer/shared/determinate";
+import { isDeterminate } from "./determinate";
 
 const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
 type TaskIndicatorColor = "green" | "yellow" | "red";

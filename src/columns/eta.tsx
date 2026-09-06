@@ -1,7 +1,7 @@
 import type { ColumnDef } from "./types";
 import type { TaskSnapshot } from "../task-model";
 import { Text } from "ink";
-import { formatEta } from "../renderer/shared/format";
+import { formatEta } from "./format";
 
 const EtaCell = ({ task }: { readonly task: TaskSnapshot }) => {
   const eta = formatEta(task);
