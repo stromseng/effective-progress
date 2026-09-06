@@ -1,4 +1,4 @@
-# Contributing
+# Development
 
 ## TSGO setup
 
