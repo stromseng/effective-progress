@@ -18,9 +18,18 @@ const sanitizeTotal = (total: number | undefined) => {
   return !Number.isFinite(total) || total < 0 ? undefined : total;
 };
 
-export const normalizeUnits = (counts: TaskCounts) => {
-  const succeeded = Math.max(0, counts.succeeded);
-  const failed = Math.max(0, counts.failed);
+/** Invalid counter inputs preserve prior counts; a non-finite sum rejects both counter changes. */
+export const normalizeUnits = (counts: TaskCounts, previous?: TaskCounts) => {
+  let succeeded = Number.isFinite(counts.succeeded)
+    ? Math.max(0, counts.succeeded)
+    : (previous?.succeeded ?? 0);
+  let failed = Number.isFinite(counts.failed)
+    ? Math.max(0, counts.failed)
+    : (previous?.failed ?? 0);
+  if (!Number.isFinite(succeeded + failed)) {
+    succeeded = previous?.succeeded ?? 0;
+    failed = previous?.failed ?? 0;
+  }
 
   return counts.total === undefined
     ? {
@@ -39,14 +48,19 @@ export const normalizeUnits = (counts: TaskCounts) => {
 /** Completes remaining known work, or records the observed total for an unknown-total task. */
 const completedUnits = (units: TaskSnapshot["units"]): TaskSnapshot["units"] => {
   if (units.total === undefined) {
-    return units.processed > 0 ? normalizeUnits({ ...units, total: units.processed }) : units;
+    return units.processed > 0
+      ? normalizeUnits({ ...units, total: units.processed }, units)
+      : units;
   }
 
   return units.processed < units.total
-    ? normalizeUnits({
-        ...units,
-        succeeded: units.succeeded + (units.total - units.processed),
-      })
+    ? normalizeUnits(
+        {
+          ...units,
+          succeeded: units.succeeded + (units.total - units.processed),
+        },
+        units,
+      )
     : units;
 };
 
@@ -59,11 +73,14 @@ export const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptio
     options.total === undefined &&
     !hasExplicitTotal(options)
       ? currentUnits
-      : normalizeUnits({
-          succeeded: options.succeeded ?? currentUnits.succeeded,
-          failed: options.failed ?? currentUnits.failed,
-          total: hasExplicitTotal(options) ? sanitizeTotal(options.total) : currentUnits.total,
-        });
+      : normalizeUnits(
+          {
+            succeeded: options.succeeded ?? currentUnits.succeeded,
+            failed: options.failed ?? currentUnits.failed,
+            total: hasExplicitTotal(options) ? sanitizeTotal(options.total) : currentUnits.total,
+          },
+          currentUnits,
+        );
 
   return {
     ...snapshot,
@@ -85,7 +102,7 @@ export const createTaskSnapshot = <M>(
     failed: 0,
     total: sanitizeTotal(options.total),
   });
-  const parentId = options.parentId ?? null;
+  const parentId = parent?.id ?? null;
   const countDisplay = options.countDisplay ?? parent?.countDisplay ?? "detailed";
   const task = {
     id: taskId,

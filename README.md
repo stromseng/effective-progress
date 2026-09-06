@@ -184,6 +184,32 @@ The handle exposes:
 - `complete`
 - `fail`
 
+Handle reads return `Effect<Option<...>>`: `getMetadata` yields `Option<M>` and
+`getSnapshot` yields `Option<TaskSnapshot>`. Removing a transient task (or its parent)
+makes both reads return `None`. A retained task with `undefined` metadata returns
+`Some(undefined)`. Handle writes to removed tasks are no-ops, and `updateMetadata`
+does not invoke its callback for a removed task.
+
+```ts
+const metadata = yield * handle.getMetadata;
+if (Option.isSome(metadata)) {
+  // metadata.value has the metadata type inferred when the task was created.
+}
+```
+
+Task mutation rules:
+
+- Completion and failure make later task API writes no-ops, including counter,
+  field, and metadata updates. Metadata update callbacks are not invoked. Retained
+  tasks remain readable through `Some`; metadata objects are not deep-frozen.
+- Counter values stay finite and nonnegative. Non-finite counter inputs preserve
+  the previous value; if the resulting succeeded-plus-failed sum would overflow to
+  infinity, both counter changes are ignored. Finite counts may still exceed the
+  total, and negative finite values are clamped to zero.
+- Totals retain their existing rules: negative or non-finite totals become unknown.
+- A missing or removed parent ID creates a root task with `parentId: null`, without
+  inheriting policies from the absent parent.
+
 When you need lower-level control, the `Progress` service is available inside the effect and exposes APIs like `addTask`, `updateTask`, `incrementSucceeded(taskId, amount)`, and `completeTask(taskId)`.
 
 The primary v4-style service layers are exposed as `Progress.layer` and `ProgressStdio.layer`.

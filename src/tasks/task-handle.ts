@@ -1,4 +1,4 @@
-import type { Effect } from "effect";
+import type { Effect, Option } from "effect";
 import type { TaskId, TaskSnapshot } from "../task-model";
 import type { UpdateTaskOptions } from "./options";
 
@@ -8,18 +8,19 @@ import type { UpdateTaskOptions } from "./options";
  * Use this handle to update counts, metadata, description, or to explicitly finalize the task
  * before the callback exits. If the callback returns or fails while the task is still `running`,
  * the library auto-finalizes it from the callback exit status instead.
+ * Mutations after completion, failure, or removal are no-ops; metadata updaters are not invoked.
  */
 export interface TaskHandle<M> {
   readonly id: TaskId;
-  /** Reads the current metadata value for the task using the metadata type inferred at creation. */
-  readonly getMetadata: Effect.Effect<M>;
+  /** Reads typed metadata; None means the task was removed. Present undefined metadata is Some(undefined). */
+  readonly getMetadata: Effect.Effect<Option.Option<M>>;
   /** Replaces the task metadata. */
   readonly setMetadata: (metadata: M) => Effect.Effect<void>;
   /** Updates the current metadata value atomically. */
   readonly updateMetadata: (f: (m: M) => M) => Effect.Effect<void>;
-  /** Increments the succeeded counter for the task. */
+  /** Increments succeeded while running. Non-finite inputs or results are ignored. */
   readonly incrementSucceeded: (amount?: number) => Effect.Effect<void>;
-  /** Increments the failed counter for the task. */
+  /** Increments failed while running. Non-finite inputs or results are ignored. */
   readonly incrementFailed: (amount?: number) => Effect.Effect<void>;
   /** Updates mutable task fields such as description, totals, and count display. */
   readonly update: (options: UpdateTaskOptions) => Effect.Effect<void>;
@@ -27,6 +28,6 @@ export interface TaskHandle<M> {
   readonly complete: Effect.Effect<void>;
   /** Marks the task as failed immediately. Finalization is terminal once the task leaves `running`. */
   readonly fail: Effect.Effect<void>;
-  /** Reads the latest task snapshot. */
-  readonly getSnapshot: Effect.Effect<TaskSnapshot>;
+  /** Reads the latest snapshot, or None if the task was removed. */
+  readonly getSnapshot: Effect.Effect<Option.Option<TaskSnapshot>>;
 }

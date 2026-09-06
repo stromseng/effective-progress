@@ -1,5 +1,5 @@
 import { expectTypeOf, test } from "bun:test";
-import { Context, Effect, Result } from "effect";
+import { Context, Effect, Option, Result } from "effect";
 import * as Progress from "../../src";
 
 class Dependency extends Context.Service<Dependency, { readonly value: number }>()(
@@ -18,7 +18,14 @@ test("task overloads preserve values, errors, metadata and unrelated requirement
   expectTypeOf(
     Progress.task(
       (handle) => {
-        expectTypeOf(handle.getMetadata).toEqualTypeOf<Effect.Effect<{ score: number }>>();
+        expectTypeOf(handle.getMetadata).toEqualTypeOf<
+          Effect.Effect<Option.Option<{ score: number }>>
+        >();
+        expectTypeOf(handle.getSnapshot).toEqualTypeOf<
+          Effect.Effect<Option.Option<Progress.TaskSnapshot>>
+        >();
+        // @ts-expect-error Metadata writes must retain the type inferred at task creation.
+        const _invalidWrite = handle.setMetadata({ score: "wrong type" });
         return Effect.fail("failure" as const);
       },
       { description: "metadata", metadata: { score: 0 } },

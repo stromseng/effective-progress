@@ -6,12 +6,14 @@ export interface AddTaskOptions<M = void> {
   readonly total?: number;
   /** Cleanup policy is fixed at creation; a transient parent makes its descendants transient. */
   readonly transient?: boolean;
+  /** Missing or removed parent IDs are normalized to root tasks. */
   readonly parentId?: TaskId;
   readonly countDisplay?: TaskCountDisplay;
   readonly metadata?: M;
   readonly columns?: ReadonlyArray<Column<M>>;
 }
 
+/** Updates apply only while running; non-finite counters preserve their previous values. */
 export interface UpdateTaskOptions {
   readonly description?: string;
   readonly succeeded?: number;

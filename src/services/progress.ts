@@ -56,8 +56,14 @@ const makeProgressService = Effect.gen(function* () {
 
   const makeTaskHandle = <M>(taskId: TaskId): TaskHandle<M> => ({
     id: taskId,
-    // SAFETY: This handle belongs to the task created with metadata M; handle writes preserve M.
-    getMetadata: store.getMetadata(taskId) as Effect.Effect<M>,
+    getMetadata: store.getTask(taskId).pipe(
+      Effect.map(
+        Option.map((task) => {
+          // SAFETY: This task was created with M; only its typed handle exposes metadata writes.
+          return task.metadata as M;
+        }),
+      ),
+    ),
     setMetadata: (metadata) => store.setMetadata(taskId, metadata),
     updateMetadata: (f) =>
       store.updateMetadata(taskId, (current) =>
@@ -69,7 +75,7 @@ const makeProgressService = Effect.gen(function* () {
     update: (options) => store.updateTask(taskId, options),
     complete: store.completeTask(taskId),
     fail: store.failTask(taskId),
-    getSnapshot: store.getTask(taskId).pipe(Effect.map(Option.getOrThrow)),
+    getSnapshot: store.getTask(taskId),
   });
 
   const task = adaptTaskApi<Task>(
@@ -101,8 +107,6 @@ const makeProgressService = Effect.gen(function* () {
     failTask: store.failTask,
     getTask: store.getTask,
     listTasks: store.listTasks,
-    setMetadata: store.setMetadata,
-    getMetadata: store.getMetadata,
     task,
   } satisfies ProgressService;
 

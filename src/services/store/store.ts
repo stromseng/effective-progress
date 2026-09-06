@@ -19,6 +19,8 @@ export interface ProgressStoreService extends TaskOperations {
   readonly getPublishedSnapshot: () => TaskStore;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
+  /** Internal metadata operations are exposed publicly only through a typed task handle. */
+  readonly setMetadata: <M>(taskId: TaskId, metadata: M) => Effect.Effect<void>;
   readonly updateMetadata: (
     taskId: TaskId,
     f: (metadata: TaskSnapshot["metadata"]) => TaskSnapshot["metadata"],
@@ -52,7 +54,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
     return publisher.publish(state, now);
   };
 
-  /** Replaces a task and records progress in one synchronous state transition. Undefined removes its subtree. */
+  /** Mutates running tasks only, recording progress atomically. Undefined removes the task subtree. */
   const modifyTask = (
     taskId: TaskId,
     transform: (task: TaskSnapshot, now: number) => TaskSnapshot | undefined,
@@ -61,7 +63,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
       const now = yield* Clock.currentTimeMillis;
       yield* updateState((current) => {
         const task = current.tasks.get(taskId);
-        if (!task) {
+        if (!task || task.status !== "running") {
           return current;
         }
         const nextTask = transform(task, now);
@@ -87,7 +89,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
   const incrementCounter = (taskId: TaskId, kind: "succeeded" | "failed", amount: number) =>
     modifyTask(taskId, (task) => ({
       ...task,
-      units: normalizeUnits({ ...task.units, [kind]: task.units[kind] + amount }),
+      units: normalizeUnits({ ...task.units, [kind]: task.units[kind] + amount }, task.units),
     }));
 
   const finalizeTask = (taskId: TaskId, status: "done" | "failed") =>
@@ -100,12 +102,12 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
     addTask: (options) =>
       Effect.gen(function* () {
         const taskId = makeTaskId(++nextTaskId);
-        const parentSnapshot =
-          options.parentId === undefined ? undefined : state.tasks.get(options.parentId);
         const now = yield* Clock.currentTimeMillis;
-        const task = createTaskSnapshot(taskId, options, parentSnapshot, now);
 
         yield* updateState((current) => {
+          const parentSnapshot =
+            options.parentId === undefined ? undefined : current.tasks.get(options.parentId);
+          const task = createTaskSnapshot(taskId, options, parentSnapshot, now);
           const nextTasks = new Map(current.tasks);
           nextTasks.set(taskId, task);
           const { index, depth } = findInsertionIndex(current.renderOrder, task.parentId);
@@ -131,11 +133,6 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
     setMetadata: (taskId, metadata) => modifyTask(taskId, (task) => ({ ...task, metadata })),
     updateMetadata: (taskId, f) =>
       modifyTask(taskId, (task) => ({ ...task, metadata: f(task.metadata) })),
-    getMetadata: (taskId) =>
-      Effect.sync(() => {
-        const task = state.tasks.get(taskId);
-        return task?.metadata;
-      }),
   };
 
   return { store, publisherLoop: publisher.publisherLoop };
