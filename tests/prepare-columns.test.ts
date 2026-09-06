@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { CellInfo, ColumnDef } from "../src/types";
 import { TaskId } from "../src/types";
-import { resolveColumns } from "../src/services/renderer/column-resolver";
+import { resolveColumns } from "../src/renderer/column-layout";
 import { makeRows, makeTaskSnapshot } from "./helpers/renderer";
 
 test("shared preparation runs once per position and stays bound to each renderer and sizing hint", () => {

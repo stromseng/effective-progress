@@ -2,11 +2,11 @@ import { Predicate } from "effect";
 import { Box, Text, useBoxMetrics, type DOMElement } from "ink";
 import type { ReactElement, ReactNode } from "react";
 import { useRef } from "react";
-import type { ColumnAlign, Column, TaskId } from "../../types";
-import { resolveColumns, type ResolvedColumnPosition } from "./column-resolver";
-import type { TaskRowModel } from "../store/types";
+import type { ColumnAlign, Column, TaskId } from "../types";
+import { resolveColumns, type ResolvedColumnPosition } from "./column-layout";
+import type { TaskRowModel } from "./row-model";
 
-interface ProgressRendererProps {
+interface ProgressTableProps {
   readonly rows: ReadonlyArray<TaskRowModel>;
   readonly columns: ReadonlyMap<TaskId, ReadonlyArray<Column>>;
 }
@@ -59,7 +59,7 @@ const ColumnPosition = ({ position }: { readonly position: ResolvedColumnPositio
   );
 };
 
-export const ProgressRenderer = ({ rows, columns }: ProgressRendererProps): ReactElement | null => {
+export const ProgressTable = ({ rows, columns }: ProgressTableProps): ReactElement | null => {
   if (rows.length === 0) {
     return null;
   }

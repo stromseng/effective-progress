@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { Effect } from "effect";
-import { resolveColumns } from "../src/services/renderer/column-resolver";
-import { toRenderSnapshot } from "../src/services/store/render-snapshot";
+import { resolveColumns } from "../src/renderer/column-layout";
+import { prepareRows } from "../src/renderer/prepare-rows";
 import { ProgressStore } from "../src/services/store/store";
 import { TaskId, type TaskSnapshot, type ColumnDef, type TaskStore } from "../src/types";
 
@@ -103,7 +103,7 @@ const makeColumnFixture = (rowCount: number, distinctPrepare: boolean) => {
   }
 
   return {
-    rows: toRenderSnapshot({ ...store, renderOrder }).rows,
+    rows: prepareRows({ ...store, renderOrder }).rows,
     columns: store.columns,
   };
 };

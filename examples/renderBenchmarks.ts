@@ -4,10 +4,10 @@ import { render } from "ink";
 import { createElement } from "react";
 import { defaults } from "../src/columns";
 import { TaskId, type TaskSnapshot } from "../src/types";
-import { NowProvider } from "../src/services/renderer/context/now-context";
-import { SpinnerProvider } from "../src/services/renderer/context/spinner-context";
-import { ProgressRenderer } from "../src/services/renderer/public-api";
-import { toRenderSnapshot } from "../src/services/store/render-snapshot";
+import { NowProvider } from "../src/renderer/context/now-context";
+import { SpinnerProvider } from "../src/renderer/context/spinner-context";
+import { ProgressTable } from "../src/renderer/progress-table";
+import { prepareRows } from "../src/renderer/prepare-rows";
 
 const ROWS = 100;
 const FRAMES = 30;
@@ -53,8 +53,8 @@ const measure = async (scenario: Scenario) => {
     renderOrder: Array.from(tasks.keys(), (id) => ({ id, depth: 0 })),
     columns: new Map(Array.from(tasks.keys(), (id) => [id, columns])),
   };
-  let snapshot = toRenderSnapshot(store);
-  let content = createElement(ProgressRenderer, { rows: snapshot.rows, columns: store.columns });
+  let snapshot = prepareRows(store);
+  let content = createElement(ProgressTable, { rows: snapshot.rows, columns: store.columns });
   const tree = (frame: number) =>
     createElement(NowProvider, {
       active: false,
@@ -93,8 +93,8 @@ const measure = async (scenario: Scenario) => {
           ...task,
           units: { ...task.units, succeeded: 100 + frame, processed: 100 + frame },
         });
-        snapshot = toRenderSnapshot(store, snapshot);
-        content = createElement(ProgressRenderer, { rows: snapshot.rows, columns: store.columns });
+        snapshot = prepareRows(store, snapshot);
+        content = createElement(ProgressTable, { rows: snapshot.rows, columns: store.columns });
       }
       instance.rerender(tree(frame));
       await instance.waitUntilRenderFlush();

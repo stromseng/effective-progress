@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import * as Progress from "../src";
 import { makeTaskSnapshot, makeRows, renderRows } from "./helpers/renderer";
-import type { TaskRowModel } from "../src/services/store/types";
+import type { TaskRowModel } from "../src/renderer/row-model";
 
 const makeTask = (
   id: number,

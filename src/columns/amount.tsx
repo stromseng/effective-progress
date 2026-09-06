@@ -1,7 +1,7 @@
+import type { CellInfo, ColumnDef, TaskSnapshot } from "../types";
 import { Text } from "ink";
-import type { CellInfo, TaskSnapshot } from "../../../types";
-import { getAmountParts } from "../shared/amount-parts";
-import { textWidth } from "../shared/text-width";
+import { getAmountParts } from "../renderer/shared/amount-parts";
+import { textWidth } from "../renderer/shared/text-width";
 
 export interface AmountLayout {
   readonly hasDetailedRows: boolean;
@@ -11,7 +11,7 @@ export interface AmountLayout {
   readonly preferredWidth: number;
 }
 
-export const measureAmountLayout = (rows: ReadonlyArray<CellInfo<unknown>>): AmountLayout => {
+const measureAmountLayout = (rows: ReadonlyArray<CellInfo<unknown>>): AmountLayout => {
   let hasDetailedRows = false;
   let countWidth = 0;
   let processedWidth = 0;
@@ -80,7 +80,7 @@ const AmountValue = ({
   );
 };
 
-export const AmountCell = ({
+const AmountCell = ({
   task,
   layout,
 }: {
@@ -91,3 +91,9 @@ export const AmountCell = ({
     <AmountValue task={task} layout={layout} />
   </Text>
 );
+
+export const amount = (): ColumnDef<unknown, AmountLayout> => ({
+  prepare: measureAmountLayout,
+  align: "right",
+  render: ({ task }, ctx) => <AmountCell task={task} layout={ctx.prepared} />,
+});

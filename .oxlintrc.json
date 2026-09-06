@@ -60,10 +60,7 @@
   ],
   "overrides": [
     {
-      "files": [
-        "src/services/renderer/hooks/use-now-clock.ts",
-        "src/services/renderer/hooks/use-spinner-clock.ts"
-      ],
+      "files": ["src/renderer/hooks/use-now-clock.ts", "src/renderer/hooks/use-spinner-clock.ts"],
       "rules": {
         "automation/no-ambient-nondeterminism": [
           "error",

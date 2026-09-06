@@ -2,10 +2,10 @@ import { Context, Effect, Layer, type Scope } from "effect";
 import { render } from "ink";
 import { NowProvider } from "./context/now-context";
 import { SpinnerProvider } from "./context/spinner-context";
-import { ProgressRenderer } from "./public-api";
-import { ProgressStore, type ProgressStoreService } from "../store/store";
+import { ProgressTable } from "./progress-table";
+import { ProgressStore, type ProgressStoreService } from "../services/store/store";
 import { useProgressRenderView } from "./hooks/use-progress-render-view";
-import { ProgressStdio } from "../stdio";
+import { ProgressStdio } from "../services/stdio";
 
 interface RendererService {
   readonly start: Effect.Effect<void, never, Scope.Scope>;
@@ -19,7 +19,7 @@ const ProgressRoot = ({ store }: { readonly store: ProgressStoreService }) => {
   return (
     <SpinnerProvider active={hasRunningTasks}>
       <NowProvider active={hasRunningTasks}>
-        <ProgressRenderer rows={renderSnapshot.rows} columns={storeSnapshot.columns} />
+        <ProgressTable rows={renderSnapshot.rows} columns={storeSnapshot.columns} />
       </NowProvider>
     </SpinnerProvider>
   );
@@ -28,12 +28,12 @@ const ProgressRoot = ({ store }: { readonly store: ProgressStoreService }) => {
 const makeRendererService = Effect.gen(function* () {
   const store = yield* ProgressStore;
   const stdio = yield* ProgressStdio;
-  const proot = <ProgressRoot store={store} />;
+  const root = <ProgressRoot store={store} />;
 
   return {
     start: Effect.acquireRelease(
       Effect.sync(() =>
-        render(proot, {
+        render(root, {
           stdout: stdio.stdout,
           stderr: stdio.stderr,
           patchConsole: true,
@@ -45,7 +45,7 @@ const makeRendererService = Effect.gen(function* () {
       (instance) =>
         Effect.sync(() => {
           store.flush();
-          instance.rerender(proot);
+          instance.rerender(root);
           instance.unmount();
         }),
     ).pipe(Effect.as(undefined)),

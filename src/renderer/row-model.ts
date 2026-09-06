@@ -1,4 +1,4 @@
-import type { TaskRowDerived, TaskSnapshot, TaskTreeInfo } from "../../types";
+import type { TaskRowDerived, TaskSnapshot, TaskTreeInfo } from "../types";
 
 export interface OrderedTask {
   readonly snapshot: TaskSnapshot;

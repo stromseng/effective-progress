@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Deferred, Effect, Exit, Fiber } from "effect";
 import * as Progress from "../src";
-import { Renderer } from "../src/services/renderer/renderer";
+import { Renderer } from "../src/renderer/renderer";
 
 const withProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   effect.pipe(

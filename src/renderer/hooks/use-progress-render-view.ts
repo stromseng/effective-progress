@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import type { ProgressStoreService } from "../../store/store";
-import type { TaskStore } from "../../../types";
-import { toRenderSnapshot, type RenderSnapshot } from "../../store/render-snapshot";
+import type { ProgressStoreService } from "../../services/store/store";
+import type { TaskStore } from "../../types";
+import { prepareRows, type RenderSnapshot } from "../prepare-rows";
 
 interface ProgressRenderView {
   readonly storeSnapshot: TaskStore;
@@ -13,7 +13,7 @@ const useRenderSnapshot = (storeSnapshot: TaskStore): RenderSnapshot => {
   const previousSnapshotRef = useRef<RenderSnapshot | undefined>(undefined);
 
   const renderSnapshot = useMemo(
-    () => toRenderSnapshot(storeSnapshot, previousSnapshotRef.current),
+    () => prepareRows(storeSnapshot, previousSnapshotRef.current),
     [storeSnapshot],
   );
 

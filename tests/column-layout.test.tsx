@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import * as Progress from "../src";
 import { makeTaskSnapshot, makeRow as deriveRow, renderRows } from "./helpers/renderer";
-import { resolveColumns } from "../src/services/renderer/column-resolver";
-import type { TaskRowModel } from "../src/services/store/types";
+import { resolveColumns } from "../src/renderer/column-layout";
+import type { TaskRowModel } from "../src/renderer/row-model";
 
 const makeTask = <M,>(
   id: number,
@@ -18,7 +18,7 @@ const renderWithColumns = (
   now = 1_000,
 ): string => renderRows(rows, { columns, now });
 
-describe("renderer public api", () => {
+describe("column layout", () => {
   test("renders null when there are no rows", () => {
     const output = renderWithColumns([], new Map());
     expect(output).toBe("");
