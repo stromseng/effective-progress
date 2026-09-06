@@ -92,7 +92,7 @@ describe("Progress task scopes", () => {
     });
 
     const innerTask = await Effect.runPromise(
-      withStdio(Effect.provideService(outer, Renderer, { run: Effect.never })),
+      withStdio(Effect.provideService(outer, Renderer, { start: Effect.void })),
     );
 
     expect(innerTask.parentId).toBeNull();

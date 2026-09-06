@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, type Scope } from "effect";
 import { render } from "ink";
 import { NowProvider } from "./context/now-context";
 import { SpinnerProvider } from "./context/spinner-context";
@@ -8,7 +8,7 @@ import { useProgressRenderView } from "./hooks/use-progress-render-view";
 import { ProgressStdio } from "../stdio";
 
 interface RendererService {
-  readonly run: Effect.Effect<void>;
+  readonly start: Effect.Effect<void, never, Scope.Scope>;
 }
 
 const MAX_FPS = 24;
@@ -31,30 +31,24 @@ const makeRendererService = Effect.gen(function* () {
   const proot = <ProgressRoot store={store} />;
 
   return {
-    run: Effect.sync(() =>
-      render(proot, {
-        stdout: stdio.stdout,
-        stderr: stdio.stderr,
-        patchConsole: true,
-        exitOnCtrlC: false,
-        debug: false,
-        maxFps: MAX_FPS,
-      }),
-    ).pipe(
-      Effect.flatMap((instance) =>
-        Effect.never.pipe(
-          Effect.ensuring(
-            Effect.gen(function* () {
-              store.flush();
-              instance.rerender(proot);
-              yield* Effect.sync(() => {
-                instance.unmount();
-              });
-            }),
-          ),
-        ),
+    start: Effect.acquireRelease(
+      Effect.sync(() =>
+        render(proot, {
+          stdout: stdio.stdout,
+          stderr: stdio.stderr,
+          patchConsole: true,
+          exitOnCtrlC: false,
+          debug: false,
+          maxFps: MAX_FPS,
+        }),
       ),
-    ),
+      (instance) =>
+        Effect.sync(() => {
+          store.flush();
+          instance.rerender(proot);
+          instance.unmount();
+        }),
+    ).pipe(Effect.as(undefined)),
   } satisfies RendererService;
 });
 
