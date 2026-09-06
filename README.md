@@ -119,22 +119,21 @@ Effect.runPromise(program);
 - The callback form also auto-finalizes from the callback exit unless you explicitly `yield* task.complete` or `yield* task.fail` first.
 - `yield* Progress.Task` exposes the current task ID when you need it.
 
-### Other examples
+### Examples
 
-- `examples/simpleExample.ts` - low-boilerplate real-world flow
-- `examples/advancedExample.ts` - mixed high-level and low-level Progress service usage
-- `examples/basic.ts` - minimal `Progress.all` usage
-- `examples/nesting.ts` - nested tree rendering with parent and child tasks
-- `examples/mixedOutcomes.ts` - fail-fast vs `result` mode with mixed success/failure counters
-- `examples/cliProgressSemantics.ts` - zero totals, negative totals clearing to unknown totals, overflow counts, and empty `all` / `forEach`
-- `examples/unknownTotalCounting.ts` - count successes/failures without a known total and render `processed/?`
-- `examples/typedMetadata.ts` - typed task metadata rendered through custom columns
-- `examples/mixedNestedColumns.ts` - different column sets aligned across mixed task types
-- `examples/showcase.ts` - nested concurrent tasks, spinner workloads, and mixed Effect/Console logging
-- `examples/performance.ts` - stress-style run with high log volume and deeply nested progress updates
-- `examples/performanceLong.ts` - longer-running stress run with roughly 10x the work of `performance.ts`
-- `examples/performanceComparison.ts` - bare vs progress comparison for the `performance.ts` workload
-- `examples/performanceComparisonLong.ts` - longer bare vs progress comparison for the `performanceLong.ts` workload
+Run these from the repository root, starting with `bun examples/single-task.ts`:
+
+| Order | Example                                      | What it demonstrates                                 |
+| ----- | -------------------------------------------- | ---------------------------------------------------- |
+| 1     | [Single task](examples/single-task.ts)       | A spinner around one effect and automatic completion |
+| 2     | [Collections](examples/basic.ts)             | `Progress.all`, concurrency, and logging             |
+| 3     | [Nesting](examples/nesting.ts)               | Parent tasks and nested progress rows                |
+| 4     | [Mixed outcomes](examples/mixed-outcomes.ts) | Fail-fast and result-mode counters                   |
+| 5     | [Custom columns](examples/custom-columns.ts) | Typed metadata and column rendering                  |
+
+The [example catalog](examples/README.md) also covers complete workflows, manual task
+control, unknown totals, and other edge cases. Performance measurements and profiling
+workloads live in [benchmarks/](benchmarks/README.md).
 
 ## Configuration
 
@@ -321,7 +320,7 @@ round checks final counters or prepared/layout output and exits with an error on
 To compare a change, run the same benchmark on both revisions with the same Bun
 version and machine, without other CPU-heavy work. Alternate revision order across
 multiple runs and compare medians and sample spread. These microbenchmarks measure
-store/resolver work; use the existing `perf` script and performance examples separately
+store/resolver work; use the `perf` script and workloads in `benchmarks/workloads/` separately
 to investigate Ink rendering, logging, and end-to-end overhead.
 
 Run `bun run bench:render` for mounted React/Ink rendering measurements. It uses

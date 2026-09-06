@@ -1,4 +1,4 @@
-import type { TaskStore } from "../types";
+import type { TaskStore } from "../services/store/types";
 import { textWidth } from "./shared/text-width";
 import type { OrderedTask, TaskRowModel } from "./row-model";
 

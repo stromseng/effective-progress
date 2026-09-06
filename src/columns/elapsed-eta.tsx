@@ -1,4 +1,5 @@
-import type { ColumnDef, TaskSnapshot } from "../types";
+import type { ColumnDef } from "./types";
+import type { TaskSnapshot } from "../task-model";
 import { Text } from "ink";
 import { formatElapsedEta } from "../renderer/shared/format";
 import { useNow } from "../renderer/context/now-context";

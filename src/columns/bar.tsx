@@ -1,4 +1,5 @@
-import type { CellInfo, ColumnDef, TaskSnapshot } from "../types";
+import type { CellInfo, ColumnDef } from "./types";
+import type { TaskSnapshot } from "../task-model";
 import { Text } from "ink";
 import { isDeterminate } from "../renderer/shared/determinate";
 

@@ -1,4 +1,5 @@
-import type { CellInfo, ColumnDef, TaskSnapshot } from "../types";
+import type { CellInfo, ColumnDef } from "./types";
+import type { TaskSnapshot } from "../task-model";
 import cliSpinners, { type SpinnerName } from "cli-spinners";
 import { Text } from "ink";
 import { useSpinnerTick } from "../renderer/context/spinner-context";

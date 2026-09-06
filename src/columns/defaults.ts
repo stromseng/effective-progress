@@ -1,4 +1,4 @@
-import type { Column } from "../types";
+import type { Column } from "./types";
 import { description } from "./description";
 import { bar } from "./bar";
 import { amount } from "./amount";

@@ -6,8 +6,18 @@
     "tests/**/*.tsx",
     "tools/oxlint/anti-slop/index.ts",
     "tools/oxlint/anti-slop/effect/index.ts",
-    "tools/oxlint/automation/index.ts"
+    "tools/oxlint/automation/index.ts",
+    "benchmarks/**/*.ts",
+    "tools/ink/**/*.tsx"
   ],
-  "project": ["src/**/*.ts", "src/**/*.tsx", "examples/**/*.ts", "tests/**/*.ts", "tests/**/*.tsx"],
+  "project": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "examples/**/*.ts",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "benchmarks/**/*.ts",
+    "tools/ink/**/*.tsx"
+  ],
   "ignoreDependencies": ["@effect/language-service", "@typescript/native"]
 }

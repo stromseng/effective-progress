@@ -1,4 +1,4 @@
-import type { ColumnDef } from "../types";
+import type { ColumnDef } from "./types";
 
 export interface SpacerOptions {
   readonly flexGrow?: number;

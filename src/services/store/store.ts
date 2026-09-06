@@ -1,8 +1,11 @@
+import { appendProgressSample } from "../../progress-estimation";
 import { Clock, Context, Effect, Layer, Option, Queue } from "effect";
-import type { Column, TaskId, TaskStore, TaskOperations } from "../../types";
-import { TaskId as makeTaskId, type TaskSnapshot } from "../../types";
+import type { Column } from "../../columns/types";
+import type { TaskId } from "../../task-model";
+import type { TaskStore } from "./types";
+import type { TaskOperations } from "../task-operations";
+import { TaskId as makeTaskId, type TaskSnapshot } from "../../task-model";
 import {
-  appendProgressSample,
   createTaskSnapshot,
   finalizeTaskSnapshot,
   normalizeUnits,

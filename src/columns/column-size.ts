@@ -1,5 +1,5 @@
 import { Predicate } from "effect";
-import type { ColumnSizeValue } from "../types";
+import type { ColumnSizeValue } from "./types";
 
 export const resolveColumnSizeValue = <P>(
   value: ColumnSizeValue<P> | undefined,

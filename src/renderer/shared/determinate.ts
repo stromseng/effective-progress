@@ -1,4 +1,4 @@
-import type { TaskSnapshot } from "../../types";
+import type { TaskSnapshot } from "../../task-model";
 
 export const isDeterminate = (
   task: TaskSnapshot,
