@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import * as Progress from "../../src";
 import { makeTaskSnapshot, makeRows, renderRows } from "../helpers/renderer";
-import type { TaskRowModel } from "../../src/renderer/row-model";
+import type { CellInfo } from "../../src/columns/types";
 
 const makeTask = (
   id: number,
@@ -18,7 +18,7 @@ const makeTask = (
     completedAt: status === "running" ? null : 1_000,
   });
 
-const renderDescriptionColumn = (rows: ReadonlyArray<TaskRowModel>, spinnerTick = 0): string =>
+const renderDescriptionColumn = (rows: ReadonlyArray<CellInfo>, spinnerTick = 0): string =>
   renderRows(rows, {
     now: 0,
     spinnerTick,

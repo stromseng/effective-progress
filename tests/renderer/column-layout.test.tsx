@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import * as Progress from "../../src";
 import { makeTaskSnapshot, makeRow as deriveRow, renderRows } from "../helpers/renderer";
 import { resolveColumns } from "../../src/renderer/column-layout";
-import type { TaskRowModel } from "../../src/renderer/row-model";
+import type { CellInfo } from "../../src/columns/types";
 
 const makeTask = <M,>(
   id: number,
@@ -13,7 +13,7 @@ const makeTask = <M,>(
   makeTaskSnapshot({ id: Progress.TaskId(id), description, metadata, ...overrides });
 
 const renderWithColumns = (
-  rows: ReadonlyArray<TaskRowModel>,
+  rows: ReadonlyArray<CellInfo>,
   columns: Progress.ProgressState["columns"],
   now = 1_000,
 ): string => renderRows(rows, { columns, now });

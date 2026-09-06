@@ -3,10 +3,8 @@ import type { ProgressStoreService } from "../../services/store/store";
 import type { ProgressState } from "../../services/store/types";
 import { prepareRows, type RenderSnapshot } from "../prepare-rows";
 
-interface ProgressRenderView {
-  readonly storeSnapshot: ProgressState;
-  readonly renderSnapshot: RenderSnapshot;
-  readonly hasRunningTasks: boolean;
+interface ProgressRenderView extends RenderSnapshot {
+  readonly columns: ProgressState["columns"];
 }
 
 const useRenderSnapshot = (storeSnapshot: ProgressState): RenderSnapshot => {
@@ -33,8 +31,8 @@ export const useProgressRenderView = (store: ProgressStoreService): ProgressRend
   const renderSnapshot = useRenderSnapshot(storeSnapshot);
 
   return {
-    storeSnapshot,
-    renderSnapshot,
+    rows: renderSnapshot.rows,
+    columns: storeSnapshot.columns,
     hasRunningTasks: renderSnapshot.hasRunningTasks,
   };
 };

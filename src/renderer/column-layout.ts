@@ -2,11 +2,11 @@ import { defaults } from "../columns/defaults";
 import type { Column } from "../columns/types";
 import type { TaskId } from "../task-model";
 import { prepareColumns, type ResolvedColumn } from "./prepare-columns";
-import type { TaskRowModel } from "./row-model";
+import type { CellInfo } from "../columns/types";
 
 export interface ResolvedColumnPosition {
   readonly index: number;
-  readonly rows: ReadonlyArray<TaskRowModel>;
+  readonly rows: ReadonlyArray<CellInfo>;
   readonly entries: ReadonlyArray<ResolvedColumn | undefined>;
   readonly flexGrow?: number;
   readonly flexShrink?: number;
@@ -17,7 +17,7 @@ export interface ResolvedColumnPosition {
 const DEFAULT_COLUMNS = defaults();
 
 const getColumnsForRow = (
-  row: TaskRowModel,
+  row: CellInfo,
   columns: ReadonlyMap<TaskId, ReadonlyArray<Column>>,
 ): ReadonlyArray<Column> => columns.get(row.task.id) ?? DEFAULT_COLUMNS;
 
@@ -29,7 +29,7 @@ const maxDefined = (values: ReadonlyArray<number | undefined>): number | undefin
   );
 
 export const resolveColumns = (
-  rows: ReadonlyArray<TaskRowModel>,
+  rows: ReadonlyArray<CellInfo>,
   columns: ReadonlyMap<TaskId, ReadonlyArray<Column>>,
 ): ReadonlyArray<ResolvedColumnPosition> => {
   const columnsByRow = rows.map((row) => getColumnsForRow(row, columns));

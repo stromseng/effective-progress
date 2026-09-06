@@ -7,7 +7,7 @@ import { NowProvider } from "../../src/renderer/context/now-context";
 import { SpinnerProvider } from "../../src/renderer/context/spinner-context";
 import { ProgressTable } from "../../src/renderer/progress-table";
 import { prepareRows } from "../../src/renderer/prepare-rows";
-import type { TaskRowModel } from "../../src/renderer/row-model";
+import type { CellInfo } from "../../src/columns/types";
 
 export const makeTaskSnapshot = (overrides: Partial<TaskSnapshot> = {}): TaskSnapshot => ({
   id: TaskId(1),
@@ -31,17 +31,17 @@ export const makeTaskSnapshot = (overrides: Partial<TaskSnapshot> = {}): TaskSna
 export const makeRows = (
   tasks: ReadonlyArray<TaskSnapshot>,
   renderOrder: ProgressState["renderOrder"] = tasks.map(({ id }) => ({ id, depth: 0 })),
-): ReadonlyArray<TaskRowModel> =>
+): ReadonlyArray<CellInfo> =>
   prepareRows({
     tasks: new Map(tasks.map((task) => [task.id, task])),
     renderOrder,
     columns: new Map(),
   }).rows;
 
-export const makeRow = (task: TaskSnapshot): TaskRowModel => makeRows([task])[0]!;
+export const makeRow = (task: TaskSnapshot): CellInfo => makeRows([task])[0]!;
 
 export const renderRows = (
-  rows: ReadonlyArray<TaskRowModel>,
+  rows: ReadonlyArray<CellInfo>,
   {
     columns = new Map(),
     now = 1_000,

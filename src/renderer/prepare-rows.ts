@@ -1,6 +1,11 @@
 import type { ProgressState } from "../services/store/types";
 import { textWidth } from "./shared/text-width";
-import type { OrderedTask, TaskRowModel } from "./row-model";
+import type { CellInfo } from "../columns/types";
+
+interface OrderedTask {
+  readonly snapshot: CellInfo["task"];
+  readonly depth: number;
+}
 
 const orderedVisibleTasks = (store: ProgressState): ReadonlyArray<OrderedTask> =>
   store.renderOrder.flatMap((row) => {
@@ -18,7 +23,7 @@ const orderedVisibleTasks = (store: ProgressState): ReadonlyArray<OrderedTask> =
   });
 
 export interface RenderSnapshot {
-  readonly rows: ReadonlyArray<TaskRowModel>;
+  readonly rows: ReadonlyArray<CellInfo>;
   readonly hasRunningTasks: boolean;
 }
 
@@ -28,7 +33,7 @@ const treeAncestorPrefix = (ancestorHasNextSibling: ReadonlyArray<boolean>): str
     .map((hasNextSibling) => (hasNextSibling ? "│  " : "   "))
     .join("");
 
-const renderTreePrefix = (tree: TaskRowModel["tree"]): string => {
+const renderTreePrefix = (tree: CellInfo["tree"]): string => {
   if (tree.depth <= 0) {
     return "";
   }
@@ -50,7 +55,7 @@ const arraysEqual = (left: ReadonlyArray<boolean>, right: ReadonlyArray<boolean>
   return true;
 };
 
-const sameTreePrefixInputs = (left: TaskRowModel["tree"], right: TaskRowModel["tree"]): boolean =>
+const sameTreePrefixInputs = (left: CellInfo["tree"], right: CellInfo["tree"]): boolean =>
   left.depth === right.depth &&
   left.hasNextSibling === right.hasNextSibling &&
   arraysEqual(left.ancestorHasNextSibling, right.ancestorHasNextSibling);
@@ -58,8 +63,8 @@ const sameTreePrefixInputs = (left: TaskRowModel["tree"], right: TaskRowModel["t
 const deriveRow = (
   task: OrderedTask["snapshot"],
   treePrefix: string,
-  previousRow: TaskRowModel | undefined,
-): TaskRowModel["derived"] => {
+  previousRow: CellInfo | undefined,
+): CellInfo["derived"] => {
   // Tree prefixes are built from fixed box-drawing glyphs we treat as single-cell.
   const treePrefixWidth = treePrefix.length;
   const descriptionWidth =
@@ -79,8 +84,8 @@ const deriveRow = (
 
 const buildTaskRows = (
   ordered: ReadonlyArray<OrderedTask>,
-  previousRows: ReadonlyArray<TaskRowModel>,
-): ReadonlyArray<TaskRowModel> => {
+  previousRows: ReadonlyArray<CellInfo>,
+): ReadonlyArray<CellInfo> => {
   const hasNextSiblingByIndex: Array<boolean> = Array.from({ length: ordered.length }, () => false);
   const seenByDepth: Array<boolean> = [];
   for (let i = ordered.length - 1; i >= 0; i--) {
