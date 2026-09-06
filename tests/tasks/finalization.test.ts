@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Deferred, Effect, Exit, Fiber } from "effect";
+import { Deferred, Effect, Exit, Fiber, Option } from "effect";
 import * as Progress from "../../src";
 import { Renderer } from "../../src/renderer/renderer";
 
@@ -28,9 +28,9 @@ describe("task exit finalization", () => {
         ),
       ),
     );
-    expect(result.metadata).toBe(200);
-    expect(result.snapshot.units.processed).toBe(0);
-    expect(result.snapshot.progressSamples).toHaveLength(1);
+    expect(result.metadata).toEqual(Option.some(200));
+    expect(Option.getOrThrow(result.snapshot).units.processed).toBe(0);
+    expect(Option.getOrThrow(result.snapshot).progressSamples).toHaveLength(1);
   });
 
   test("finalizes a callback that throws before returning an Effect", async () => {

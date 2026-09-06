@@ -184,6 +184,19 @@ The handle exposes:
 - `complete`
 - `fail`
 
+Handle reads return `Effect<Option<...>>`: `getMetadata` yields `Option<M>` and
+`getSnapshot` yields `Option<TaskSnapshot>`. Removing a transient task (or its parent)
+makes both reads return `None`. A retained task with `undefined` metadata returns
+`Some(undefined)`. Handle writes to removed tasks are no-ops, and `updateMetadata`
+does not invoke its callback for a removed task.
+
+```ts
+const metadata = yield * handle.getMetadata;
+if (Option.isSome(metadata)) {
+  // metadata.value has the metadata type inferred when the task was created.
+}
+```
+
 When you need lower-level control, the `Progress` service is available inside the effect and exposes APIs like `addTask`, `updateTask`, `incrementSucceeded(taskId, amount)`, and `completeTask(taskId)`.
 
 The primary v4-style service layers are exposed as `Progress.layer` and `ProgressStdio.layer`.

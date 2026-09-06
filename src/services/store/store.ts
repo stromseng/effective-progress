@@ -21,7 +21,6 @@ export interface ProgressStoreService extends TaskOperations {
   readonly flush: () => void;
   /** Internal metadata operations are exposed publicly only through a typed task handle. */
   readonly setMetadata: <M>(taskId: TaskId, metadata: M) => Effect.Effect<void>;
-  readonly getMetadata: (taskId: TaskId) => Effect.Effect<unknown>;
   readonly updateMetadata: (
     taskId: TaskId,
     f: (metadata: TaskSnapshot["metadata"]) => TaskSnapshot["metadata"],
@@ -134,11 +133,6 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
     setMetadata: (taskId, metadata) => modifyTask(taskId, (task) => ({ ...task, metadata })),
     updateMetadata: (taskId, f) =>
       modifyTask(taskId, (task) => ({ ...task, metadata: f(task.metadata) })),
-    getMetadata: (taskId) =>
-      Effect.sync(() => {
-        const task = state.tasks.get(taskId);
-        return task?.metadata;
-      }),
   };
 
   return { store, publisherLoop: publisher.publisherLoop };

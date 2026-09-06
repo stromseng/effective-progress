@@ -1,4 +1,4 @@
-import type { Effect } from "effect";
+import type { Effect, Option } from "effect";
 import type { TaskId, TaskSnapshot } from "../task-model";
 import type { UpdateTaskOptions } from "./options";
 
@@ -11,8 +11,8 @@ import type { UpdateTaskOptions } from "./options";
  */
 export interface TaskHandle<M> {
   readonly id: TaskId;
-  /** Reads the current metadata value for the task using the metadata type inferred at creation. */
-  readonly getMetadata: Effect.Effect<M>;
+  /** Reads typed metadata; None means the task was removed. Present undefined metadata is Some(undefined). */
+  readonly getMetadata: Effect.Effect<Option.Option<M>>;
   /** Replaces the task metadata. */
   readonly setMetadata: (metadata: M) => Effect.Effect<void>;
   /** Updates the current metadata value atomically. */
@@ -27,6 +27,6 @@ export interface TaskHandle<M> {
   readonly complete: Effect.Effect<void>;
   /** Marks the task as failed immediately. Finalization is terminal once the task leaves `running`. */
   readonly fail: Effect.Effect<void>;
-  /** Reads the latest task snapshot. */
-  readonly getSnapshot: Effect.Effect<TaskSnapshot>;
+  /** Reads the latest snapshot, or None if the task was removed. */
+  readonly getSnapshot: Effect.Effect<Option.Option<TaskSnapshot>>;
 }
