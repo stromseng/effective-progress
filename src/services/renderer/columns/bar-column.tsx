@@ -1,4 +1,5 @@
 import { Text } from "ink";
+import { memo } from "react";
 import type { CellInfo } from "../../../types";
 import { isDeterminate } from "../shared/determinate";
 import type { TaskRowModel } from "../../store/types";
@@ -47,14 +48,10 @@ const ProgressBarSegments = ({
   );
 };
 
-export const BarCell = ({
-  task,
-  width,
-}: {
-  readonly task: TaskRowModel["task"];
-  readonly width?: number;
-}) => (
-  <Text wrap="truncate-end">
-    <ProgressBarSegments task={task} width={width ?? 0} />
-  </Text>
+export const BarCell = memo(
+  ({ task, width }: { readonly task: TaskRowModel["task"]; readonly width?: number }) => (
+    <Text wrap="truncate-end">
+      <ProgressBarSegments task={task} width={width ?? 0} />
+    </Text>
+  ),
 );

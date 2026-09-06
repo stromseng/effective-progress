@@ -1,5 +1,6 @@
 import cliSpinners, { type SpinnerName } from "cli-spinners";
 import { Text } from "ink";
+import { memo } from "react";
 import type { CellInfo, TaskSnapshot } from "../../../types";
 import { useSpinnerTick } from "../context/spinner-context";
 import { isDeterminate } from "../shared/determinate";
@@ -85,35 +86,37 @@ const TaskIndicatorGlyph = ({
   return <Text color={indicator.color}>{indicator.symbol}</Text>;
 };
 
-export const DescriptionCell = ({
-  cell,
-  width,
-  minTreeWidth,
-}: {
-  readonly cell: CellInfo<unknown>;
-  readonly width: number | undefined;
-  readonly minTreeWidth: number;
-}) => {
-  const showTree = width === undefined || width >= minTreeWidth;
-  const treePrefix = showTree ? cell.derived.treePrefix : "";
+export const DescriptionCell = memo(
+  ({
+    cell,
+    width,
+    minTreeWidth,
+  }: {
+    readonly cell: CellInfo<unknown>;
+    readonly width: number | undefined;
+    readonly minTreeWidth: number;
+  }) => {
+    const showTree = width === undefined || width >= minTreeWidth;
+    const treePrefix = showTree ? cell.derived.treePrefix : "";
 
-  if (!showTree && width !== undefined && width <= 1) {
-    return <TaskIndicatorGlyph task={cell.task} />;
-  }
+    if (!showTree && width !== undefined && width <= 1) {
+      return <TaskIndicatorGlyph task={cell.task} />;
+    }
 
-  if (!showTree && width !== undefined && width === 2) {
+    if (!showTree && width !== undefined && width === 2) {
+      return (
+        <Text wrap="truncate-end">
+          <TaskIndicatorGlyph task={cell.task} />…
+        </Text>
+      );
+    }
+
     return (
       <Text wrap="truncate-end">
-        <TaskIndicatorGlyph task={cell.task} />…
+        {treePrefix}
+        <TaskIndicatorGlyph task={cell.task} />
+        {` ${cell.task.description}`}
       </Text>
     );
-  }
-
-  return (
-    <Text wrap="truncate-end">
-      {treePrefix}
-      <TaskIndicatorGlyph task={cell.task} />
-      {` ${cell.task.description}`}
-    </Text>
-  );
-};
+  },
+);

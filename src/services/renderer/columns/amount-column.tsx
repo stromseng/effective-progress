@@ -1,4 +1,5 @@
 import { Text } from "ink";
+import { memo } from "react";
 import type { CellInfo, TaskSnapshot } from "../../../types";
 import { getAmountParts } from "../shared/amount-parts";
 import { textWidth } from "../shared/text-width";
@@ -80,14 +81,10 @@ const AmountValue = ({
   );
 };
 
-export const AmountCell = ({
-  task,
-  layout,
-}: {
-  readonly task: TaskSnapshot;
-  readonly layout: AmountLayout;
-}) => (
-  <Text wrap="truncate-end">
-    <AmountValue task={task} layout={layout} />
-  </Text>
+export const AmountCell = memo(
+  ({ task, ...layout }: { readonly task: TaskSnapshot } & AmountLayout) => (
+    <Text wrap="truncate-end">
+      <AmountValue task={task} layout={layout} />
+    </Text>
+  ),
 );

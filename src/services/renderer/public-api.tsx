@@ -1,9 +1,10 @@
 import { Predicate } from "effect";
 import { Box, Text, useBoxMetrics, type DOMElement } from "ink";
 import type { ReactElement, ReactNode } from "react";
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import type { ColumnAlign, Column, TaskId } from "../../types";
 import { resolveColumns, type ResolvedColumnPosition } from "./column-resolver";
+import type { ResolvedColumn } from "./column-runtime";
 import type { TaskRowModel } from "../store/types";
 
 interface ProgressRendererProps {
@@ -29,6 +30,25 @@ const RenderedNode = ({ node }: { readonly node: ReactNode }) => {
   return node;
 };
 
+interface ColumnCellProps {
+  readonly row: TaskRowModel;
+  readonly column: ResolvedColumn | undefined;
+  readonly width: number | undefined;
+}
+
+const ColumnCell = memo(
+  ({ row, column, width }: ColumnCellProps) => (
+    <Box height={1} justifyContent={justifyContentForAlign(column?.align)}>
+      <RenderedNode node={column?.render(row, { width }) ?? null} />
+    </Box>
+  ),
+  (previous, next) =>
+    previous.row === next.row &&
+    previous.width === next.width &&
+    previous.column?.definition === next.column?.definition &&
+    Object.is(previous.column?.prepared, next.column?.prepared),
+);
+
 const ColumnPosition = ({ position }: { readonly position: ResolvedColumnPosition }) => {
   const ref = useRef<DOMElement>(null!);
   const { width, hasMeasured } = useBoxMetrics(ref);
@@ -42,19 +62,14 @@ const ColumnPosition = ({ position }: { readonly position: ResolvedColumnPositio
       flexBasis={position.flexBasis}
       minWidth={position.minWidth}
     >
-      {position.rows.map((row, rowIndex) => {
-        const column = position.entries[rowIndex];
-        const output =
-          column?.render(row, {
-            width: hasMeasured ? width : position.flexBasis,
-          }) ?? null;
-
-        return (
-          <Box key={row.task.id} height={1} justifyContent={justifyContentForAlign(column?.align)}>
-            <RenderedNode node={output} />
-          </Box>
-        );
-      })}
+      {position.rows.map((row, rowIndex) => (
+        <ColumnCell
+          key={row.task.id}
+          row={row}
+          column={position.entries[rowIndex]}
+          width={hasMeasured ? width : position.flexBasis}
+        />
+      ))}
     </Box>
   );
 };

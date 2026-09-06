@@ -274,6 +274,13 @@ Use `ColumnDef<M, P>` to author a column with typed metadata and prepared data, 
 `Column<M>` for a list containing columns with different prepared types. The renderer
 binds each prepared value to its definition before rendering cells.
 
+Treat task data, column definitions, and prepared values as immutable. Unchanged
+cells are memoized by row, measured width, definition identity, and prepared-value
+identity. Reuse column definitions; return a stable prepared value when its meaning
+has not changed if you want custom render callbacks to be skipped. A newly allocated
+prepared object safely rerenders its cells. Built-in React cells also memoize their
+individual display inputs, so equivalent layout values do not redo their output.
+
 If a task does not provide `columns`, the renderer falls back to `Progress.Columns.defaults()`.
 
 ### Clock hooks for custom cells

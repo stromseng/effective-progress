@@ -87,7 +87,7 @@ export const bar = ({ size }: BarOptions = {}): ColumnDef<unknown, BarPrepared> 
 export const amount = (): ColumnDef<unknown, AmountLayout> => ({
   prepare: measureAmountLayout,
   align: "right",
-  render: ({ task }, ctx) => <AmountCell task={task} layout={ctx.prepared} />,
+  render: ({ task }, ctx) => <AmountCell task={task} {...ctx.prepared} />,
 });
 
 export const elapsed = (): ColumnDef<unknown> => ({
