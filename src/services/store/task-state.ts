@@ -65,7 +65,7 @@ const completedUnits = (units: TaskSnapshot["units"]): TaskSnapshot["units"] => 
 };
 
 /** Applies mutable task fields; the mutation boundary records progress samples. */
-export const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => {
+export const updateTaskSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => {
   const currentUnits = snapshot.units;
   const units =
     options.succeeded === undefined &&

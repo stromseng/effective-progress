@@ -1,8 +1,8 @@
 import type { TaskId } from "../../task-model";
-import type { TaskStore } from "./types";
+import type { ProgressState } from "./types";
 
-export const findInsertionIndex = (
-  renderOrder: ReadonlyArray<TaskStore["renderOrder"][number]>,
+export const findChildInsertionPoint = (
+  renderOrder: ReadonlyArray<ProgressState["renderOrder"][number]>,
   parentId: TaskId | null,
 ) => {
   if (parentId === null) {
@@ -24,7 +24,7 @@ export const findInsertionIndex = (
 };
 
 /** Finds the half-open range containing a task and all of its descendants. */
-const findSubtreeRange = (renderOrder: TaskStore["renderOrder"], taskId: TaskId) => {
+const findSubtreeRange = (renderOrder: ProgressState["renderOrder"], taskId: TaskId) => {
   const start = renderOrder.findIndex((row) => row.id === taskId);
   if (start === -1) {
     return undefined;
@@ -40,7 +40,7 @@ const findSubtreeRange = (renderOrder: TaskStore["renderOrder"], taskId: TaskId)
 };
 
 /** Removes a task subtree from every state collection without mutating the current snapshot. */
-export const removeTransientSubtree = (current: TaskStore, taskId: TaskId): TaskStore => {
+export const removeTransientSubtree = (current: ProgressState, taskId: TaskId): ProgressState => {
   const range = findSubtreeRange(current.renderOrder, taskId);
   if (range === undefined) {
     return current;

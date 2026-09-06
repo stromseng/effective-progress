@@ -14,7 +14,7 @@ const makeTask = <M,>(
 
 const renderWithColumns = (
   rows: ReadonlyArray<TaskRowModel>,
-  columns: Progress.TaskStore["columns"],
+  columns: Progress.ProgressState["columns"],
   now = 1_000,
 ): string => renderRows(rows, { columns, now });
 

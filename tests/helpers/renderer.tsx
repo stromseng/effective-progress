@@ -1,7 +1,7 @@
 import { renderToString } from "ink";
 import stripAnsi from "strip-ansi";
 import type { TaskSnapshot } from "../../src/task-model";
-import type { TaskStore } from "../../src/services/store/types";
+import type { ProgressState } from "../../src/services/store/types";
 import { TaskId } from "../../src/task-model";
 import { NowProvider } from "../../src/renderer/context/now-context";
 import { SpinnerProvider } from "../../src/renderer/context/spinner-context";
@@ -30,7 +30,7 @@ export const makeTaskSnapshot = (overrides: Partial<TaskSnapshot> = {}): TaskSna
 /** Exercise the real tree and width derivation instead of recreating it in fixtures. */
 export const makeRows = (
   tasks: ReadonlyArray<TaskSnapshot>,
-  renderOrder: TaskStore["renderOrder"] = tasks.map(({ id }) => ({ id, depth: 0 })),
+  renderOrder: ProgressState["renderOrder"] = tasks.map(({ id }) => ({ id, depth: 0 })),
 ): ReadonlyArray<TaskRowModel> =>
   prepareRows({
     tasks: new Map(tasks.map((task) => [task.id, task])),
@@ -47,7 +47,7 @@ export const renderRows = (
     now = 1_000,
     spinnerTick = 0,
   }: {
-    readonly columns?: TaskStore["columns"];
+    readonly columns?: ProgressState["columns"];
     readonly now?: number;
     readonly spinnerTick?: number;
   } = {},

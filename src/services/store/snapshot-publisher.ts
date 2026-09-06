@@ -1,11 +1,11 @@
 import { Clock, Effect, Queue } from "effect";
-import type { TaskStore } from "./types";
+import type { ProgressState } from "./types";
 
 const SNAPSHOT_PUBLISH_INTERVAL_MILLIS = 100;
 
 /** Publishes the latest state at most every 100ms, with a synchronous shutdown flush. */
 export const createSnapshotPublisher = (
-  initialSnapshot: TaskStore,
+  initialSnapshot: ProgressState,
   publishQueue: Queue.Queue<void>,
 ) => {
   let pendingSnapshot = initialSnapshot;
@@ -74,7 +74,7 @@ export const createSnapshotPublisher = (
         publishNow(latestObservedAt);
       }
     },
-    publish: (snapshot: TaskStore, now: number): Effect.Effect<void> => {
+    publish: (snapshot: ProgressState, now: number): Effect.Effect<void> => {
       pendingSnapshot = snapshot;
       latestObservedAt = now;
       hasPendingPublish = true;

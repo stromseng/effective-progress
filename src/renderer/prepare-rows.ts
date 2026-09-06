@@ -1,8 +1,8 @@
-import type { TaskStore } from "../services/store/types";
+import type { ProgressState } from "../services/store/types";
 import { textWidth } from "./shared/text-width";
 import type { OrderedTask, TaskRowModel } from "./row-model";
 
-const orderedVisibleTasks = (store: TaskStore): ReadonlyArray<OrderedTask> =>
+const orderedVisibleTasks = (store: ProgressState): ReadonlyArray<OrderedTask> =>
   store.renderOrder.flatMap((row) => {
     const snapshot = store.tasks.get(row.id);
     if (!snapshot || (snapshot.transient && snapshot.status !== "running")) {
@@ -77,7 +77,7 @@ const deriveRow = (
   };
 };
 
-const computeTreeInfo = (
+const buildTaskRows = (
   ordered: ReadonlyArray<OrderedTask>,
   previousRows: ReadonlyArray<TaskRowModel>,
 ): ReadonlyArray<TaskRowModel> => {
@@ -131,14 +131,14 @@ const computeTreeInfo = (
 };
 
 export const prepareRows = (
-  store: TaskStore,
+  store: ProgressState,
   previousSnapshot?: RenderSnapshot,
 ): RenderSnapshot => {
   const visibleTasks = orderedVisibleTasks(store);
   const hasRunningTasks = visibleTasks.some((entry) => entry.snapshot.status === "running");
 
   return {
-    rows: computeTreeInfo(visibleTasks, previousSnapshot?.rows ?? []),
+    rows: buildTaskRows(visibleTasks, previousSnapshot?.rows ?? []),
     hasRunningTasks,
   };
 };
