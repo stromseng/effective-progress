@@ -1,5 +1,5 @@
 import { Console, Effect } from "effect";
-import * as Progress from "../src";
+import * as Progress from "../../src";
 
 const wait = (millis: number) => Effect.sleep(`${millis} millis`);
 

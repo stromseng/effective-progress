@@ -1,5 +1,5 @@
 import { Console, Effect, Logger } from "effect";
-import * as Progress from "../src";
+import * as Progress from "../../src";
 
 const program = Effect.gen(function* () {
   yield* Progress.forEach(["init"], () => Effect.sleep("2 seconds"), {
@@ -53,7 +53,7 @@ const program = Effect.gen(function* () {
     { description: "Manual deployment" },
   );
 
-  yield* Console.log("All advanced progress examples finished.");
+  yield* Console.log("Data pipeline finished.");
 });
 
 Effect.runPromise(program.pipe(Effect.provide(Logger.layer([Logger.consolePretty()]))));

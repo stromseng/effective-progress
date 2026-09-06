@@ -72,7 +72,7 @@
       }
     },
     {
-      "files": ["examples/benchmarks.ts", "examples/renderBenchmarks.ts"],
+      "files": ["benchmarks/store-and-columns.ts", "benchmarks/rendering.ts"],
       "rules": {
         "automation/no-global-json": "off"
       }

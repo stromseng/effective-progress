@@ -1,7 +1,7 @@
 import { Console, Effect } from "effect";
-import * as Progress from "../src";
+import * as Progress from "../../src";
 
-const advancedProgram = Effect.gen(function* () {
+const workflow = Effect.gen(function* () {
   yield* Progress.task(
     Effect.gen(function* () {
       yield* Effect.sleep("2 seconds");
@@ -75,11 +75,11 @@ const advancedProgram = Effect.gen(function* () {
   }
 
   yield* progress.completeTask(deployTask);
-  yield* Console.log("All advanced progress examples finished.");
+  yield* Console.log("Manual task workflow finished.");
 });
 
-const program = Progress.task(advancedProgram, {
-  description: "Advanced example",
+const program = Progress.task(workflow, {
+  description: "Manual task control",
   transient: false,
 });
 

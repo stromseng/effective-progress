@@ -8,6 +8,6 @@ Set Framerate 30
 Set Shell "zsh"
 
 Sleep 1s
-Type "bun run examples/mixedOutcomes.ts"
+Type "bun run examples/mixed-outcomes.ts"
 Enter
 Sleep 18s
