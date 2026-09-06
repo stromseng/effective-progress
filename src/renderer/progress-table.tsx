@@ -5,10 +5,10 @@ import { useRef } from "react";
 import type { ColumnAlign, Column } from "../columns/types";
 import type { TaskId } from "../task-model";
 import { resolveColumns, type ResolvedColumnPosition } from "./column-layout";
-import type { TaskRowModel } from "./row-model";
+import type { CellInfo } from "../columns/types";
 
 interface ProgressTableProps {
-  readonly rows: ReadonlyArray<TaskRowModel>;
+  readonly rows: ReadonlyArray<CellInfo>;
   readonly columns: ReadonlyMap<TaskId, ReadonlyArray<Column>>;
 }
 

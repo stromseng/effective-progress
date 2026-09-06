@@ -25,12 +25,20 @@ For example, to change how a nested description truncates, start at
 its row data back to `src/renderer/prepare-rows.ts`. The store owns tree order and
 cleanup; it does not compute glyphs or terminal text widths.
 
+Rows use the same `CellInfo` contract that custom columns receive. The rendering hook exposes
+prepared rows, column definitions, and running status; row preparation preserves unchanged row
+identities independently of the clock subscriptions.
+
 Each built-in column has one home in `src/columns/`: its factory, options, preparation,
 size policy, and cell component live together. `src/columns/index.ts` exposes the
 existing `Columns` namespace, while renderer internals import the modules they need
 directly. To adjust `Columns.bar({ size: "fullwidth" })`, read `bar.tsx` for both
 flex sizing and segment rendering. To change the default column sequence, edit
 `defaults.ts`.
+
+Column presentation helpers (`format.ts`, `amount-parts.ts`, and `determinate.ts`) live beside
+the columns. Both row preparation and columns use `src/terminal/text-width.ts` for terminal-cell
+measurement. Numerical ETA estimation remains in `src/progress-estimation.ts`.
 
 Keep preparation functions at module scope: grouping uses function identity, so
 creating a fresh preparation function inside each factory would split shared groups.

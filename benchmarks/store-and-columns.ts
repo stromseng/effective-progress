@@ -5,7 +5,7 @@ import { prepareRows } from "../src/renderer/prepare-rows";
 import { ProgressStore } from "../src/services/store/store";
 import { TaskId, type TaskSnapshot } from "../src/task-model";
 import { type ColumnDef } from "../src/columns/types";
-import { type TaskStore } from "../src/services/store/types";
+import { type ProgressState } from "../src/services/store/types";
 
 const WARMUP_ROUNDS = 3;
 const MEASURED_ROUNDS = 9;
@@ -73,8 +73,8 @@ const makeColumnFixture = (rowCount: number, distinctPrepare: boolean) => {
     tasks: new Map<TaskId, TaskSnapshot>(),
     renderOrder: [],
     columns: new Map<TaskId, ReadonlyArray<ColumnDef<unknown, number>>>(),
-  } satisfies TaskStore;
-  const renderOrder: Array<TaskStore["renderOrder"][number]> = [];
+  } satisfies ProgressState;
+  const renderOrder: Array<ProgressState["renderOrder"][number]> = [];
 
   for (let index = 0; index < rowCount; index++) {
     const id = TaskId(index + 1);

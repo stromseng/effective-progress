@@ -2,21 +2,21 @@ import { appendProgressSample } from "../../progress-estimation";
 import { Clock, Context, Effect, Layer, Option, Queue } from "effect";
 import type { Column } from "../../columns/types";
 import type { TaskId } from "../../task-model";
-import type { TaskStore } from "./types";
+import type { ProgressState } from "./types";
 import type { TaskOperations } from "../task-operations";
 import { TaskId as makeTaskId, type TaskSnapshot } from "../../task-model";
 import {
   createTaskSnapshot,
   finalizeTaskSnapshot,
   normalizeUnits,
-  updatedSnapshot,
+  updateTaskSnapshot,
 } from "./task-state";
-import { findInsertionIndex, removeTransientSubtree } from "./task-tree";
+import { findChildInsertionPoint, removeTransientSubtree } from "./task-tree";
 import { createSnapshotPublisher } from "./snapshot-publisher";
 
 export interface ProgressStoreService extends TaskOperations {
   /** The renderer reads throttled snapshots; task operations read current state. */
-  readonly getPublishedSnapshot: () => TaskStore;
+  readonly getPublishedSnapshot: () => ProgressState;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
   /** Internal metadata operations are exposed publicly only through a typed task handle. */
@@ -34,7 +34,7 @@ interface ProgressStoreRuntime {
 
 const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStoreRuntime => {
   let nextTaskId = 0;
-  let state: TaskStore = {
+  let state: ProgressState = {
     tasks: new Map<TaskId, TaskSnapshot>(),
     renderOrder: [],
     columns: new Map<TaskId, ReadonlyArray<Column>>(),
@@ -42,7 +42,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
   const publisher = createSnapshotPublisher(state, publishQueue);
 
   const updateState = (
-    transform: (current: TaskStore) => TaskStore,
+    transform: (current: ProgressState) => ProgressState,
     now: number,
   ): Effect.Effect<void> => {
     const nextState = transform(state);
@@ -54,10 +54,28 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
     return publisher.publish(state, now);
   };
 
-  /** Mutates running tasks only, recording progress atomically. Undefined removes the task subtree. */
+  /** Replaces one task and records its processed-count observation in the same transition. */
+  const replaceTask = (
+    current: ProgressState,
+    task: TaskSnapshot,
+    nextTask: TaskSnapshot,
+    now: number,
+  ): ProgressState => {
+    if (nextTask === task) {
+      return current;
+    }
+    const tasks = new Map(current.tasks);
+    tasks.set(task.id, {
+      ...nextTask,
+      progressSamples: appendProgressSample(task.progressSamples, now, nextTask.units.processed),
+    });
+    return { ...current, tasks };
+  };
+
+  /** Mutates running tasks only, recording progress atomically. */
   const modifyTask = (
     taskId: TaskId,
-    transform: (task: TaskSnapshot, now: number) => TaskSnapshot | undefined,
+    transform: (task: TaskSnapshot, now: number) => TaskSnapshot,
   ) =>
     Effect.gen(function* () {
       const now = yield* Clock.currentTimeMillis;
@@ -66,23 +84,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
         if (!task || task.status !== "running") {
           return current;
         }
-        const nextTask = transform(task, now);
-        if (nextTask === task) {
-          return current;
-        }
-        const tasks = new Map(current.tasks);
-        if (nextTask === undefined) {
-          return { tasks, ...removeTransientSubtree(current, tasks, taskId) };
-        }
-        tasks.set(taskId, {
-          ...nextTask,
-          progressSamples: appendProgressSample(
-            task.progressSamples,
-            now,
-            nextTask.units.processed,
-          ),
-        });
-        return { ...current, tasks };
+        return replaceTask(current, task, transform(task, now), now);
       }, now);
     });
 
@@ -93,7 +95,19 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
     }));
 
   const finalizeTask = (taskId: TaskId, status: "done" | "failed") =>
-    modifyTask(taskId, (task, now) => finalizeTaskSnapshot(task, status, now));
+    Effect.gen(function* () {
+      const now = yield* Clock.currentTimeMillis;
+      yield* updateState((current) => {
+        const task = current.tasks.get(taskId);
+        if (!task || task.status !== "running") {
+          return current;
+        }
+        if (task.transient) {
+          return removeTransientSubtree(current, taskId);
+        }
+        return replaceTask(current, task, finalizeTaskSnapshot(task, status, now), now);
+      }, now);
+    });
 
   const store: ProgressStoreService = {
     getPublishedSnapshot: publisher.getPublishedSnapshot,
@@ -110,7 +124,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
           const task = createTaskSnapshot(taskId, options, parentSnapshot, now);
           const nextTasks = new Map(current.tasks);
           nextTasks.set(taskId, task);
-          const { index, depth } = findInsertionIndex(current.renderOrder, task.parentId);
+          const { index, depth } = findChildInsertionPoint(current.renderOrder, task.parentId);
           const nextRenderOrder = [...current.renderOrder];
           nextRenderOrder.splice(index, 0, { id: taskId, depth });
 
@@ -123,7 +137,8 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
 
         return taskId;
       }),
-    updateTask: (taskId, options) => modifyTask(taskId, (task) => updatedSnapshot(task, options)),
+    updateTask: (taskId, options) =>
+      modifyTask(taskId, (task) => updateTaskSnapshot(task, options)),
     incrementSucceeded: (taskId, amount = 1) => incrementCounter(taskId, "succeeded", amount),
     incrementFailed: (taskId, amount = 1) => incrementCounter(taskId, "failed", amount),
     completeTask: (taskId) => finalizeTask(taskId, "done"),

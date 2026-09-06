@@ -1,8 +1,8 @@
-import type { TaskId, TaskSnapshot } from "../../task-model";
-import type { TaskStore } from "./types";
+import type { TaskId } from "../../task-model";
+import type { ProgressState } from "./types";
 
-export const findInsertionIndex = (
-  renderOrder: ReadonlyArray<TaskStore["renderOrder"][number]>,
+export const findChildInsertionPoint = (
+  renderOrder: ReadonlyArray<ProgressState["renderOrder"][number]>,
   parentId: TaskId | null,
 ) => {
   if (parentId === null) {
@@ -24,7 +24,7 @@ export const findInsertionIndex = (
 };
 
 /** Finds the half-open range containing a task and all of its descendants. */
-const findSubtreeRange = (renderOrder: TaskStore["renderOrder"], taskId: TaskId) => {
+const findSubtreeRange = (renderOrder: ProgressState["renderOrder"], taskId: TaskId) => {
   const start = renderOrder.findIndex((row) => row.id === taskId);
   if (start === -1) {
     return undefined;
@@ -39,30 +39,23 @@ const findSubtreeRange = (renderOrder: TaskStore["renderOrder"], taskId: TaskId)
   return { start, end };
 };
 
-export const removeTransientSubtree = (
-  current: TaskStore,
-  nextTasks: Map<TaskId, TaskSnapshot>,
-  taskId: TaskId,
-) => {
+/** Removes a task subtree from every state collection without mutating the current snapshot. */
+export const removeTransientSubtree = (current: ProgressState, taskId: TaskId): ProgressState => {
   const range = findSubtreeRange(current.renderOrder, taskId);
-  const removedTaskIds =
-    range === undefined
-      ? []
-      : current.renderOrder.slice(range.start, range.end).map((row) => row.id);
-  for (const removedTaskId of removedTaskIds) {
-    nextTasks.delete(removedTaskId);
+  if (range === undefined) {
+    return current;
   }
 
-  const nextColumns = new Map(current.columns);
-  for (const removedTaskId of removedTaskIds) {
-    nextColumns.delete(removedTaskId);
+  const tasks = new Map(current.tasks);
+  const columns = new Map(current.columns);
+  for (const row of current.renderOrder.slice(range.start, range.end)) {
+    tasks.delete(row.id);
+    columns.delete(row.id);
   }
 
   return {
-    renderOrder:
-      range === undefined
-        ? current.renderOrder
-        : current.renderOrder.toSpliced(range.start, range.end - range.start),
-    columns: nextColumns,
+    tasks,
+    renderOrder: current.renderOrder.toSpliced(range.start, range.end - range.start),
+    columns,
   };
 };

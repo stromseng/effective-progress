@@ -1,5 +1,5 @@
-import type { TaskSnapshot } from "../../task-model";
-import { estimateRemainingMillis } from "../../progress-estimation";
+import type { TaskSnapshot } from "../task-model";
+import { estimateRemainingMillis } from "../progress-estimation";
 import { getAmountParts } from "./amount-parts";
 
 const formatDurationSeconds = (seconds: number): string => {

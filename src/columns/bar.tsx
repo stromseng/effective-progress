@@ -1,7 +1,7 @@
 import type { CellInfo, ColumnDef } from "./types";
 import type { TaskSnapshot } from "../task-model";
 import { Text } from "ink";
-import { isDeterminate } from "../renderer/shared/determinate";
+import { isDeterminate } from "./determinate";
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));

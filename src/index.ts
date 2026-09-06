@@ -40,7 +40,12 @@ export {
 } from "./columns/types";
 export { type TaskHandle } from "./tasks/task-handle";
 export { type AddTaskOptions, type UpdateTaskOptions, type TrackOptions } from "./tasks/options";
-export { type RenderRow, type TaskStore } from "./services/store/types";
+export {
+  type TaskOrderEntry,
+  type ProgressState,
+  type RenderRow,
+  type TaskStore,
+} from "./services/store/types";
 export { type TaskOperations } from "./services/task-operations";
 export { Task } from "./tasks/current-task";
 export { type TaskApi } from "./tasks/task-api";

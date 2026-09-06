@@ -65,7 +65,7 @@ const completedUnits = (units: TaskSnapshot["units"]): TaskSnapshot["units"] => 
 };
 
 /** Applies mutable task fields; the mutation boundary records progress samples. */
-export const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => {
+export const updateTaskSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => {
   const currentUnits = snapshot.units;
   const units =
     options.succeeded === undefined &&
@@ -121,17 +121,14 @@ export const createTaskSnapshot = <M>(
   return task;
 };
 
-/** Finalization is terminal; undefined requests removal of a transient subtree. */
+/** Finalizes retained task data; the store owns transient subtree removal. */
 export const finalizeTaskSnapshot = (
   task: TaskSnapshot,
   status: "done" | "failed",
   now: number,
-): TaskSnapshot | undefined => {
+): TaskSnapshot => {
   if (task.status !== "running") {
     return task;
-  }
-  if (task.transient) {
-    return undefined;
   }
   return {
     ...task,

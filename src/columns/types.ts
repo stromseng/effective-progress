@@ -38,6 +38,11 @@ type BivariantCallback<Args extends ReadonlyArray<unknown>, R> = {
 }["bivarianceHack"];
 
 export interface ColumnDef<M = unknown, P = void> {
+  /**
+   * Runs once per shared function identity at each column position, using only the rows whose
+   * columns share that function. Define it at module scope to share preparation across tasks;
+   * allocating it inside a column factory creates a separate group for every factory call.
+   */
   readonly prepare?: BivariantCallback<[rows: ReadonlyArray<CellInfo<M>>], P>;
   readonly render: BivariantCallback<[cell: CellInfo<M>, ctx: ColumnRenderContext<P>], ReactNode>;
   readonly align?: ColumnAlign;

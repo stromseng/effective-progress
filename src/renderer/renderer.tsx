@@ -14,12 +14,12 @@ interface RendererService {
 const MAX_FPS = 24;
 
 const ProgressRoot = ({ store }: { readonly store: ProgressStoreService }) => {
-  const { renderSnapshot, hasRunningTasks, storeSnapshot } = useProgressRenderView(store);
+  const { rows, columns, hasRunningTasks } = useProgressRenderView(store);
 
   return (
     <SpinnerProvider active={hasRunningTasks}>
       <NowProvider active={hasRunningTasks}>
-        <ProgressTable rows={renderSnapshot.rows} columns={storeSnapshot.columns} />
+        <ProgressTable rows={rows} columns={columns} />
       </NowProvider>
     </SpinnerProvider>
   );

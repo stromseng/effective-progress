@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { TaskId, type TaskSnapshot } from "../../src/task-model";
-import { type TaskStore } from "../../src/services/store/types";
+import { type ProgressState } from "../../src/services/store/types";
 import { prepareRows } from "../../src/renderer/prepare-rows";
 
 const makeTask = (id: number, description: string): TaskSnapshot => ({
@@ -17,7 +17,7 @@ const makeTask = (id: number, description: string): TaskSnapshot => ({
   metadata: undefined,
 });
 
-const makeStore = (entries: ReadonlyArray<readonly [TaskSnapshot, number]>): TaskStore => ({
+const makeStore = (entries: ReadonlyArray<readonly [TaskSnapshot, number]>): ProgressState => ({
   tasks: new Map(entries.map(([task]) => [task.id, task])),
   renderOrder: entries.map(([task, depth]) => ({ id: task.id, depth })),
   columns: new Map(),
