@@ -23,6 +23,10 @@ export interface ProgressStoreService extends TaskOperations {
   readonly getSnapshot: () => TaskStore;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
+  readonly updateMetadata: (
+    taskId: TaskId,
+    f: (metadata: TaskSnapshot["metadata"]) => TaskSnapshot["metadata"],
+  ) => Effect.Effect<void>;
 }
 
 const hasExplicitTotal = (options: Pick<AddTaskOptions | UpdateTaskOptions, "total">) =>
@@ -100,8 +104,8 @@ const appendProgressSample = (
   return [...previousSamples.slice(firstRetainedIndex), { timestamp: now, processed }];
 };
 
-/** Applies mutable task fields and records a progress sample when the processed count changes. */
-const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions, now: number) => {
+/** Applies mutable task fields; the mutation boundary records progress samples. */
+const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions) => {
   const currentUnits = snapshot.units;
   const units =
     options.succeeded === undefined &&
@@ -120,7 +124,6 @@ const updatedSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOptions, now
     description: options.description ?? snapshot.description,
     countDisplay: options.countDisplay ?? snapshot.countDisplay,
     units,
-    progressSamples: appendProgressSample(snapshot.progressSamples, now, units.processed),
   } satisfies TaskSnapshot;
 };
 
@@ -271,68 +274,58 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
     return schedulePublish;
   };
 
-  const incrementCounter = (taskId: TaskId, kind: "succeeded" | "failed", amount: number) =>
+  /** Replaces a task and records progress in one synchronous state transition. Undefined removes its subtree. */
+  const modifyTask = (
+    taskId: TaskId,
+    transform: (task: TaskSnapshot, now: number) => TaskSnapshot | undefined,
+  ) =>
     Effect.gen(function* () {
       const now = yield* Clock.currentTimeMillis;
-
       yield* updateState((current) => {
-        const currentTask = current.tasks.get(taskId);
-        if (!currentTask) {
+        const task = current.tasks.get(taskId);
+        if (!task) {
           return current;
         }
-
-        const units = normalizeUnits({
-          succeeded: currentTask.units.succeeded,
-          failed: currentTask.units.failed,
-          [kind]: currentTask.units[kind] + amount,
-          total: currentTask.units.total,
+        const nextTask = transform(task, now);
+        if (nextTask === task) {
+          return current;
+        }
+        const tasks = new Map(current.tasks);
+        if (nextTask === undefined) {
+          return { tasks, ...removeTransientSubtree(current, tasks, taskId) };
+        }
+        tasks.set(taskId, {
+          ...nextTask,
+          progressSamples: appendProgressSample(
+            task.progressSamples,
+            now,
+            nextTask.units.processed,
+          ),
         });
-        const nextTasks = new Map(current.tasks);
-        nextTasks.set(taskId, {
-          ...currentTask,
-          units,
-          progressSamples: appendProgressSample(currentTask.progressSamples, now, units.processed),
-        } satisfies TaskSnapshot);
-
-        return { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns };
+        return { ...current, tasks };
       }, now);
     });
 
+  const incrementCounter = (taskId: TaskId, kind: "succeeded" | "failed", amount: number) =>
+    modifyTask(taskId, (task) => ({
+      ...task,
+      units: normalizeUnits({ ...task.units, [kind]: task.units[kind] + amount }),
+    }));
+
   const finalizeTask = (taskId: TaskId, status: "done" | "failed") =>
-    Effect.gen(function* () {
-      const now = yield* Clock.currentTimeMillis;
-
-      yield* updateState((current) => {
-        const currentTask = current.tasks.get(taskId);
-        if (!currentTask || currentTask.status !== "running") {
-          return current;
-        }
-
-        const nextTasks = new Map(current.tasks);
-        if (currentTask.transient) {
-          const removedSubtree = removeTransientSubtree(current, nextTasks, taskId);
-
-          return {
-            tasks: nextTasks,
-            renderOrder: removedSubtree.renderOrder,
-            columns: removedSubtree.columns,
-          };
-        }
-
-        const units = status === "done" ? completedUnits(currentTask.units) : currentTask.units;
-        nextTasks.set(taskId, {
-          ...currentTask,
-          status,
-          units,
-          completedAt: now,
-          progressSamples:
-            status === "done"
-              ? appendProgressSample(currentTask.progressSamples, now, units.processed)
-              : currentTask.progressSamples,
-        } satisfies TaskSnapshot);
-
-        return { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns };
-      }, now);
+    modifyTask(taskId, (task, now) => {
+      if (task.status !== "running") {
+        return task;
+      }
+      if (task.transient) {
+        return undefined;
+      }
+      return {
+        ...task,
+        status,
+        units: status === "done" ? completedUnits(task.units) : task.units,
+        completedAt: now,
+      };
     });
 
   const store: ProgressStoreService = {
@@ -392,45 +385,16 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
 
         return taskId;
       }),
-    updateTask: (taskId, options) =>
-      Effect.gen(function* () {
-        const now = yield* Clock.currentTimeMillis;
-
-        yield* updateState((current) => {
-          const currentTask = current.tasks.get(taskId);
-          if (!currentTask) {
-            return current;
-          }
-
-          const nextTask = updatedSnapshot(currentTask, options, now);
-          const nextTasks = new Map(current.tasks);
-          nextTasks.set(taskId, nextTask);
-
-          return { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns };
-        }, now);
-      }),
+    updateTask: (taskId, options) => modifyTask(taskId, (task) => updatedSnapshot(task, options)),
     incrementSucceeded: (taskId, amount = 1) => incrementCounter(taskId, "succeeded", amount),
     incrementFailed: (taskId, amount = 1) => incrementCounter(taskId, "failed", amount),
     completeTask: (taskId) => finalizeTask(taskId, "done"),
     failTask: (taskId) => finalizeTask(taskId, "failed"),
     getTask: (taskId) => Effect.sync(() => Option.fromNullishOr(state.tasks.get(taskId))),
     listTasks: Effect.sync(() => Array.from(state.tasks.values())),
-    setMetadata: (taskId, metadata) =>
-      Effect.gen(function* () {
-        const now = yield* Clock.currentTimeMillis;
-
-        yield* updateState((current) => {
-          const currentTask = current.tasks.get(taskId);
-          if (!currentTask) {
-            return current;
-          }
-
-          const nextTasks = new Map(current.tasks);
-          nextTasks.set(taskId, { ...currentTask, metadata } satisfies TaskSnapshot);
-
-          return { tasks: nextTasks, renderOrder: current.renderOrder, columns: current.columns };
-        }, now);
-      }),
+    setMetadata: (taskId, metadata) => modifyTask(taskId, (task) => ({ ...task, metadata })),
+    updateMetadata: (taskId, f) =>
+      modifyTask(taskId, (task) => ({ ...task, metadata: f(task.metadata) })),
     getMetadata: (taskId) =>
       Effect.sync(() => {
         const task = state.tasks.get(taskId);

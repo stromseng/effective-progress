@@ -11,6 +11,28 @@ const withProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   );
 
 describe("task exit finalization", () => {
+  test("concurrent handle metadata updates retain every increment without changing progress", async () => {
+    const result = await Effect.runPromise(
+      withProgress(
+        Progress.task(
+          (handle) =>
+            Effect.gen(function* () {
+              yield* Effect.forEach(
+                Array.from({ length: 200 }),
+                () => handle.updateMetadata((value) => value + 1),
+                { concurrency: "unbounded" },
+              );
+              return { metadata: yield* handle.getMetadata, snapshot: yield* handle.getSnapshot };
+            }),
+          { description: "metadata updates", metadata: 0, total: 10 },
+        ),
+      ),
+    );
+    expect(result.metadata).toBe(200);
+    expect(result.snapshot.units.processed).toBe(0);
+    expect(result.snapshot.progressSamples).toHaveLength(1);
+  });
+
   test("finalizes a callback that throws before returning an Effect", async () => {
     const defect = new Error("callback construction failed");
     const { exit, tasks } = await Effect.runPromise(

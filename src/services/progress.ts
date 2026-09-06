@@ -46,9 +46,9 @@ const makeProgressService = Effect.gen(function* () {
     getMetadata: store.getMetadata(taskId) as Effect.Effect<M>,
     setMetadata: (metadata) => store.setMetadata(taskId, metadata),
     updateMetadata: (f) =>
-      Effect.flatMap(store.getMetadata(taskId), (current) =>
+      store.updateMetadata(taskId, (current) =>
         // SAFETY: The task handle reads the same metadata M established at task creation.
-        store.setMetadata(taskId, f(current as M)),
+        f(current as M),
       ),
     incrementSucceeded: (amount) => store.incrementSucceeded(taskId, amount),
     incrementFailed: (amount) => store.incrementFailed(taskId, amount),
