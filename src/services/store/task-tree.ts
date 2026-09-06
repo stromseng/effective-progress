@@ -1,4 +1,4 @@
-import type { TaskId, TaskSnapshot } from "../../task-model";
+import type { TaskId } from "../../task-model";
 import type { TaskStore } from "./types";
 
 export const findInsertionIndex = (
@@ -39,30 +39,23 @@ const findSubtreeRange = (renderOrder: TaskStore["renderOrder"], taskId: TaskId)
   return { start, end };
 };
 
-export const removeTransientSubtree = (
-  current: TaskStore,
-  nextTasks: Map<TaskId, TaskSnapshot>,
-  taskId: TaskId,
-) => {
+/** Removes a task subtree from every state collection without mutating the current snapshot. */
+export const removeTransientSubtree = (current: TaskStore, taskId: TaskId): TaskStore => {
   const range = findSubtreeRange(current.renderOrder, taskId);
-  const removedTaskIds =
-    range === undefined
-      ? []
-      : current.renderOrder.slice(range.start, range.end).map((row) => row.id);
-  for (const removedTaskId of removedTaskIds) {
-    nextTasks.delete(removedTaskId);
+  if (range === undefined) {
+    return current;
   }
 
-  const nextColumns = new Map(current.columns);
-  for (const removedTaskId of removedTaskIds) {
-    nextColumns.delete(removedTaskId);
+  const tasks = new Map(current.tasks);
+  const columns = new Map(current.columns);
+  for (const row of current.renderOrder.slice(range.start, range.end)) {
+    tasks.delete(row.id);
+    columns.delete(row.id);
   }
 
   return {
-    renderOrder:
-      range === undefined
-        ? current.renderOrder
-        : current.renderOrder.toSpliced(range.start, range.end - range.start),
-    columns: nextColumns,
+    tasks,
+    renderOrder: current.renderOrder.toSpliced(range.start, range.end - range.start),
+    columns,
   };
 };

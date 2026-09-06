@@ -193,6 +193,10 @@ describe("progress store state and publication", () => {
           columns,
         });
         store.flush();
+        const beforeRemoval = store.getPublishedSnapshot();
+        const originalTaskIds = [...beforeRemoval.tasks.keys()];
+        const originalOrder = [...beforeRemoval.renderOrder];
+        const originalColumns = [...beforeRemoval.columns.entries()];
 
         yield* store.completeTask(parentId);
         store.flush();
@@ -201,6 +205,9 @@ describe("progress store state and publication", () => {
         expect(publication.tasks.size).toBe(0);
         expect(publication.renderOrder).toEqual([]);
         expect(publication.columns.size).toBe(0);
+        expect([...beforeRemoval.tasks.keys()]).toEqual(originalTaskIds);
+        expect(beforeRemoval.renderOrder).toEqual(originalOrder);
+        expect([...beforeRemoval.columns.entries()]).toEqual(originalColumns);
       }).pipe(Effect.scoped),
     );
   });

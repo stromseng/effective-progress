@@ -54,10 +54,28 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
     return publisher.publish(state, now);
   };
 
-  /** Mutates running tasks only, recording progress atomically. Undefined removes the task subtree. */
+  /** Replaces one task and records its processed-count observation in the same transition. */
+  const replaceTask = (
+    current: TaskStore,
+    task: TaskSnapshot,
+    nextTask: TaskSnapshot,
+    now: number,
+  ): TaskStore => {
+    if (nextTask === task) {
+      return current;
+    }
+    const tasks = new Map(current.tasks);
+    tasks.set(task.id, {
+      ...nextTask,
+      progressSamples: appendProgressSample(task.progressSamples, now, nextTask.units.processed),
+    });
+    return { ...current, tasks };
+  };
+
+  /** Mutates running tasks only, recording progress atomically. */
   const modifyTask = (
     taskId: TaskId,
-    transform: (task: TaskSnapshot, now: number) => TaskSnapshot | undefined,
+    transform: (task: TaskSnapshot, now: number) => TaskSnapshot,
   ) =>
     Effect.gen(function* () {
       const now = yield* Clock.currentTimeMillis;
@@ -66,23 +84,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
         if (!task || task.status !== "running") {
           return current;
         }
-        const nextTask = transform(task, now);
-        if (nextTask === task) {
-          return current;
-        }
-        const tasks = new Map(current.tasks);
-        if (nextTask === undefined) {
-          return { tasks, ...removeTransientSubtree(current, tasks, taskId) };
-        }
-        tasks.set(taskId, {
-          ...nextTask,
-          progressSamples: appendProgressSample(
-            task.progressSamples,
-            now,
-            nextTask.units.processed,
-          ),
-        });
-        return { ...current, tasks };
+        return replaceTask(current, task, transform(task, now), now);
       }, now);
     });
 
@@ -93,7 +95,19 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
     }));
 
   const finalizeTask = (taskId: TaskId, status: "done" | "failed") =>
-    modifyTask(taskId, (task, now) => finalizeTaskSnapshot(task, status, now));
+    Effect.gen(function* () {
+      const now = yield* Clock.currentTimeMillis;
+      yield* updateState((current) => {
+        const task = current.tasks.get(taskId);
+        if (!task || task.status !== "running") {
+          return current;
+        }
+        if (task.transient) {
+          return removeTransientSubtree(current, taskId);
+        }
+        return replaceTask(current, task, finalizeTaskSnapshot(task, status, now), now);
+      }, now);
+    });
 
   const store: ProgressStoreService = {
     getPublishedSnapshot: publisher.getPublishedSnapshot,
