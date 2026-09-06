@@ -3,7 +3,7 @@ import { Writable } from "node:stream";
 import { render } from "ink";
 import { createElement } from "react";
 import { defaults } from "../src/columns";
-import { TaskId, type TaskSnapshot } from "../src/types";
+import { TaskId, type TaskSnapshot } from "../src/task-model";
 import { NowProvider } from "../src/renderer/context/now-context";
 import { SpinnerProvider } from "../src/renderer/context/spinner-context";
 import { ProgressTable } from "../src/renderer/progress-table";

@@ -1,5 +1,5 @@
 import { Clock, Effect, Queue } from "effect";
-import type { TaskStore } from "../../types";
+import type { TaskStore } from "./types";
 
 const SNAPSHOT_PUBLISH_INTERVAL_MILLIS = 100;
 

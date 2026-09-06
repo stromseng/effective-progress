@@ -2,7 +2,8 @@ import { Predicate } from "effect";
 import { Box, Text, useBoxMetrics, type DOMElement } from "ink";
 import type { ReactElement, ReactNode } from "react";
 import { useRef } from "react";
-import type { ColumnAlign, Column, TaskId } from "../types";
+import type { ColumnAlign, Column } from "../columns/types";
+import type { TaskId } from "../task-model";
 import { resolveColumns, type ResolvedColumnPosition } from "./column-layout";
 import type { TaskRowModel } from "./row-model";
 

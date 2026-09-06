@@ -2,16 +2,12 @@ import { Cause, Effect, Exit, Option } from "effect";
 import { dual } from "effect/Function";
 import type { Concurrency } from "effect/Types";
 import { Progress } from "./services/progress";
-import { Task } from "./types";
-import type {
-  AddTaskOptions,
-  ProgressService,
-  TaskCountDisplay,
-  TaskHandle,
-  TaskId,
-  TrackOptions,
-} from "./types";
-import { adaptTaskApi } from "./task-api";
+import { Task } from "./tasks/current-task";
+import type { AddTaskOptions, TrackOptions } from "./tasks/options";
+import type { ProgressService } from "./services/progress";
+import type { TaskCountDisplay, TaskId } from "./task-model";
+import type { TaskHandle } from "./tasks/task-handle";
+import { adaptTaskApi } from "./tasks/task-api";
 import { inferTotal } from "./utils";
 
 const provideProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>

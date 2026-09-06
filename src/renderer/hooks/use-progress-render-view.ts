@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import type { ProgressStoreService } from "../../services/store/store";
-import type { TaskStore } from "../../types";
+import type { TaskStore } from "../../services/store/types";
 import { prepareRows, type RenderSnapshot } from "../prepare-rows";
 
 interface ProgressRenderView {

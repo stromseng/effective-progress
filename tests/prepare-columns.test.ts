@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { CellInfo, ColumnDef } from "../src/types";
-import { TaskId } from "../src/types";
+import type { CellInfo, ColumnDef } from "../src/columns/types";
+import { TaskId } from "../src/task-model";
 import { resolveColumns } from "../src/renderer/column-layout";
 import { makeRows, makeTaskSnapshot } from "./helpers/renderer";
 

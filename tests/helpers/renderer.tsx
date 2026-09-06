@@ -1,7 +1,8 @@
 import { renderToString } from "ink";
 import stripAnsi from "strip-ansi";
-import type { TaskSnapshot, TaskStore } from "../../src/types";
-import { TaskId } from "../../src/types";
+import type { TaskSnapshot } from "../../src/task-model";
+import type { TaskStore } from "../../src/services/store/types";
+import { TaskId } from "../../src/task-model";
 import { NowProvider } from "../../src/renderer/context/now-context";
 import { SpinnerProvider } from "../../src/renderer/context/spinner-context";
 import { ProgressTable } from "../../src/renderer/progress-table";

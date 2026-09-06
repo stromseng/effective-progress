@@ -3,7 +3,9 @@ import { Effect } from "effect";
 import { resolveColumns } from "../src/renderer/column-layout";
 import { prepareRows } from "../src/renderer/prepare-rows";
 import { ProgressStore } from "../src/services/store/store";
-import { TaskId, type TaskSnapshot, type ColumnDef, type TaskStore } from "../src/types";
+import { TaskId, type TaskSnapshot } from "../src/task-model";
+import { type ColumnDef } from "../src/columns/types";
+import { type TaskStore } from "../src/services/store/types";
 
 const WARMUP_ROUNDS = 3;
 const MEASURED_ROUNDS = 9;

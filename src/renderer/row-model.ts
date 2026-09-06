@@ -1,4 +1,5 @@
-import type { TaskRowDerived, TaskSnapshot, TaskTreeInfo } from "../types";
+import type { TaskRowDerived, TaskTreeInfo } from "../columns/types";
+import type { TaskSnapshot } from "../task-model";
 
 export interface OrderedTask {
   readonly snapshot: TaskSnapshot;

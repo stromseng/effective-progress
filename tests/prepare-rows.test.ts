@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { TaskId, type TaskSnapshot, type TaskStore } from "../src/types";
+import { TaskId, type TaskSnapshot } from "../src/task-model";
+import { type TaskStore } from "../src/services/store/types";
 import { prepareRows } from "../src/renderer/prepare-rows";
 
 const makeTask = (id: number, description: string): TaskSnapshot => ({

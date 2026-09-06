@@ -1,10 +1,27 @@
+import type { TaskApi } from "../tasks/task-api";
+import type { TaskOperations } from "./task-operations";
 import { Context, Effect, Exit, Layer, Option } from "effect";
-import { adaptTaskApi } from "../task-api";
+import { adaptTaskApi } from "../tasks/task-api";
 import { ProgressStore } from "./store/store";
-import type { AddTaskOptions, ProgressService, TaskHandle, TaskId } from "../types";
-import { Task } from "../types";
+import type { AddTaskOptions } from "../tasks/options";
+import type { TaskHandle } from "../tasks/task-handle";
+import type { TaskId } from "../task-model";
+import { Task } from "../tasks/current-task";
 import { Renderer } from "../renderer/renderer";
 import { ProgressStdio } from "./stdio";
+
+export interface ProgressService extends TaskOperations {
+  /**
+   * Runs an effect inside a newly created task scope.
+   *
+   * The plain effect form auto-finalizes from the effect exit if the task is still `running`.
+   * The callback form exposes a typed `TaskHandle` for metadata and explicit lifecycle control, and
+   * also auto-finalizes from the callback exit if the handle did not already finalize the task.
+   *
+   * Use `Progress.task(...)` from `src/api.ts` when you want the service to be created automatically if needed.
+   */
+  readonly task: TaskApi<Task>;
+}
 
 interface CurrentParentState {
   readonly owner: symbol;

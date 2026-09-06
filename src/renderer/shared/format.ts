@@ -1,4 +1,4 @@
-import type { TaskSnapshot } from "../../types";
+import type { TaskSnapshot } from "../../task-model";
 import { isDeterminate } from "./determinate";
 import { getAmountParts } from "./amount-parts";
 

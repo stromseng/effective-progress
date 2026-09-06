@@ -1,5 +1,6 @@
 import { defaults } from "../columns/defaults";
-import type { Column, TaskId } from "../types";
+import type { Column } from "../columns/types";
+import type { TaskId } from "../task-model";
 import { prepareColumns, type ResolvedColumn } from "./prepare-columns";
 import type { TaskRowModel } from "./row-model";
 

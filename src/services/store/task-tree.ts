@@ -1,4 +1,5 @@
-import type { TaskId, TaskSnapshot, TaskStore } from "../../types";
+import type { TaskId, TaskSnapshot } from "../../task-model";
+import type { TaskStore } from "./types";
 
 export const findInsertionIndex = (
   renderOrder: ReadonlyArray<TaskStore["renderOrder"][number]>,
