@@ -20,7 +20,7 @@ test("task overloads preserve values, errors, metadata and unrelated requirement
       (handle) => {
         expectTypeOf(handle.getMetadata).toEqualTypeOf<Effect.Effect<{ score: number }>>();
         // @ts-expect-error Metadata writes must retain the type inferred at task creation.
-        const invalidWrite = handle.setMetadata({ score: "wrong type" });
+        const _invalidWrite = handle.setMetadata({ score: "wrong type" });
         return Effect.fail("failure" as const);
       },
       { description: "metadata", metadata: { score: 0 } },
