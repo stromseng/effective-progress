@@ -25,15 +25,3 @@ bun run lint          # Lint with oxlint
 bun run format        # Format with oxfmt
 bun run format:check  # Check formatting
 ```
-
-## TypeScript tooling
-
-`bun install` patches TypeScript 7 (`@typescript/native`) with the Effect language service.
-Typechecking and the workspace editor use this native compiler. The `typescript` 5
-dependency supplies the JavaScript compiler API required by Knip and tsdown.
-
-For VS Code-based editors, install the TypeScript 7 extension and use the workspace
-TypeScript version configured in `.vscode/settings.json`. The tsconfig plugin name
-remains `@effect/language-service`; `@effect/tsgo` reads that configuration.
-Knip ignores `@effect/language-service` and `@typescript/native` because the former
-is a plugin configuration key and the latter is invoked by its file path.
