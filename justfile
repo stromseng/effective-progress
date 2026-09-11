@@ -31,7 +31,7 @@ record-gifs:
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p docs/images
-    vhs docs/tapes/basic.tape
-    vhs docs/tapes/mixedOutcomes.tape
-    vhs docs/tapes/nesting.tape
-    vhs docs/tapes/showcase.tape
+    bun run tcut docs/videos/basic.video.ts
+    bun run tcut docs/videos/mixedOutcomes.video.ts
+    bun run tcut docs/videos/nesting.video.ts
+    bun run tcut docs/videos/showcase.video.ts

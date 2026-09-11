@@ -1,5 +1,7 @@
 {
   "$schema": "./node_modules/@effect/tsgo/schema.json",
+  // tcut ships Bun/browser TypeScript sources; keep recording tools outside the library check.
+  "exclude": ["node_modules", "docs/videos"],
   "compilerOptions": {
     // Environment setup & latest features
     "lib": ["ESNext"],
