@@ -36,3 +36,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # terminal demo recordings (GIFs are tracked)
 docs/images/*.cast
+
+# local agent tool config
+.claude.json
