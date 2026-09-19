@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { Effect, Option } from "effect";
-import { TaskId } from "../../src/task-model";
-import { makeProgressStore } from "../../src/services/store/store";
+import { TaskId } from "../../src/tasks/model";
+import { makeProgressStore } from "../../src/store/store";
 
 test.each([NaN, Infinity, -Infinity])("ignores non-finite counter input %s", async (value) => {
   await Effect.runPromise(
@@ -85,7 +85,7 @@ test.each(["missing", "removed"] as const)("normalizes a %s parent to a root", a
       expect(task.transient).toBeFalse();
       expect(task.countDisplay).toBe("detailed");
       store.flush();
-      expect(store.getPublishedSnapshot().renderOrder).toEqual([{ id, depth: 0 }]);
+      expect(store.getPublishedState().renderOrder).toEqual([{ id, depth: 0 }]);
     }).pipe(Effect.scoped),
   );
 });

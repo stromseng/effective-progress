@@ -6,6 +6,11 @@
 
 This is a greenfield project. Pre-1.0.0 — breaking changes are allowed to occur between minor versions.
 
+## Vocabulary
+
+Terms are defined in `CONTEXT.md`. Use those names in code, comments, tests, and docs. If a concept
+needs a new word, add it there first.
+
 ## Tech Stack
 
 - **Runtime:** Node.js with Effect

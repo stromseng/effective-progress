@@ -1,6 +1,6 @@
-import type { ProgressStoreService } from "../services/store/store";
+import type { ProgressStoreService } from "../store/store";
 import { Effect, Option } from "effect";
-import type { TaskId, TaskSnapshot } from "../task-model";
+import type { TaskId, TaskSnapshot } from "./model";
 import type { UpdateTaskOptions } from "./options";
 
 /**

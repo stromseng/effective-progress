@@ -1,15 +1,15 @@
-import type { ProgressState } from "../services/store/types";
+import type { ProgressState } from "../store/state";
 import { textWidth } from "../terminal/text-width";
-import type { CellInfo } from "../columns/types";
+import type { TaskRow } from "../columns/types";
 
 interface OrderedTask {
-  readonly snapshot: CellInfo["task"];
+  readonly snapshot: TaskRow["task"];
   readonly depth: number;
 }
 
-const orderedVisibleTasks = (store: ProgressState): ReadonlyArray<OrderedTask> =>
-  store.renderOrder.flatMap((row) => {
-    const snapshot = store.tasks.get(row.id);
+const orderedVisibleTasks = (state: ProgressState): ReadonlyArray<OrderedTask> =>
+  state.renderOrder.flatMap((row) => {
+    const snapshot = state.tasks.get(row.id);
     if (!snapshot || (snapshot.transient && snapshot.status !== "running")) {
       return [];
     }
@@ -22,8 +22,8 @@ const orderedVisibleTasks = (store: ProgressState): ReadonlyArray<OrderedTask> =
     ];
   });
 
-export interface RenderSnapshot {
-  readonly rows: ReadonlyArray<CellInfo>;
+export interface RenderView {
+  readonly rows: ReadonlyArray<TaskRow>;
   readonly hasRunningTasks: boolean;
 }
 
@@ -33,7 +33,7 @@ const treeAncestorPrefix = (ancestorHasNextSibling: ReadonlyArray<boolean>): str
     .map((hasNextSibling) => (hasNextSibling ? "│  " : "   "))
     .join("");
 
-const renderTreePrefix = (tree: CellInfo["tree"]): string => {
+const renderTreePrefix = (tree: TaskRow["tree"]): string => {
   if (tree.depth <= 0) {
     return "";
   }
@@ -55,7 +55,7 @@ const arraysEqual = (left: ReadonlyArray<boolean>, right: ReadonlyArray<boolean>
   return true;
 };
 
-const sameTreePrefixInputs = (left: CellInfo["tree"], right: CellInfo["tree"]): boolean =>
+const sameTreePrefixInputs = (left: TaskRow["tree"], right: TaskRow["tree"]): boolean =>
   left.depth === right.depth &&
   left.hasNextSibling === right.hasNextSibling &&
   arraysEqual(left.ancestorHasNextSibling, right.ancestorHasNextSibling);
@@ -63,8 +63,8 @@ const sameTreePrefixInputs = (left: CellInfo["tree"], right: CellInfo["tree"]): 
 const deriveRow = (
   task: OrderedTask["snapshot"],
   treePrefix: string,
-  previousRow: CellInfo | undefined,
-): CellInfo["derived"] => {
+  previousRow: TaskRow | undefined,
+): TaskRow["derived"] => {
   // Tree prefixes are built from fixed box-drawing glyphs we treat as single-cell.
   const treePrefixWidth = treePrefix.length;
   const descriptionWidth =
@@ -72,20 +72,13 @@ const deriveRow = (
       ? previousRow.derived.descriptionWidth
       : textWidth(task.description);
 
-  return {
-    treePrefix,
-    treePrefixWidth,
-    descriptionWidth,
-    treePrefixedDescriptionWidth: treePrefixWidth + descriptionWidth,
-    hasRenderableProgress: task.units.total !== undefined || task.units.processed > 0,
-    isDeterminate: task.units.total !== undefined,
-  };
+  return { treePrefix, treePrefixWidth, descriptionWidth };
 };
 
 const buildTaskRows = (
   ordered: ReadonlyArray<OrderedTask>,
-  previousRows: ReadonlyArray<CellInfo>,
-): ReadonlyArray<CellInfo> => {
+  previousRows: ReadonlyArray<TaskRow>,
+): ReadonlyArray<TaskRow> => {
   const hasNextSiblingByIndex: Array<boolean> = Array.from({ length: ordered.length }, () => false);
   const seenByDepth: Array<boolean> = [];
   for (let i = ordered.length - 1; i >= 0; i--) {
@@ -102,48 +95,39 @@ const buildTaskRows = (
     const depth = entry.depth;
     ancestorStateByDepth.length = depth;
 
-    const hasChildren =
-      index + 1 < ordered.length &&
-      ordered[index + 1] !== undefined &&
-      ordered[index + 1]!.depth > depth;
-
     const tree = {
       depth,
       hasNextSibling: hasNextSiblingByIndex[index] ?? false,
-      hasChildren,
       ancestorHasNextSibling: [...ancestorStateByDepth],
     };
     const previousRow = previousRowsByTaskId.get(entry.snapshot.id);
 
     ancestorStateByDepth[depth] = hasNextSiblingByIndex[index] ?? false;
 
-    const prefixUnchanged =
-      previousRow !== undefined && sameTreePrefixInputs(previousRow.tree, tree);
-    const treeUnchanged = prefixUnchanged && previousRow.tree.hasChildren === tree.hasChildren;
+    const treeUnchanged = previousRow !== undefined && sameTreePrefixInputs(previousRow.tree, tree);
 
     if (treeUnchanged && previousRow.task === entry.snapshot) {
       return previousRow;
     }
 
-    const treePrefix = prefixUnchanged ? previousRow.derived.treePrefix : renderTreePrefix(tree);
-
     return {
       task: entry.snapshot,
       tree: treeUnchanged ? previousRow.tree : tree,
-      derived: deriveRow(entry.snapshot, treePrefix, previousRow),
+      derived: deriveRow(
+        entry.snapshot,
+        treeUnchanged ? previousRow.derived.treePrefix : renderTreePrefix(tree),
+        previousRow,
+      ),
     };
   });
 };
 
-export const prepareRows = (
-  store: ProgressState,
-  previousSnapshot?: RenderSnapshot,
-): RenderSnapshot => {
-  const visibleTasks = orderedVisibleTasks(store);
+export const prepareRows = (state: ProgressState, previousView?: RenderView): RenderView => {
+  const visibleTasks = orderedVisibleTasks(state);
   const hasRunningTasks = visibleTasks.some((entry) => entry.snapshot.status === "running");
 
   return {
-    rows: buildTaskRows(visibleTasks, previousSnapshot?.rows ?? []),
+    rows: buildTaskRows(visibleTasks, previousView?.rows ?? []),
     hasRunningTasks,
   };
 };

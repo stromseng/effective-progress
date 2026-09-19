@@ -5,7 +5,7 @@ const workflow = Effect.gen(function* () {
   yield* Progress.task(
     Effect.gen(function* () {
       yield* Effect.sleep("2 seconds");
-      const currentTask = yield* Progress.Task;
+      const currentTask = yield* Progress.CurrentTask;
       yield* Console.log("Bootstrapped", { taskId: currentTask });
     }),
     {

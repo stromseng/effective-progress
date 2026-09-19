@@ -3,9 +3,9 @@ import { Writable } from "node:stream";
 import { render } from "ink";
 import { createElement } from "react";
 import { defaults } from "../src/columns";
-import { TaskId, type TaskSnapshot } from "../src/task-model";
-import { NowProvider } from "../src/renderer/context/now-context";
-import { SpinnerProvider } from "../src/renderer/context/spinner-context";
+import { TaskId, TaskSnapshot } from "../src/tasks/model";
+import { NowClockProvider } from "../src/renderer/now-clock";
+import { SpinnerClockProvider } from "../src/renderer/spinner-clock";
 import { ProgressTable } from "../src/renderer/progress-table";
 import { prepareRows } from "../src/renderer/prepare-rows";
 
@@ -29,7 +29,7 @@ const measure = async (scenario: Scenario) => {
     Array.from({ length: ROWS }, (_, index) => {
       const id = TaskId(index + 1);
       const running = scenario === "spinner-all" || scenario === "task-one" || index === 0;
-      const task: TaskSnapshot = {
+      const task = new TaskSnapshot({
         id,
         parentId: null,
         description: `task-${index}`,
@@ -44,7 +44,7 @@ const measure = async (scenario: Scenario) => {
           { timestamp: 1_000, processed: 100 },
         ],
         metadata: undefined,
-      };
+      });
       return [id, task] as const;
     }),
   );
@@ -56,10 +56,10 @@ const measure = async (scenario: Scenario) => {
   let snapshot = prepareRows(store);
   let content = createElement(ProgressTable, { rows: snapshot.rows, columns: store.columns });
   const tree = (frame: number) =>
-    createElement(NowProvider, {
+    createElement(NowClockProvider, {
       active: false,
       nowOverride: scenario === "now-one" ? 1_000 + frame * 1_000 : 1_000,
-      children: createElement(SpinnerProvider, {
+      children: createElement(SpinnerClockProvider, {
         active: false,
         tickOverride: scenario.startsWith("spinner") ? frame : 0,
         children: content,

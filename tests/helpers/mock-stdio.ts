@@ -1,5 +1,5 @@
 import { PassThrough, type Writable } from "node:stream";
-import type { ProgressStdioService } from "../../src/services/stdio";
+import type { ProgressStdioService } from "../../src/stdio";
 
 interface MockWriteStreamOptions {
   readonly isTTY: boolean;

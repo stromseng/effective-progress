@@ -31,7 +31,7 @@ and API. They are not suppressed globally through lint-disable comments.
 
 ## Narrow overrides
 
-- `use-now-clock.ts` and `use-spinner-clock.ts` may read `Date.now()` because
+- `now-clock.tsx` and `spinner-clock.tsx` may read `Date.now()` because
   they own the React timer boundary. Randomness remains prohibited there.
 - `examples/benchmarks.ts` may serialize its own measurements with
   `JSON.stringify`; it does not parse external JSON. The rule stays enabled

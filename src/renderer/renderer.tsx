@@ -1,11 +1,11 @@
 import { Context, Effect, Layer, type Scope } from "effect";
 import { render } from "ink";
-import { NowProvider } from "./context/now-context";
-import { SpinnerProvider } from "./context/spinner-context";
+import { NowClockProvider } from "./now-clock";
+import { SpinnerClockProvider } from "./spinner-clock";
 import { ProgressTable } from "./progress-table";
-import { ProgressStore, type ProgressStoreService } from "../services/store/store";
-import { useProgressRenderView } from "./hooks/use-progress-render-view";
-import { ProgressStdio } from "../services/stdio";
+import { ProgressStore, type ProgressStoreService } from "../store/store";
+import { useProgressRenderView } from "./render-view";
+import { ProgressStdio } from "../stdio";
 
 interface RendererService {
   readonly start: Effect.Effect<void, never, Scope.Scope>;
@@ -13,22 +13,22 @@ interface RendererService {
 
 const MAX_FPS = 24;
 
-const ProgressRoot = ({ store }: { readonly store: ProgressStoreService }) => {
+const ProgressApp = ({ store }: { readonly store: ProgressStoreService }) => {
   const { rows, columns, hasRunningTasks } = useProgressRenderView(store);
 
   return (
-    <SpinnerProvider active={hasRunningTasks}>
-      <NowProvider active={hasRunningTasks}>
+    <SpinnerClockProvider active={hasRunningTasks}>
+      <NowClockProvider active={hasRunningTasks}>
         <ProgressTable rows={rows} columns={columns} />
-      </NowProvider>
-    </SpinnerProvider>
+      </NowClockProvider>
+    </SpinnerClockProvider>
   );
 };
 
 const makeRendererService = Effect.gen(function* () {
   const store = yield* ProgressStore;
   const stdio = yield* ProgressStdio;
-  const root = <ProgressRoot store={store} />;
+  const root = <ProgressApp store={store} />;
 
   return {
     start: Effect.acquireRelease(

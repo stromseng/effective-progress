@@ -20,7 +20,7 @@ interface CacheMeta {
   readonly phase: string;
 }
 
-const buildBranchColumn = (): Progress.ColumnDef<BuildMeta, number> => ({
+const buildBranchColumn = (): Progress.Column<BuildMeta, number> => ({
   prepare: (rows) =>
     rows.reduce((max, row) => Math.max(max, row.task.metadata.branch.length), "Branch".length),
   flexShrink: 0,
@@ -28,7 +28,7 @@ const buildBranchColumn = (): Progress.ColumnDef<BuildMeta, number> => ({
   render: ({ task }, { prepared }) => padRight(task.metadata.branch, prepared),
 });
 
-const buildArtifactColumn = (): Progress.ColumnDef<BuildMeta, number> => ({
+const buildArtifactColumn = (): Progress.Column<BuildMeta, number> => ({
   prepare: (rows) =>
     rows.reduce((max, row) => Math.max(max, row.task.metadata.artifact.length), "Artifact".length),
   flexShrink: 0,
@@ -36,7 +36,7 @@ const buildArtifactColumn = (): Progress.ColumnDef<BuildMeta, number> => ({
   render: ({ task }, { prepared }) => padRight(task.metadata.artifact, prepared),
 });
 
-const migrationDatabaseColumn = (): Progress.ColumnDef<MigrationMeta, number> => ({
+const migrationDatabaseColumn = (): Progress.Column<MigrationMeta, number> => ({
   prepare: (rows) =>
     rows.reduce((max, row) => Math.max(max, row.task.metadata.database.length), "Database".length),
   flexShrink: 0,
@@ -44,26 +44,26 @@ const migrationDatabaseColumn = (): Progress.ColumnDef<MigrationMeta, number> =>
   render: ({ task }, { prepared }) => padRight(task.metadata.database, prepared),
 });
 
-const migrationStepColumn = (): Progress.ColumnDef<MigrationMeta> => ({
+const migrationStepColumn = (): Progress.Column<MigrationMeta> => ({
   flexShrink: 0,
   minWidth: 12,
   render: ({ task }) => task.metadata.step,
 });
 
-const cacheRegionColumn = (): Progress.ColumnDef<CacheMeta> => ({
+const cacheRegionColumn = (): Progress.Column<CacheMeta> => ({
   flexShrink: 0,
   minWidth: 10,
   render: ({ task }) => task.metadata.region,
 });
 
-const cachePhaseColumn = (): Progress.ColumnDef<CacheMeta> => ({
+const cachePhaseColumn = (): Progress.Column<CacheMeta> => ({
   align: "center",
   flexShrink: 0,
   minWidth: 12,
   render: ({ task }) => task.metadata.phase,
 });
 
-const buildColumns = (): ReadonlyArray<Progress.Column<BuildMeta>> => [
+const buildColumns = (): ReadonlyArray<Progress.AnyColumn<BuildMeta>> => [
   Progress.Columns.description(),
   Progress.Columns.bar(),
   buildBranchColumn(),
@@ -72,7 +72,7 @@ const buildColumns = (): ReadonlyArray<Progress.Column<BuildMeta>> => [
   Progress.Columns.elapsed(),
 ];
 
-const migrationColumns = (): ReadonlyArray<Progress.Column<MigrationMeta>> => [
+const migrationColumns = (): ReadonlyArray<Progress.AnyColumn<MigrationMeta>> => [
   Progress.Columns.description(),
   Progress.Columns.bar(),
   migrationDatabaseColumn(),
@@ -81,7 +81,7 @@ const migrationColumns = (): ReadonlyArray<Progress.Column<MigrationMeta>> => [
   Progress.Columns.elapsed(),
 ];
 
-const cacheColumns = (): ReadonlyArray<Progress.Column<CacheMeta>> => [
+const cacheColumns = (): ReadonlyArray<Progress.AnyColumn<CacheMeta>> => [
   Progress.Columns.description(),
   Progress.Columns.bar(),
   cacheRegionColumn(),

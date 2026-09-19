@@ -1,14 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Deferred, Effect, Exit, Fiber, Option } from "effect";
 import * as Progress from "../../src";
-import { Renderer } from "../../src/renderer/renderer";
-
-const withProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  effect.pipe(
-    Effect.provide(Progress.Progress.layer),
-    Effect.provideService(Renderer, { start: Effect.void }),
-    Effect.scoped,
-  );
+import { withProgress } from "../helpers/progress";
 
 describe("task exit finalization", () => {
   test("concurrent handle metadata updates retain every increment without changing progress", async () => {

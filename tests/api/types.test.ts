@@ -9,7 +9,7 @@ class Dependency extends Context.Service<Dependency, { readonly value: number }>
 test("task overloads preserve values, errors, metadata and unrelated requirements", () => {
   const work = Effect.gen(function* () {
     yield* Progress.Progress;
-    yield* Progress.Task;
+    yield* Progress.CurrentTask;
     return (yield* Dependency).value;
   });
   expectTypeOf(Progress.task(work, { description: "public" })).toEqualTypeOf<

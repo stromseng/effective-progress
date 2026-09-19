@@ -1,9 +1,9 @@
 import { expect, onTestFinished, test } from "bun:test";
 import { render, Text } from "ink";
 import stripAnsi from "strip-ansi";
-import { useNow, useSpinnerTick, type Column } from "../../src";
-import { NowProvider } from "../../src/renderer/context/now-context";
-import { SpinnerProvider } from "../../src/renderer/context/spinner-context";
+import { useNow, useSpinnerTick, type AnyColumn } from "../../src";
+import { NowClockProvider } from "../../src/renderer/now-clock";
+import { SpinnerClockProvider } from "../../src/renderer/spinner-clock";
 import { ProgressTable } from "../../src/renderer/progress-table";
 import { createMockStdio } from "../helpers/mock-stdio";
 import { makeRows, makeTaskSnapshot } from "../helpers/renderer";
@@ -20,7 +20,7 @@ test("clock hooks update only subscribed cells and can unsubscribe and resume", 
     const now = useNow(active);
     return <Text>{`now:${now}`}</Text>;
   };
-  const definitions: ReadonlyArray<Column> = [
+  const definitions: ReadonlyArray<AnyColumn> = [
     {
       render: () => {
         calls.column++;
@@ -38,11 +38,11 @@ test("clock hooks update only subscribed cells and can unsubscribe and resume", 
   const columns = new Map([[task.id, definitions]]);
   let content = <ProgressTable rows={makeRows([task])} columns={columns} />;
   const tree = (tick: number, now: number) => (
-    <NowProvider active={false} nowOverride={now}>
-      <SpinnerProvider active={false} tickOverride={tick}>
+    <NowClockProvider active={false} nowOverride={now}>
+      <SpinnerClockProvider active={false} tickOverride={tick}>
         {content}
-      </SpinnerProvider>
-    </NowProvider>
+      </SpinnerClockProvider>
+    </NowClockProvider>
   );
   const io = createMockStdio();
   const instance = render(tree(0, 1_000), {
@@ -66,7 +66,7 @@ test("clock hooks update only subscribed cells and can unsubscribe and resume", 
 
   content = (
     <ProgressTable
-      rows={makeRows([{ ...task, status: "done", completedAt: 2_000 }])}
+      rows={makeRows([makeTaskSnapshot({ ...task, status: "done", completedAt: 2_000 })])}
       columns={columns}
     />
   );

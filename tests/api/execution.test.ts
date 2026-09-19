@@ -3,7 +3,7 @@ import { Console, Effect, Exit, Logger, Option, Result } from "effect";
 import { pipe } from "effect/Function";
 import * as Progress from "../../src";
 import { Renderer } from "../../src/renderer/renderer";
-import { createMockStdio } from "../helpers/mock-stdio";
+import { withMockStdio } from "../helpers/progress";
 
 const withLogSpy = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
@@ -20,11 +20,6 @@ const withLogSpy = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     const result = yield* Effect.provideService(effect, Console.Console, consoleSpy);
     return { result, logs };
   });
-
-const withStdio = <A, E, R>(effect: Effect.Effect<A, E, R>) => {
-  const stdio = createMockStdio();
-  return effect.pipe(Effect.provideService(Progress.ProgressStdio, stdio.service));
-};
 
 const withLoggerSpy = <A, E, R>(effect: Effect.Effect<A, E, R>) => {
   const logs: Array<Logger.Options<unknown>> = [];
@@ -47,14 +42,14 @@ const getTaskByDescription = (
 describe("Progress task scopes", () => {
   test("plain logs are not swallowed when no tasks are created", async () => {
     const message = "plain-log-no-task";
-    const { logs } = await Effect.runPromise(withLogSpy(withStdio(Console.log(message))));
+    const { logs } = await Effect.runPromise(withLogSpy(withMockStdio(Console.log(message))));
 
     expect(logs.some((args) => args[0] === message)).toBeTrue();
   });
 
   test("nested task reuses the outer service", async () => {
     const reused = await Effect.runPromise(
-      withStdio(
+      withMockStdio(
         Progress.task(
           Effect.gen(function* () {
             const outer = yield* Progress.Progress;
@@ -92,18 +87,18 @@ describe("Progress task scopes", () => {
     });
 
     const innerTask = await Effect.runPromise(
-      withStdio(Effect.provideService(outer, Renderer, { start: Effect.void })),
+      withMockStdio(Effect.provideService(outer, Renderer, { start: Effect.void })),
     );
 
     expect(innerTask.parentId).toBeNull();
   });
 
-  test("manual task delegates Console.log to the outer console and provides Task context", async () => {
+  test("manual task delegates Console.log to the outer console and provides CurrentTask context", async () => {
     const capturedMessage = "manual-captured";
 
     const { result, logs } = await Effect.runPromise(
       withLogSpy(
-        withStdio(
+        withMockStdio(
           Progress.task(
             Effect.gen(function* () {
               const progress = yield* Progress.Progress;
@@ -111,7 +106,7 @@ describe("Progress task scopes", () => {
               const taskIdFromContext = yield* progress.task(
                 Effect.gen(function* () {
                   yield* Console.log(capturedMessage);
-                  return yield* Progress.Task;
+                  return yield* Progress.CurrentTask;
                 }),
                 { description: "captured-task", transient: false },
               );
@@ -132,7 +127,7 @@ describe("Progress task scopes", () => {
   test("task preserves Effect v4 loggers", async () => {
     const { logs } = await Effect.runPromise(
       withLoggerSpy(
-        withStdio(
+        withMockStdio(
           Progress.task(Effect.logInfo("effect-log"), {
             description: "logger-task",
             transient: true,
@@ -147,7 +142,7 @@ describe("Progress task scopes", () => {
 
   test("all returns the values from each effect", async () => {
     const result = await Effect.runPromise(
-      withStdio(
+      withMockStdio(
         Progress.all([Effect.succeed(1), Effect.succeed("two"), Effect.succeed(true)], {
           description: "return-values",
         }),
@@ -161,7 +156,9 @@ describe("Progress task scopes", () => {
     const capturedMessage = "all-auto-captured";
 
     const { logs } = await Effect.runPromise(
-      withLogSpy(withStdio(Progress.all([Console.log(capturedMessage)], { description: "all" }))),
+      withLogSpy(
+        withMockStdio(Progress.all([Console.log(capturedMessage)], { description: "all" })),
+      ),
     );
 
     expect(logs.some((args) => args[0] === capturedMessage)).toBeTrue();
@@ -189,7 +186,7 @@ describe("Progress task scopes", () => {
         };
 
         return yield* Effect.provideService(
-          withStdio(
+          withMockStdio(
             Progress.task(
               Effect.gen(function* () {
                 yield* Console.dir(payload, options);
@@ -214,7 +211,7 @@ describe("Progress task scopes", () => {
 
     const { logs } = await Effect.runPromise(
       withLogSpy(
-        withStdio(
+        withMockStdio(
           pipe(
             [Console.log(capturedMessage)],
             Progress.all({
@@ -233,7 +230,7 @@ describe("Progress task scopes", () => {
 
     const { result, logs } = await Effect.runPromise(
       withLogSpy(
-        withStdio(
+        withMockStdio(
           pipe(
             ["a", "b"],
             Progress.forEach((item) => Console.log(`${capturedPrefix}:${item}`), {
@@ -252,7 +249,7 @@ describe("Progress task scopes", () => {
 
   test("task accepts total zero", async () => {
     const result = await Effect.runPromise(
-      withStdio(
+      withMockStdio(
         Effect.scoped(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
@@ -275,7 +272,7 @@ describe("Progress task scopes", () => {
 
   test("all accepts an empty array and renders 0/0 counts", async () => {
     const result = await Effect.runPromise(
-      withStdio(
+      withMockStdio(
         Effect.scoped(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
@@ -298,7 +295,7 @@ describe("Progress task scopes", () => {
 
   test("all accepts an empty object and renders 0/0 counts", async () => {
     const result = await Effect.runPromise(
-      withStdio(
+      withMockStdio(
         Effect.scoped(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
@@ -324,7 +321,7 @@ describe("Progress task scopes", () => {
 
   test("forEach accepts an empty iterable with known length and renders 0/0 counts", async () => {
     const result = await Effect.runPromise(
-      withStdio(
+      withMockStdio(
         Effect.scoped(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
@@ -347,7 +344,7 @@ describe("Progress task scopes", () => {
 
   test("all fail-fast marks task failed without unresolved failure accounting", async () => {
     const result = await Effect.runPromise(
-      withStdio(
+      withMockStdio(
         Effect.scoped(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
@@ -380,7 +377,7 @@ describe("Progress task scopes", () => {
 
   test("all result mode completes with mixed succeeded/failed counters", async () => {
     const result = await Effect.runPromise(
-      withStdio(
+      withMockStdio(
         Effect.scoped(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
@@ -415,7 +412,7 @@ describe("Progress task scopes", () => {
 
   test("all result mode completes after accounting for all failures", async () => {
     const result = await Effect.runPromise(
-      withStdio(
+      withMockStdio(
         Effect.scoped(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
@@ -444,7 +441,7 @@ describe("Progress task scopes", () => {
 
   test("forEach fail-fast does not account unresolved items", async () => {
     const result = await Effect.runPromise(
-      withStdio(
+      withMockStdio(
         Effect.scoped(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
@@ -475,7 +472,7 @@ describe("Progress task scopes", () => {
 
   test("typed callback preserves explicit failure when the effect succeeds", async () => {
     const result = await Effect.runPromise(
-      withStdio(
+      withMockStdio(
         Effect.scoped(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
@@ -505,7 +502,7 @@ describe("Progress task scopes", () => {
 
   test("typed callback preserves explicit completion when the effect fails", async () => {
     const result = await Effect.runPromise(
-      withStdio(
+      withMockStdio(
         Effect.scoped(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;
@@ -537,7 +534,7 @@ describe("Progress task scopes", () => {
 
   test("explicit finalization is terminal once a task leaves running", async () => {
     const result = await Effect.runPromise(
-      withStdio(
+      withMockStdio(
         Effect.scoped(
           Effect.gen(function* () {
             const progress = yield* Progress.Progress;

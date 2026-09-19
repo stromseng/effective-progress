@@ -1,21 +1,21 @@
 import { expect, test } from "bun:test";
-import type { CellInfo, ColumnDef } from "../../src/columns/types";
-import { TaskId } from "../../src/task-model";
+import type { TaskRow, Column } from "../../src/columns/types";
+import { TaskId } from "../../src/tasks/model";
 import { resolveColumns } from "../../src/renderer/column-layout";
 import { makeRows, makeTaskSnapshot } from "../helpers/renderer";
 
 test("shared preparation runs once per position and stays bound to each renderer and sizing hint", () => {
   const calls: number[] = [];
-  const prepare = (cells: ReadonlyArray<CellInfo>) => {
+  const prepare = (cells: ReadonlyArray<TaskRow>) => {
     calls.push(cells.length);
     return { width: cells.length * 3 };
   };
-  const left: ColumnDef<unknown, { width: number }> = {
+  const left: Column<unknown, { width: number }> = {
     prepare,
     minWidth: (prepared) => prepared.width,
     render: (_cell, { prepared, width }) => `left:${prepared.width}:${width}`,
   };
-  const right: ColumnDef<unknown, { width: number }> = {
+  const right: Column<unknown, { width: number }> = {
     prepare,
     minWidth: (prepared) => prepared.width + 1,
     render: (_cell, { prepared, width }) => `right:${prepared.width}:${width}`,

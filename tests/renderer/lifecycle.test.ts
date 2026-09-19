@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { Effect, Exit } from "effect";
-import { Progress } from "../../src/services/progress";
+import { Progress } from "../../src/progress";
 import { Renderer } from "../../src/renderer/renderer";
 
 test.each([false, true])(

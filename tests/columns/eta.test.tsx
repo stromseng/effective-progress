@@ -2,16 +2,13 @@ import { describe, expect, test } from "bun:test";
 import * as Progress from "../../src";
 import { makeTaskSnapshot, makeRow as deriveRow, renderRows } from "../helpers/renderer";
 
-const makeTask = (overrides: Partial<Progress.TaskSnapshot> = {}): Progress.TaskSnapshot =>
-  makeTaskSnapshot({ description: "eta-task", ...overrides });
-
 const renderTaskWithEta = (task: Progress.TaskSnapshot, now: number): string =>
   renderRows([deriveRow(task)], {
     now,
     columns: new Map([[task.id, [Progress.Columns.description(), Progress.Columns.eta()]]]),
   });
 
-const renderWithEta = (now: number): string => renderTaskWithEta(makeTask(), now);
+const renderWithEta = (now: number): string => renderTaskWithEta(makeTaskSnapshot(), now);
 
 describe("renderer eta column", () => {
   test("renders prefixed eta when task has progress", () => {
@@ -20,7 +17,7 @@ describe("renderer eta column", () => {
   });
 
   test("does not render ETA for completed tasks", () => {
-    const completedTask = makeTask({
+    const completedTask = makeTaskSnapshot({
       description: "done-task",
       status: "done",
       units: { succeeded: 2, failed: 0, processed: 2, total: 2 },
@@ -37,7 +34,7 @@ describe("renderer eta column", () => {
 
   test("renders longer ETA for slow tasks", () => {
     const output = renderTaskWithEta(
-      makeTask({
+      makeTaskSnapshot({
         progressSamples: [
           { timestamp: 0, processed: 0 },
           { timestamp: 88_320_000, processed: 1 },
@@ -51,7 +48,7 @@ describe("renderer eta column", () => {
 
   test("uses recent progress samples instead of lifetime average", () => {
     const output = renderTaskWithEta(
-      makeTask({
+      makeTaskSnapshot({
         units: {
           succeeded: 11,
           failed: 0,
