@@ -157,7 +157,7 @@ Effect.runPromise(program.pipe(Effect.provide(Logger.layer([Logger.consolePretty
 
 - Rendering is powered by [Ink](https://github.com/vadimdemedes/ink).
 - Built-in columns are exposed as `Progress.Columns.description()`, `bar()`, `amount()`, `elapsedEta()`, `elapsed()`, `eta()`, `spacer()`, and `defaults()`.
-- `elapsedEta()` renders a compact clock-style column as `elapsed<eta` using the shape `00:00<00:00`; `defaults()` now uses that combined column.
+- `elapsedEta()` renders a compact clock-style column as `elapsed<eta` using the shape `00:00<00:00`; `defaults()` includes this combined column.
 - Determinate bars are segmented by outcome: succeeded (green), failed (red), and remaining (neutral).
 - `bar()` defaults to a fixed width of `30`; pass `bar({ size: "fullwidth" })` to consume remaining row width or `bar({ size: 12 })` for an explicit width.
 - Determinate amount text shows counters without prefixes: `<succeeded> <failed> <processed>/<total>`.
@@ -206,7 +206,7 @@ Task mutation rules:
   the previous value; if the resulting succeeded-plus-failed sum would overflow to
   infinity, both counter changes are ignored. Finite counts may still exceed the
   total, and negative finite values are clamped to zero.
-- Totals retain their existing rules: negative or non-finite totals become unknown.
+- Negative or non-finite totals become unknown.
 - A missing or removed parent ID creates a root task with `parentId: null`, without
   inheriting policies from the absent parent.
 
@@ -235,7 +235,7 @@ const program = Progress.task(
 );
 ```
 
-Task cleanup policy is fixed at creation. Pass `transient: true` when creating a task to remove its subtree when it finishes. Children inherit a transient parent’s cleanup policy, and a child can opt into transient cleanup under a persistent parent. `updateTask` and `TaskHandle.update` no longer accept `transient`.
+Task cleanup policy is fixed at creation. Pass `transient: true` when creating a task to remove its subtree when it finishes. Children inherit a transient parent’s cleanup policy, and a child can opt into transient cleanup under a persistent parent.
 
 Manual total behavior:
 
@@ -327,9 +327,6 @@ spinner clock. Both accept an optional `active` boolean (default `true`). Passin
 `false` returns `0` without subscribing. Built-in cells unsubscribe when their task
 finishes. These hooks consume the progress renderer's providers; they do not create
 per-cell timers.
-
-**Migration:** `ctx.now` and `ctx.spinnerTick` have been removed. Move those reads
-into a returned React component using the corresponding hook.
 
 ## Performance benchmarks
 

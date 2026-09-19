@@ -5,6 +5,40 @@
 - [Effect TSGO setup guide and README](https://github.com/effect-ts/tsgo#readme)
 - [Effect TSGO extension and setup for Zed](https://github.com/RATIU5/zed-effect-tsgo)
 
+## How a call flows through the library
+
+Every public entry point ends up in the same pipeline. Reading it top to bottom is the
+fastest way to learn the codebase.
+
+1. **Public API** (`src/api/`). `task`, `all`, and `forEach` are the only functions most
+   users call. `all` and `forEach` wrap each child effect so its exit increments the parent
+   task's counters, then delegate to `task`. `provide-progress.ts` reuses a `Progress`
+   service already in the environment or scopes a fresh one around the call, so users never
+   provide a layer by hand.
+2. **Progress service** (`src/services/progress.ts`). `Progress.layer` wires the store, the
+   stdio streams, and the renderer together and starts the renderer when the layer is built.
+   The service object is the `TaskOperations` interface (add, update, increment, complete,
+   fail, read) plus the `task` runner.
+3. **Task runner** (`src/tasks/run-task.ts`). Creates the task, binds a typed `TaskHandle`
+   over the store, runs the user's effect with the `Task` tag set to the new task ID, and
+   auto-finalizes from the exit. Parent inference uses the `CurrentParent` reference; each
+   service instance tags its entries with an owner symbol so nested services with separate
+   stores never adopt each other's tasks.
+4. **Store** (`src/services/store/`). Owns the immutable `ProgressState` (tasks by ID, depth
+   ordered render list, per-task columns). `task-state.ts` holds the pure per-task
+   transitions and counter invariants; `task-tree.ts` holds insertion and transient subtree
+   removal; `store.ts` composes them and records ETA samples on every processed-count change.
+   Reads such as `getTask` see the live state immediately.
+5. **Snapshot publisher** (`src/services/store/snapshot-publisher.ts`). Throttles state
+   publication to the renderer to one update per 100ms and flushes synchronously on
+   shutdown so the final frame is exact.
+6. **Renderer** (`src/renderer/`). Subscribes to the published state, derives rows and
+   column layout, and renders them with Ink. The section below walks through this stage.
+
+Supporting modules: `src/task-model.ts` defines the `TaskSnapshot` shape and `TaskId`,
+`src/progress-estimation.ts` owns ETA sampling and estimation, `src/columns/` holds the
+built-in column factories, and `src/terminal/text-width.ts` measures terminal cells.
+
 ## Following a published snapshot to the terminal
 
 The rendering pipeline lives in `src/renderer/`:
