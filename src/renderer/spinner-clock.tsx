@@ -3,7 +3,7 @@ import { createContext, type ReactNode, use, useEffect, useRef, useState } from 
 
 const normalizeIntervalMillis = (intervalMillis: number): number => Math.max(1, intervalMillis);
 
-export const getSpinnerTickAtTime = (
+const getSpinnerTickAtTime = (
   baseTick: number,
   startedAt: number,
   now: number,

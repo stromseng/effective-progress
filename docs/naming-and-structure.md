@@ -1,9 +1,8 @@
 # Naming and structure proposal
 
-> **Status: implemented.** Deviations from the plan: Schema stays (see the open decision below,
-> resolved as "keep for now"); the per-file `makeTask` adapters in column tests were kept because
-> they already build on `makeTaskSnapshot` and only fix arguments per suite; `useNowClock` and
-> `useSpinnerClock` became module-private inside the merged clock files.
+> **Status: implemented.** The Schema decision below was resolved by switching `TaskSnapshot` to
+> `Data.Class` and plain interfaces for the other model types. `useNowClock`, `useSpinnerClock`,
+> and `getSpinnerTickAtTime` became module-private inside the merged clock files.
 
 This document proposes concrete fixes for every naming and structure issue found in the
 maintainability review. The vocabulary it applies is defined in [CONTEXT.md](../CONTEXT.md);
@@ -124,7 +123,7 @@ option types should differ by exactly one field.
 | `RenderedNode`                                       | `CellOutput`                               | it wraps a cell's render result                              |
 | `useNowClock`, `useSpinnerClock`                     | unchanged                                  |                                                              |
 | `NowProvider`, `SpinnerProvider`                     | `NowClockProvider`, `SpinnerClockProvider` | both are clocks per CONTEXT.md                               |
-| `getSpinnerTickAtTime`                               | unchanged                                  |                                                              |
+| `getSpinnerTickAtTime`                               | module-private                             | only the clock hook uses it                                  |
 
 ### Public entry point
 
@@ -199,7 +198,7 @@ src/
 | `Columns.resolveColumnSizeValue`                                                        | Internal helper, see moves.                                                                             |
 | `spacer<M>` generic parameter                                                           | Every other factory returns `Column<unknown, ...>`.                                                     |
 
-### Open decision: Schema
+### Decision: Schema replaced with Data
 
 `src/tasks/model.ts` uses `Schema` only to derive types. Six `*Schema` values are exported and
 nothing in `src` decodes with them. This is not a naming issue but it decides what the model
@@ -211,8 +210,9 @@ file looks like. Two consistent options:
 - **Drop:** replace with plain interfaces and `Brand.nominal` for `TaskId`, remove the six
   `*Schema` exports, and stop shipping Schema in the bundle.
 
-Recommendation: drop. The invariant handling in `task-state.ts` is already the boundary, and
-consumers have not been given a reason to decode snapshots.
+Resolved: dropped in favor of `Data.Class`. `TaskSnapshot` is a `Data.Class` so snapshots are
+immutable readonly values; `TaskUnits`, `TaskProgressSample`, `TaskStatus`, and
+`TaskCountDisplay` are plain types. The invariant handling in `task-state.ts` is the boundary.
 
 ## Tests
 
@@ -249,5 +249,5 @@ Each step leaves `bun run check` and `bun test` green and is one PR.
    unexport `TaskApi`. Update README and examples.
 5. **Folder moves.** No public API change. Update `.oxlintrc.json` override paths,
    `tsdown.config.ts` entry, DEVELOPMENT.md paths.
-6. **Schema decision.** Separate PR once decided.
+6. **Schema decision.** Resolved: `TaskSnapshot` is a `Data.Class`.
 7. **Public entry grouping.** Regroup `src/index.ts`; last so it reflects the final names.

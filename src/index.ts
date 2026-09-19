@@ -26,21 +26,8 @@ export { useNow } from "./renderer/now-clock";
 export { useSpinnerTick } from "./renderer/spinner-clock";
 
 // Task model: snapshots, units, and the typed handle.
-export {
-  TaskId,
-  TaskCountDisplaySchema,
-  TaskProgressSampleSchema,
-  TaskSnapshotSchema,
-  TaskStatusSchema,
-  TaskUnitsSchema,
-} from "./tasks/model";
-export type {
-  TaskCountDisplay,
-  TaskProgressSample,
-  TaskSnapshot,
-  TaskStatus,
-  TaskUnits,
-} from "./tasks/model";
+export { TaskId, TaskSnapshot } from "./tasks/model";
+export type { TaskCountDisplay, TaskProgressSample, TaskStatus, TaskUnits } from "./tasks/model";
 export type { TaskHandle } from "./tasks/task-handle";
 
 // Service layer: provide or reuse the Progress service and operate on tasks by ID.

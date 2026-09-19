@@ -1,48 +1,44 @@
-import { Brand, Schema } from "effect";
+import { Brand, Data } from "effect";
 
-const TaskIdSchema = Schema.Number.pipe(Schema.brand("TaskId"));
-
-export type TaskId = typeof TaskIdSchema.Type;
+export type TaskId = number & Brand.Brand<"TaskId">;
 export const TaskId = Brand.nominal<TaskId>();
 
-export const TaskStatusSchema = Schema.Literals(["running", "done", "failed"]);
+export type TaskStatus = "running" | "done" | "failed";
 
-export type TaskStatus = typeof TaskStatusSchema.Type;
-export const TaskCountDisplaySchema = Schema.Literals(["processedOnly", "detailed"]);
-export type TaskCountDisplay = typeof TaskCountDisplaySchema.Type;
-export const TaskUnitsSchema = Schema.Struct({
-  succeeded: Schema.Number,
-  failed: Schema.Number,
-  processed: Schema.Number,
-  total: Schema.optional(Schema.Number),
-});
+/** Whether the amount column shows only processed over total, or also the succeeded and failed counters. */
+export type TaskCountDisplay = "processedOnly" | "detailed";
 
-export type TaskUnits = typeof TaskUnitsSchema.Type;
+export interface TaskUnits {
+  readonly succeeded: number;
+  readonly failed: number;
+  /** Always succeeded plus failed. */
+  readonly processed: number;
+  /** Absent when the total is unknown. */
+  readonly total?: number;
+}
 
-// A processed-count observation used to estimate ETA from recent throughput.
-export const TaskProgressSampleSchema = Schema.Struct({
-  timestamp: Schema.Number,
-  processed: Schema.Number,
-});
+/** One processed-count observation, kept in a rolling window for ETA estimation. */
+export interface TaskProgressSample {
+  readonly timestamp: number;
+  readonly processed: number;
+}
 
-export type TaskProgressSample = typeof TaskProgressSampleSchema.Type;
+/** The readonly view of one task at one moment. Every store transition produces a new instance. */
+export class TaskSnapshot extends Data.Class<{
+  readonly id: TaskId;
+  readonly parentId: TaskId | null;
+  readonly description: string;
+  readonly status: TaskStatus;
+  readonly countDisplay: TaskCountDisplay;
+  readonly transient: boolean;
+  readonly units: TaskUnits;
+  readonly startedAt: number;
+  readonly completedAt: number | null;
+  readonly progressSamples: ReadonlyArray<TaskProgressSample>;
+  readonly metadata: unknown;
+}> {}
 
-export const TaskSnapshotSchema = Schema.Struct({
-  id: TaskIdSchema,
-  parentId: Schema.NullOr(TaskIdSchema),
-  description: Schema.String,
-  status: TaskStatusSchema,
-  countDisplay: TaskCountDisplaySchema,
-  transient: Schema.Boolean,
-  units: TaskUnitsSchema,
-  startedAt: Schema.Number,
-  completedAt: Schema.NullOr(Schema.Number),
-  progressSamples: Schema.Array(TaskProgressSampleSchema),
-  metadata: Schema.Unknown,
-});
-
-export type TaskSnapshot = typeof TaskSnapshotSchema.Type;
 export const isDeterminate = (
   task: TaskSnapshot,
-): task is TaskSnapshot & { readonly units: TaskSnapshot["units"] & { readonly total: number } } =>
+): task is TaskSnapshot & { readonly units: TaskUnits & { readonly total: number } } =>
   task.units.total !== undefined;

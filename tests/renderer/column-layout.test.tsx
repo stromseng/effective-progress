@@ -4,14 +4,6 @@ import { makeTaskSnapshot, makeRow as deriveRow, renderRows } from "../helpers/r
 import { resolveColumns } from "../../src/renderer/column-layout";
 import type { TaskRow } from "../../src/columns/types";
 
-const makeTask = <M,>(
-  id: number,
-  description: string,
-  metadata?: M,
-  overrides: Partial<Progress.TaskSnapshot> = {},
-): Progress.TaskSnapshot =>
-  makeTaskSnapshot({ id: Progress.TaskId(id), description, metadata, ...overrides });
-
 const renderWithColumns = (
   rows: ReadonlyArray<TaskRow>,
   columns: Progress.ProgressState["columns"],
@@ -26,7 +18,10 @@ describe("column layout", () => {
 
   test("renders basic rows with default columns", () => {
     const output = renderWithColumns(
-      [deriveRow(makeTask(1, "task-a")), deriveRow(makeTask(2, "task-b"))],
+      [
+        deriveRow(makeTaskSnapshot({ id: Progress.TaskId(1), description: "task-a" })),
+        deriveRow(makeTaskSnapshot({ id: Progress.TaskId(2), description: "task-b" })),
+      ],
       new Map(),
     );
 
@@ -37,7 +32,7 @@ describe("column layout", () => {
 
   test("renders the combined elapsed/eta column while keeping standalone columns available", () => {
     const output = renderWithColumns(
-      [deriveRow(makeTask(1, "timed-task"))],
+      [deriveRow(makeTaskSnapshot({ id: Progress.TaskId(1), description: "timed-task" }))],
       new Map<Progress.TaskId, ReadonlyArray<Progress.AnyColumn>>([
         [
           Progress.TaskId(1),
@@ -60,7 +55,9 @@ describe("column layout", () => {
     const output = renderWithColumns(
       [
         deriveRow(
-          makeTask(1, "hour-task", undefined, {
+          makeTaskSnapshot({
+            id: Progress.TaskId(1),
+            description: "hour-task",
             progressSamples: [
               { timestamp: 0, processed: 0 },
               { timestamp: 3_661_000, processed: 1 },
@@ -81,7 +78,9 @@ describe("column layout", () => {
     const output = renderWithColumns(
       [
         deriveRow(
-          makeTask(1, "long-task", undefined, {
+          makeTaskSnapshot({
+            id: Progress.TaskId(1),
+            description: "long-task",
             progressSamples: [
               { timestamp: 0, processed: 0 },
               { timestamp: 360_000_000, processed: 1 },
@@ -99,7 +98,9 @@ describe("column layout", () => {
   });
 
   test("caps description width at its natural content size and keeps the default bar fixed", () => {
-    const rows = [deriveRow(makeTask(1, "short task"))];
+    const rows = [
+      deriveRow(makeTaskSnapshot({ id: Progress.TaskId(1), description: "short task" })),
+    ];
     const positions = resolveColumns(rows, new Map());
 
     expect(positions[0]?.flexBasis).toBe("short task".length + 2);
@@ -110,7 +111,7 @@ describe("column layout", () => {
   });
 
   test("supports fullwidth bars when requested explicitly", () => {
-    const rows = [deriveRow(makeTask(1, "wide bar"))];
+    const rows = [deriveRow(makeTaskSnapshot({ id: Progress.TaskId(1), description: "wide bar" }))];
     const positions = resolveColumns(
       rows,
       new Map([
@@ -127,7 +128,9 @@ describe("column layout", () => {
   });
 
   test("supports fixed custom bar widths", () => {
-    const rows = [deriveRow(makeTask(1, "narrow bar"))];
+    const rows = [
+      deriveRow(makeTaskSnapshot({ id: Progress.TaskId(1), description: "narrow bar" })),
+    ];
     const positions = resolveColumns(
       rows,
       new Map([
@@ -174,8 +177,20 @@ describe("column layout", () => {
 
     const output = renderWithColumns(
       [
-        deriveRow(makeTask(1, "model-task", { model: "gpt-4", score: 0 } satisfies EvalMeta)),
-        deriveRow(makeTask(2, "score-task", { model: "", score: 97 } satisfies EvalMeta)),
+        deriveRow(
+          makeTaskSnapshot({
+            id: Progress.TaskId(1),
+            description: "model-task",
+            metadata: { model: "gpt-4", score: 0 } satisfies EvalMeta,
+          }),
+        ),
+        deriveRow(
+          makeTaskSnapshot({
+            id: Progress.TaskId(2),
+            description: "score-task",
+            metadata: { model: "", score: 97 } satisfies EvalMeta,
+          }),
+        ),
       ],
       columns,
     );
@@ -203,7 +218,10 @@ describe("column layout", () => {
     ]);
 
     const output = renderWithColumns(
-      [deriveRow(makeTask(1, "task-with-extra")), deriveRow(makeTask(2, "task-without-extra"))],
+      [
+        deriveRow(makeTaskSnapshot({ id: Progress.TaskId(1), description: "task-with-extra" })),
+        deriveRow(makeTaskSnapshot({ id: Progress.TaskId(2), description: "task-without-extra" })),
+      ],
       columns,
     );
 
@@ -227,7 +245,10 @@ describe("column layout", () => {
       ],
     ]);
 
-    const output = renderWithColumns([deriveRow(makeTask(1, "tagged-task"))], columns);
+    const output = renderWithColumns(
+      [deriveRow(makeTaskSnapshot({ id: Progress.TaskId(1), description: "tagged-task" }))],
+      columns,
+    );
 
     expect(output).toContain("tagged-task");
     expect(output).toContain("tag");
@@ -249,8 +270,20 @@ describe("column layout", () => {
 
     const output = renderWithColumns(
       [
-        deriveRow(makeTask(1, "task-a", { label: "alpha" })),
-        deriveRow(makeTask(2, "task-b", { count: 7 })),
+        deriveRow(
+          makeTaskSnapshot({
+            id: Progress.TaskId(1),
+            description: "task-a",
+            metadata: { label: "alpha" },
+          }),
+        ),
+        deriveRow(
+          makeTaskSnapshot({
+            id: Progress.TaskId(2),
+            description: "task-b",
+            metadata: { count: 7 },
+          }),
+        ),
       ],
       new Map<Progress.TaskId, ReadonlyArray<Progress.AnyColumn>>([
         [Progress.TaskId(1), [Progress.Columns.description(), uppercase]],
@@ -264,7 +297,10 @@ describe("column layout", () => {
 
   test("aggregates numeric sizing hints across different columns at the same index", () => {
     const output = renderWithColumns(
-      [deriveRow(makeTask(1, "wide-a")), deriveRow(makeTask(2, "wide-b"))],
+      [
+        deriveRow(makeTaskSnapshot({ id: Progress.TaskId(1), description: "wide-a" })),
+        deriveRow(makeTaskSnapshot({ id: Progress.TaskId(2), description: "wide-b" })),
+      ],
       new Map<Progress.TaskId, ReadonlyArray<Progress.AnyColumn>>([
         [
           Progress.TaskId(1),

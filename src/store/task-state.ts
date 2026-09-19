@@ -1,5 +1,5 @@
 import type { AddTaskOptions, UpdateTaskOptions } from "../tasks/options";
-import type { TaskId, TaskSnapshot } from "../tasks/model";
+import { TaskSnapshot, type TaskId } from "../tasks/model";
 
 interface TaskCounts {
   readonly succeeded: number;
@@ -82,12 +82,12 @@ export const updateTaskSnapshot = (snapshot: TaskSnapshot, options: UpdateTaskOp
           currentUnits,
         );
 
-  return {
+  return new TaskSnapshot({
     ...snapshot,
     description: options.description ?? snapshot.description,
     countDisplay: options.countDisplay ?? snapshot.countDisplay,
     units,
-  } satisfies TaskSnapshot;
+  });
 };
 
 /** Creates task data with inherited display and cleanup policies. */
@@ -104,7 +104,7 @@ export const createTaskSnapshot = <M>(
   });
   const parentId = parent?.id ?? null;
   const countDisplay = options.countDisplay ?? parent?.countDisplay ?? "detailed";
-  const task = {
+  return new TaskSnapshot({
     id: taskId,
     parentId,
     description: options.description,
@@ -116,9 +116,7 @@ export const createTaskSnapshot = <M>(
     completedAt: null,
     progressSamples: [{ timestamp: now, processed: units.processed }],
     metadata: options.metadata,
-  } satisfies TaskSnapshot;
-
-  return task;
+  });
 };
 
 /** Finalizes retained task data; the store owns transient subtree removal. */
@@ -130,10 +128,10 @@ export const finalizeTaskSnapshot = (
   if (task.status !== "running") {
     return task;
   }
-  return {
+  return new TaskSnapshot({
     ...task,
     status,
     units: status === "done" ? completedUnits(task.units) : task.units,
     completedAt: now,
-  };
+  });
 };

@@ -66,7 +66,7 @@ test("clock hooks update only subscribed cells and can unsubscribe and resume", 
 
   content = (
     <ProgressTable
-      rows={makeRows([{ ...task, status: "done", completedAt: 2_000 }])}
+      rows={makeRows([makeTaskSnapshot({ ...task, status: "done", completedAt: 2_000 })])}
       columns={columns}
     />
   );

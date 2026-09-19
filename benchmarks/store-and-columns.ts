@@ -3,7 +3,7 @@ import { Effect } from "effect";
 import { resolveColumns } from "../src/renderer/column-layout";
 import { prepareRows } from "../src/renderer/prepare-rows";
 import { ProgressStore } from "../src/store/store";
-import { TaskId, type TaskSnapshot } from "../src/tasks/model";
+import { TaskId, TaskSnapshot } from "../src/tasks/model";
 import { type Column } from "../src/columns/types";
 import { type ProgressState } from "../src/store/state";
 
@@ -78,22 +78,25 @@ const makeColumnFixture = (rowCount: number, distinctPrepare: boolean) => {
 
   for (let index = 0; index < rowCount; index++) {
     const id = TaskId(index + 1);
-    store.tasks.set(id, {
+    store.tasks.set(
       id,
-      parentId: null,
-      description: `task-${index}`,
-      status: "running",
-      countDisplay: "detailed",
-      transient: false,
-      units: { succeeded: 25, failed: 0, processed: 25, total: 100 },
-      startedAt: 0,
-      completedAt: null,
-      progressSamples: [
-        { timestamp: 0, processed: 0 },
-        { timestamp: 1_000, processed: 25 },
-      ],
-      metadata: undefined,
-    } satisfies TaskSnapshot);
+      new TaskSnapshot({
+        id,
+        parentId: null,
+        description: `task-${index}`,
+        status: "running",
+        countDisplay: "detailed",
+        transient: false,
+        units: { succeeded: 25, failed: 0, processed: 25, total: 100 },
+        startedAt: 0,
+        completedAt: null,
+        progressSamples: [
+          { timestamp: 0, processed: 0 },
+          { timestamp: 1_000, processed: 25 },
+        ],
+        metadata: undefined,
+      }),
+    );
     renderOrder.push({ id, depth: 0 });
     if (distinctPrepare) {
       const column: Column<unknown, number> = {

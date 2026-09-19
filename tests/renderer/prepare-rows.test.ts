@@ -4,14 +4,6 @@ import { type ProgressState } from "../../src/store/state";
 import { prepareRows } from "../../src/renderer/prepare-rows";
 import { makeTaskSnapshot } from "../helpers/renderer";
 
-const makeTask = (id: number, description: string): TaskSnapshot =>
-  makeTaskSnapshot({
-    id: TaskId(id),
-    description,
-    units: { succeeded: 0, failed: 0, processed: 0 },
-    progressSamples: [{ timestamp: 0, processed: 0 }],
-  });
-
 const makeStore = (entries: ReadonlyArray<readonly [TaskSnapshot, number]>): ProgressState => ({
   tasks: new Map(entries.map(([task]) => [task.id, task])),
   renderOrder: entries.map(([task, depth]) => ({ id: task.id, depth })),
@@ -20,15 +12,18 @@ const makeStore = (entries: ReadonlyArray<readonly [TaskSnapshot, number]>): Pro
 
 describe("render view reuse", () => {
   test("reuses unchanged rows and tree data while updating text widths", () => {
-    const root = makeTask(1, "root");
-    const child = { ...makeTask(2, "下载"), parentId: root.id };
+    const root = makeTaskSnapshot({ id: TaskId(1), description: "root" });
+    const child = makeTaskSnapshot({ id: TaskId(2), description: "下载", parentId: root.id });
     const first = prepareRows(
       makeStore([
         [root, 0],
         [child, 1],
       ]),
     );
-    const counted = { ...child, units: { succeeded: 1, failed: 0, processed: 1 } };
+    const counted = makeTaskSnapshot({
+      ...child,
+      units: { succeeded: 1, failed: 0, processed: 1 },
+    });
     const second = prepareRows(
       makeStore([
         [root, 0],
@@ -46,7 +41,11 @@ describe("render view reuse", () => {
       descriptionWidth: 4,
     });
 
-    const renamed = { ...counted, description: "download", units: { ...counted.units, total: 2 } };
+    const renamed = makeTaskSnapshot({
+      ...counted,
+      description: "download",
+      units: { ...counted.units, total: 2 },
+    });
     const third = prepareRows(
       makeStore([
         [root, 0],
@@ -58,10 +57,10 @@ describe("render view reuse", () => {
   });
 
   test("updates children and ancestor connectors when the task tree grows", () => {
-    const root = makeTask(1, "root");
-    const child = { ...makeTask(2, "child"), parentId: root.id };
-    const leaf = { ...makeTask(3, "leaf"), parentId: child.id };
-    const sibling = { ...makeTask(4, "sibling"), parentId: root.id };
+    const root = makeTaskSnapshot({ id: TaskId(1), description: "root" });
+    const child = makeTaskSnapshot({ id: TaskId(2), description: "child", parentId: root.id });
+    const leaf = makeTaskSnapshot({ id: TaskId(3), description: "leaf", parentId: child.id });
+    const sibling = makeTaskSnapshot({ id: TaskId(4), description: "sibling", parentId: root.id });
     const first = prepareRows(
       makeStore([
         [root, 0],

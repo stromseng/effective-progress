@@ -3,7 +3,7 @@ import { Writable } from "node:stream";
 import { render } from "ink";
 import { createElement } from "react";
 import { defaults } from "../src/columns";
-import { TaskId, type TaskSnapshot } from "../src/tasks/model";
+import { TaskId, TaskSnapshot } from "../src/tasks/model";
 import { NowClockProvider } from "../src/renderer/now-clock";
 import { SpinnerClockProvider } from "../src/renderer/spinner-clock";
 import { ProgressTable } from "../src/renderer/progress-table";
@@ -29,7 +29,7 @@ const measure = async (scenario: Scenario) => {
     Array.from({ length: ROWS }, (_, index) => {
       const id = TaskId(index + 1);
       const running = scenario === "spinner-all" || scenario === "task-one" || index === 0;
-      const task: TaskSnapshot = {
+      const task = new TaskSnapshot({
         id,
         parentId: null,
         description: `task-${index}`,
@@ -44,7 +44,7 @@ const measure = async (scenario: Scenario) => {
           { timestamp: 1_000, processed: 100 },
         ],
         metadata: undefined,
-      };
+      });
       return [id, task] as const;
     }),
   );

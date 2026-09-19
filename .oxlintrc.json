@@ -1,7 +1,8 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": null,
-  "categories": {},
+  "categories": {
+    "correctness": "error"
+  },
   "rules": {
     "require-yield": "allow",
     "anti-slop/no-chained-type-assertions": "error",

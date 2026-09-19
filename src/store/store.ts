@@ -4,7 +4,7 @@ import type { AnyColumn } from "../columns/types";
 import type { TaskId } from "../tasks/model";
 import type { ProgressState } from "./state";
 import type { TaskOperations } from "../tasks/task-operations";
-import { TaskId as makeTaskId, type TaskSnapshot } from "../tasks/model";
+import { TaskId as makeTaskId, TaskSnapshot } from "../tasks/model";
 import {
   createTaskSnapshot,
   finalizeTaskSnapshot,
@@ -60,10 +60,13 @@ const makeProgressStoreInternals = (publishQueue: Queue.Queue<void>) => {
       return current;
     }
     const tasks = new Map(current.tasks);
-    tasks.set(task.id, {
-      ...nextTask,
-      progressSamples: appendProgressSample(task.progressSamples, now, nextTask.units.processed),
-    });
+    tasks.set(
+      task.id,
+      new TaskSnapshot({
+        ...nextTask,
+        progressSamples: appendProgressSample(task.progressSamples, now, nextTask.units.processed),
+      }),
+    );
     return { ...current, tasks };
   };
 
@@ -84,10 +87,14 @@ const makeProgressStoreInternals = (publishQueue: Queue.Queue<void>) => {
     });
 
   const incrementCounter = (taskId: TaskId, kind: "succeeded" | "failed", amount: number) =>
-    modifyRunningTask(taskId, (task) => ({
-      ...task,
-      units: normalizeUnits({ ...task.units, [kind]: task.units[kind] + amount }, task.units),
-    }));
+    modifyRunningTask(
+      taskId,
+      (task) =>
+        new TaskSnapshot({
+          ...task,
+          units: normalizeUnits({ ...task.units, [kind]: task.units[kind] + amount }, task.units),
+        }),
+    );
 
   const finalizeTask = (taskId: TaskId, status: "done" | "failed") =>
     Effect.gen(function* () {
@@ -140,9 +147,13 @@ const makeProgressStoreInternals = (publishQueue: Queue.Queue<void>) => {
     failTask: (taskId) => finalizeTask(taskId, "failed"),
     getTask: (taskId) => Effect.sync(() => Option.fromNullishOr(state.tasks.get(taskId))),
     listTasks: Effect.sync(() => Array.from(state.tasks.values())),
-    setMetadata: (taskId, metadata) => modifyRunningTask(taskId, (task) => ({ ...task, metadata })),
+    setMetadata: (taskId, metadata) =>
+      modifyRunningTask(taskId, (task) => new TaskSnapshot({ ...task, metadata })),
     updateMetadata: (taskId, f) =>
-      modifyRunningTask(taskId, (task) => ({ ...task, metadata: f(task.metadata) })),
+      modifyRunningTask(
+        taskId,
+        (task) => new TaskSnapshot({ ...task, metadata: f(task.metadata) }),
+      ),
   };
 
   return { store, publisherLoop: publisher.publisherLoop };
