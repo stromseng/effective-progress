@@ -1,10 +1,10 @@
-import type { TaskApi } from "../tasks/task-api";
-import type { TaskOperations } from "./task-operations";
+import type { TaskOverloads } from "./tasks/task-overloads";
+import type { TaskOperations } from "./tasks/task-operations";
 import { Context, Effect, Layer, Option } from "effect";
-import { createTaskRunner } from "../tasks/run-task";
+import { createTaskRunner } from "./tasks/task-runner";
 import { ProgressStore } from "./store/store";
-import type { Task } from "../tasks/current-task";
-import { Renderer } from "../renderer/renderer";
+import type { CurrentTask } from "./tasks/current-task";
+import { Renderer } from "./renderer/renderer";
 import { ProgressStdio } from "./stdio";
 
 export interface ProgressService extends TaskOperations {
@@ -17,7 +17,7 @@ export interface ProgressService extends TaskOperations {
    *
    * Use `Progress.task(...)` from `src/api/task.ts` when you want the service to be created automatically if needed.
    */
-  readonly task: TaskApi<Task>;
+  readonly task: TaskOverloads<CurrentTask>;
 }
 
 /** Builds the scoped implementation used by `ProgressService.task(...)` without auto-providing services. */

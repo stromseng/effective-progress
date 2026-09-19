@@ -1,6 +1,7 @@
 import { Context } from "effect";
-import type { TaskId } from "../task-model";
+import type { TaskId } from "./model";
 
-export class Task extends Context.Service<Task, TaskId>()(
-  "stromseng.dev/effective-progress/Task",
+/** The ID of the task whose scope the running effect is inside. */
+export class CurrentTask extends Context.Service<CurrentTask, TaskId>()(
+  "stromseng.dev/effective-progress/CurrentTask",
 ) {}

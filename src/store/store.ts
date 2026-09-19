@@ -1,10 +1,10 @@
-import { appendProgressSample } from "../../progress-estimation";
+import { appendProgressSample } from "../tasks/eta-estimation";
 import { Clock, Context, Effect, Layer, Option, Queue } from "effect";
-import type { Column } from "../../columns/types";
-import type { TaskId } from "../../task-model";
-import type { ProgressState } from "./types";
-import type { TaskOperations } from "../task-operations";
-import { TaskId as makeTaskId, type TaskSnapshot } from "../../task-model";
+import type { AnyColumn } from "../columns/types";
+import type { TaskId } from "../tasks/model";
+import type { ProgressState } from "./state";
+import type { TaskOperations } from "../tasks/task-operations";
+import { TaskId as makeTaskId, type TaskSnapshot } from "../tasks/model";
 import {
   createTaskSnapshot,
   finalizeTaskSnapshot,
@@ -12,11 +12,11 @@ import {
   updateTaskSnapshot,
 } from "./task-state";
 import { findChildInsertionPoint, removeTransientSubtree } from "./task-tree";
-import { createSnapshotPublisher } from "./snapshot-publisher";
+import { createStatePublisher } from "./state-publisher";
 
 export interface ProgressStoreService extends TaskOperations {
-  /** The renderer reads throttled snapshots; task operations read current state. */
-  readonly getPublishedSnapshot: () => ProgressState;
+  /** The renderer reads the throttled published state; task operations read the live state. */
+  readonly getPublishedState: () => ProgressState;
   readonly subscribe: (listener: () => void) => () => void;
   readonly flush: () => void;
   /** Internal metadata operations are exposed publicly only through a typed task handle. */
@@ -27,19 +27,14 @@ export interface ProgressStoreService extends TaskOperations {
   ) => Effect.Effect<void>;
 }
 
-interface ProgressStoreRuntime {
-  readonly store: ProgressStoreService;
-  readonly publisherLoop: Effect.Effect<never>;
-}
-
-const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStoreRuntime => {
+const makeProgressStoreInternals = (publishQueue: Queue.Queue<void>) => {
   let nextTaskId = 0;
   let state: ProgressState = {
     tasks: new Map<TaskId, TaskSnapshot>(),
     renderOrder: [],
-    columns: new Map<TaskId, ReadonlyArray<Column>>(),
+    columns: new Map<TaskId, ReadonlyArray<AnyColumn>>(),
   };
-  const publisher = createSnapshotPublisher(state, publishQueue);
+  const publisher = createStatePublisher(state, publishQueue);
 
   const updateState = (
     transform: (current: ProgressState) => ProgressState,
@@ -55,7 +50,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
   };
 
   /** Replaces one task and records its processed-count observation in the same transition. */
-  const replaceTask = (
+  const replaceTaskAndSample = (
     current: ProgressState,
     task: TaskSnapshot,
     nextTask: TaskSnapshot,
@@ -73,7 +68,7 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
   };
 
   /** Mutates running tasks only, recording progress atomically. */
-  const modifyTask = (
+  const modifyRunningTask = (
     taskId: TaskId,
     transform: (task: TaskSnapshot, now: number) => TaskSnapshot,
   ) =>
@@ -84,12 +79,12 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
         if (!task || task.status !== "running") {
           return current;
         }
-        return replaceTask(current, task, transform(task, now), now);
+        return replaceTaskAndSample(current, task, transform(task, now), now);
       }, now);
     });
 
   const incrementCounter = (taskId: TaskId, kind: "succeeded" | "failed", amount: number) =>
-    modifyTask(taskId, (task) => ({
+    modifyRunningTask(taskId, (task) => ({
       ...task,
       units: normalizeUnits({ ...task.units, [kind]: task.units[kind] + amount }, task.units),
     }));
@@ -105,12 +100,12 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
         if (task.transient) {
           return removeTransientSubtree(current, taskId);
         }
-        return replaceTask(current, task, finalizeTaskSnapshot(task, status, now), now);
+        return replaceTaskAndSample(current, task, finalizeTaskSnapshot(task, status, now), now);
       }, now);
     });
 
   const store: ProgressStoreService = {
-    getPublishedSnapshot: publisher.getPublishedSnapshot,
+    getPublishedState: publisher.getPublishedState,
     subscribe: publisher.subscribe,
     flush: publisher.flush,
     addTask: (options) =>
@@ -138,16 +133,16 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
         return taskId;
       }),
     updateTask: (taskId, options) =>
-      modifyTask(taskId, (task) => updateTaskSnapshot(task, options)),
+      modifyRunningTask(taskId, (task) => updateTaskSnapshot(task, options)),
     incrementSucceeded: (taskId, amount = 1) => incrementCounter(taskId, "succeeded", amount),
     incrementFailed: (taskId, amount = 1) => incrementCounter(taskId, "failed", amount),
     completeTask: (taskId) => finalizeTask(taskId, "done"),
     failTask: (taskId) => finalizeTask(taskId, "failed"),
     getTask: (taskId) => Effect.sync(() => Option.fromNullishOr(state.tasks.get(taskId))),
     listTasks: Effect.sync(() => Array.from(state.tasks.values())),
-    setMetadata: (taskId, metadata) => modifyTask(taskId, (task) => ({ ...task, metadata })),
+    setMetadata: (taskId, metadata) => modifyRunningTask(taskId, (task) => ({ ...task, metadata })),
     updateMetadata: (taskId, f) =>
-      modifyTask(taskId, (task) => ({ ...task, metadata: f(task.metadata) })),
+      modifyRunningTask(taskId, (task) => ({ ...task, metadata: f(task.metadata) })),
   };
 
   return { store, publisherLoop: publisher.publisherLoop };
@@ -155,9 +150,9 @@ const makeProgressStoreRuntime = (publishQueue: Queue.Queue<void>): ProgressStor
 
 export const makeProgressStore = Effect.gen(function* () {
   const publishQueue = yield* Queue.sliding<void>(1);
-  const runtime = makeProgressStoreRuntime(publishQueue);
-  yield* Effect.forkScoped(runtime.publisherLoop);
-  return runtime.store;
+  const { store, publisherLoop } = makeProgressStoreInternals(publishQueue);
+  yield* Effect.forkScoped(publisherLoop);
+  return store;
 });
 
 export class ProgressStore extends Context.Service<ProgressStore, ProgressStoreService>()(

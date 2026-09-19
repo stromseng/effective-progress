@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import * as Progress from "../../src";
-import { makeTaskSnapshot, makeRows, renderRows } from "../helpers/renderer";
-import type { CellInfo } from "../../src/columns/types";
+import { makeRow, makeRows, makeTaskSnapshot, renderRows } from "../helpers/renderer";
+import type { TaskRow } from "../../src/columns/types";
 
 const makeTask = (
   id: number,
@@ -18,7 +18,7 @@ const makeTask = (
     completedAt: status === "running" ? null : 1_000,
   });
 
-const renderDescriptionColumn = (rows: ReadonlyArray<CellInfo>, spinnerTick = 0): string =>
+const renderDescriptionColumn = (rows: ReadonlyArray<TaskRow>, spinnerTick = 0): string =>
   renderRows(rows, {
     now: 0,
     spinnerTick,
@@ -65,5 +65,41 @@ describe("renderer description tree planning", () => {
     expect(output).toContain("✓ root");
     expect(output).toContain("└─ ✓ child");
     expect(output).toContain("   └─ ✓ grandchild");
+  });
+});
+
+const makeFinishedTask = (
+  units: Progress.TaskSnapshot["units"],
+  status: Progress.TaskStatus,
+): Progress.TaskSnapshot => makeTaskSnapshot({ status, units, completedAt: 1_000 });
+
+const renderIndicator = (task: Progress.TaskSnapshot): string =>
+  renderRows([makeRow(task)], {
+    columns: new Map([[task.id, [Progress.Columns.description()]]]),
+  }).trim()[0]!;
+
+describe("task indicators", () => {
+  test("uses checkmark for full success", () => {
+    expect(
+      renderIndicator(
+        makeFinishedTask({ succeeded: 4, failed: 0, processed: 4, total: 4 }, "done"),
+      ),
+    ).toBe("✓");
+  });
+
+  test("uses tilde for partial success", () => {
+    expect(
+      renderIndicator(
+        makeFinishedTask({ succeeded: 3, failed: 1, processed: 4, total: 4 }, "done"),
+      ),
+    ).toBe("~");
+  });
+
+  test("uses x for failures", () => {
+    expect(
+      renderIndicator(
+        makeFinishedTask({ succeeded: 0, failed: 1, processed: 1, total: 4 }, "failed"),
+      ),
+    ).toBe("✗");
   });
 });

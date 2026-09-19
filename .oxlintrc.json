@@ -60,12 +60,12 @@
   ],
   "overrides": [
     {
-      "files": ["src/renderer/hooks/use-now-clock.ts", "src/renderer/hooks/use-spinner-clock.ts"],
+      "files": ["src/renderer/now-clock.tsx", "src/renderer/spinner-clock.tsx"],
       "rules": {
         "automation/no-ambient-nondeterminism": [
           "error",
           {
-            "allowedDateBasenames": ["use-now-clock.ts", "use-spinner-clock.ts"],
+            "allowedDateBasenames": ["now-clock.tsx", "spinner-clock.tsx"],
             "allowedDateExtensions": []
           }
         ]

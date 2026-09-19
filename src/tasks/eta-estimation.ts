@@ -1,4 +1,4 @@
-import type { TaskProgressSample, TaskSnapshot } from "./task-model";
+import type { TaskProgressSample, TaskSnapshot } from "./model";
 
 const ETA_SAMPLE_WINDOW_MILLIS = 30_000;
 const ETA_SAMPLE_MAX_LENGTH = 1_000;

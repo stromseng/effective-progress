@@ -117,7 +117,7 @@ Effect.runPromise(program);
 
 - The plain `Progress.task(effect, options)` form auto-finalizes from the effect exit.
 - The callback form also auto-finalizes from the callback exit unless you explicitly `yield* task.complete` or `yield* task.fail` first.
-- `yield* Progress.Task` exposes the current task ID when you need it.
+- `yield* Progress.CurrentTask` exposes the current task ID when you need it.
 
 ### Examples
 
@@ -167,7 +167,7 @@ Effect.runPromise(program.pipe(Effect.provide(Logger.layer([Logger.consolePretty
 - Column `prepare(...)` functions can compute shared layout data once for all rows using the same column definition at a given index.
 - On narrow terminals, layout compacts to fit available width and tree prefixes are suppressed when description space is too tight.
 
-## Task API
+## Task handles and the service
 
 `Progress.task(...)` supports two styles:
 
@@ -199,7 +199,7 @@ if (Option.isSome(metadata)) {
 
 Task mutation rules:
 
-- Completion and failure make later task API writes no-ops, including counter,
+- Completion and failure make later handle and service writes no-ops, including counter,
   field, and metadata updates. Metadata update callbacks are not invoked. Retained
   tasks remain readable through `Some`; metadata objects are not deep-frozen.
 - Counter values stay finite and nonnegative. Non-finite counter inputs preserve
@@ -223,7 +223,7 @@ import * as Progress from "effective-progress";
 const program = Progress.task(
   Effect.gen(function* () {
     const progress = yield* Progress.Progress;
-    const currentTask = yield* Progress.Task;
+    const currentTask = yield* Progress.CurrentTask;
     yield* Effect.logInfo("Updating the current task", { taskId: currentTask });
 
     // Manual determinate updates:
@@ -256,7 +256,7 @@ interface EvalMeta {
   readonly score: number;
 }
 
-const scoreColumn = (): Progress.ColumnDef<EvalMeta> => ({
+const scoreColumn = (): Progress.Column<EvalMeta> => ({
   align: "right",
   flexShrink: 0,
   minWidth: 5,
@@ -288,28 +288,28 @@ const program = Progress.task(
 );
 ```
 
-`ColumnDef<M, P>` supports:
+`Column<M, P>` supports:
 
 - `prepare(rows)` to derive shared data for all matching rows at that column index
-- `render(cell, ctx)` to render the cell
+- `render(row, ctx)` to render the cell
 - sizing hints with `flexGrow`, `flexShrink`, `flexBasis`, and `minWidth`
 - `align` with `"left"`, `"center"`, or `"right"`
 
-Use `ColumnDef<M, P>` to author a column with typed metadata and prepared data, and
-`Column<M>` for a list containing columns with different prepared types. The renderer
+Use `Column<M, P>` to author a column with typed metadata and prepared data, and
+`AnyColumn<M>` for a list containing columns with different prepared types. The renderer
 binds each prepared value to its definition before rendering cells.
 
 If a task does not provide `columns`, the renderer falls back to `Progress.Columns.defaults()`.
 
 ### Clock hooks for custom cells
 
-`render(cell, ctx)` receives `width` and `prepared`. For animated or timed output,
+`render(row, ctx)` receives `width` and `prepared`. For animated or timed output,
 return a React component that calls `useSpinnerTick()` or `useNow()`. Hooks belong
 inside the component, not directly inside the column's render callback.
 
 ```tsx
 import { Text } from "ink";
-import { useNow, type ColumnDef, type TaskSnapshot } from "effective-progress";
+import { useNow, type Column, type TaskSnapshot } from "effective-progress";
 
 const AgeCell = ({ task }: { readonly task: TaskSnapshot }) => {
   const now = useNow(task.status === "running");
@@ -317,7 +317,7 @@ const AgeCell = ({ task }: { readonly task: TaskSnapshot }) => {
   return <Text>{`${seconds}s`}</Text>;
 };
 
-const ageColumn: ColumnDef = {
+const ageColumn: Column = {
   render: ({ task }) => <AgeCell task={task} />,
 };
 ```
@@ -354,7 +354,7 @@ frame waits for Ink to flush. Debug mode disables output throttling and writes g
 to a sink, so timings include reconciliation, layout, and output generation but
 exclude physical terminal latency, real timer delays, and store publication.
 JSON includes raw timings and column callback counts; compare the same harness
-and runtime across revisions. Single-task frames also include snapshot derivation.
+and runtime across revisions. Single-task frames also include row preparation.
 
 ## Effect compatibility
 

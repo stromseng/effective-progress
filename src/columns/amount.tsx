@@ -1,10 +1,10 @@
-import type { CellInfo, ColumnDef } from "./types";
-import type { TaskSnapshot } from "../task-model";
+import type { TaskRow, Column } from "./types";
+import type { TaskSnapshot } from "../tasks/model";
 import { Text } from "ink";
 import { getAmountParts } from "./amount-parts";
 import { textWidth } from "../terminal/text-width";
 
-export interface AmountLayout {
+export interface AmountPrepared {
   readonly hasDetailedRows: boolean;
   readonly countWidth: number;
   readonly processedWidth: number;
@@ -12,7 +12,7 @@ export interface AmountLayout {
   readonly preferredWidth: number;
 }
 
-const measureAmountLayout = (rows: ReadonlyArray<CellInfo<unknown>>): AmountLayout => {
+const prepareAmount = (rows: ReadonlyArray<TaskRow<unknown>>): AmountPrepared => {
   let hasDetailedRows = false;
   let countWidth = 0;
   let processedWidth = 0;
@@ -47,29 +47,29 @@ const measureAmountLayout = (rows: ReadonlyArray<CellInfo<unknown>>): AmountLayo
 
 const AmountValue = ({
   task,
-  layout,
+  prepared,
 }: {
   readonly task: TaskSnapshot;
-  readonly layout: AmountLayout;
+  readonly prepared: AmountPrepared;
 }) => {
   const parts = getAmountParts(task);
   if (parts.kind === "indicator") {
     return parts.text;
   }
 
-  const processed = parts.processed.padStart(layout.processedWidth, " ");
-  const total = parts.total.padStart(layout.totalWidth, " ");
+  const processed = parts.processed.padStart(prepared.processedWidth, " ");
+  const total = parts.total.padStart(prepared.totalWidth, " ");
 
-  if (!layout.hasDetailedRows) {
+  if (!prepared.hasDetailedRows) {
     return `${processed}/${total}`;
   }
 
   if (!parts.detailed) {
-    return `${" ".repeat(layout.countWidth)} ${" ".repeat(layout.countWidth)} ${processed}/${total}`;
+    return `${" ".repeat(prepared.countWidth)} ${" ".repeat(prepared.countWidth)} ${processed}/${total}`;
   }
 
-  const succeeded = parts.succeeded.padStart(layout.countWidth, " ");
-  const failed = parts.failed.padStart(layout.countWidth, " ");
+  const succeeded = parts.succeeded.padStart(prepared.countWidth, " ");
+  const failed = parts.failed.padStart(prepared.countWidth, " ");
 
   return (
     <>
@@ -83,18 +83,18 @@ const AmountValue = ({
 
 const AmountCell = ({
   task,
-  layout,
+  prepared,
 }: {
   readonly task: TaskSnapshot;
-  readonly layout: AmountLayout;
+  readonly prepared: AmountPrepared;
 }) => (
   <Text wrap="truncate-end">
-    <AmountValue task={task} layout={layout} />
+    <AmountValue task={task} prepared={prepared} />
   </Text>
 );
 
-export const amount = (): ColumnDef<unknown, AmountLayout> => ({
-  prepare: measureAmountLayout,
+export const amount = (): Column<unknown, AmountPrepared> => ({
+  prepare: prepareAmount,
   align: "right",
-  render: ({ task }, ctx) => <AmountCell task={task} layout={ctx.prepared} />,
+  render: ({ task }, ctx) => <AmountCell task={task} prepared={ctx.prepared} />,
 });

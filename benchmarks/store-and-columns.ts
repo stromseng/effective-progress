@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { Effect } from "effect";
 import { resolveColumns } from "../src/renderer/column-layout";
 import { prepareRows } from "../src/renderer/prepare-rows";
-import { ProgressStore } from "../src/services/store/store";
-import { TaskId, type TaskSnapshot } from "../src/task-model";
-import { type ColumnDef } from "../src/columns/types";
-import { type ProgressState } from "../src/services/store/types";
+import { ProgressStore } from "../src/store/store";
+import { TaskId, type TaskSnapshot } from "../src/tasks/model";
+import { type Column } from "../src/columns/types";
+import { type ProgressState } from "../src/store/state";
 
 const WARMUP_ROUNDS = 3;
 const MEASURED_ROUNDS = 9;
@@ -56,7 +56,7 @@ const benchmarkStore = (taskCount: number) =>
 
       // Publication and correctness checks are outside the timed section.
       store.flush();
-      const tasks = store.getPublishedSnapshot().tasks;
+      const tasks = store.getPublishedState().tasks;
       assert.equal(tasks.size, taskCount);
       for (const [id, task] of tasks) {
         assert.equal(task.units.succeeded, id === hotTaskId ? (round + 1) * STORE_UPDATES : 0);
@@ -72,7 +72,7 @@ const makeColumnFixture = (rowCount: number, distinctPrepare: boolean) => {
   const store = {
     tasks: new Map<TaskId, TaskSnapshot>(),
     renderOrder: [],
-    columns: new Map<TaskId, ReadonlyArray<ColumnDef<unknown, number>>>(),
+    columns: new Map<TaskId, ReadonlyArray<Column<unknown, number>>>(),
   } satisfies ProgressState;
   const renderOrder: Array<ProgressState["renderOrder"][number]> = [];
 
@@ -96,7 +96,7 @@ const makeColumnFixture = (rowCount: number, distinctPrepare: boolean) => {
     } satisfies TaskSnapshot);
     renderOrder.push({ id, depth: 0 });
     if (distinctPrepare) {
-      const column: ColumnDef<unknown, number> = {
+      const column: Column<unknown, number> = {
         prepare: (cells) => index + cells.reduce((sum, cell) => sum + cell.task.units.processed, 0),
         render: (_cell, { prepared }) => String(prepared),
       };

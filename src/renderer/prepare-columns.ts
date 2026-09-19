@@ -1,18 +1,19 @@
-import { resolveColumnSizeValue } from "../columns/column-size";
+import { Predicate } from "effect";
 import type {
-  CellInfo,
-  Column,
+  TaskRow,
+  AnyColumn,
   ColumnAlign,
-  ColumnDef,
-  ColumnRenderContext,
+  Column,
+  CellContext,
+  ColumnSizeValue,
 } from "../columns/types";
 import type { ReactNode } from "react";
 
-type PrepareFn = NonNullable<Column["prepare"]>;
+type PrepareFn = NonNullable<AnyColumn["prepare"]>;
 
 /** Prepared values never leave this boundary independently of their definition. */
-export interface ResolvedColumn {
-  readonly render: (cell: CellInfo, ctx: Omit<ColumnRenderContext, "prepared">) => ReactNode;
+export interface BoundColumn {
+  readonly render: (row: TaskRow, ctx: Omit<CellContext, "prepared">) => ReactNode;
   readonly align?: ColumnAlign;
   readonly flexGrow?: number;
   readonly flexShrink?: number;
@@ -20,8 +21,13 @@ export interface ResolvedColumn {
   readonly minWidth?: number;
 }
 
-const bindColumn = <P>(column: ColumnDef<unknown, P>, prepared: P): ResolvedColumn => ({
-  render: (cell, ctx) => column.render(cell, { ...ctx, prepared }),
+const resolveColumnSizeValue = <P>(
+  value: ColumnSizeValue<P> | undefined,
+  prepared: P,
+): number | undefined => (Predicate.isFunction(value) ? value(prepared) : value);
+
+const bindColumn = <P>(column: Column<unknown, P>, prepared: P): BoundColumn => ({
+  render: (row, ctx) => column.render(row, { ...ctx, prepared }),
   align: column.align,
   flexGrow: resolveColumnSizeValue(column.flexGrow, prepared),
   flexShrink: resolveColumnSizeValue(column.flexShrink, prepared),
@@ -31,10 +37,10 @@ const bindColumn = <P>(column: ColumnDef<unknown, P>, prepared: P): ResolvedColu
 
 /** Groups by prepare identity at one position, then binds each result to its original definition. */
 export const prepareColumns = (
-  definitions: ReadonlyArray<Column | undefined>,
-  cells: ReadonlyArray<CellInfo>,
-): ReadonlyArray<ResolvedColumn | undefined> => {
-  const groupedRows = new Map<PrepareFn, CellInfo[]>();
+  definitions: ReadonlyArray<AnyColumn | undefined>,
+  cells: ReadonlyArray<TaskRow>,
+): ReadonlyArray<BoundColumn | undefined> => {
+  const groupedRows = new Map<PrepareFn, TaskRow[]>();
   definitions.forEach((column, index) => {
     if (!column?.prepare) {
       return;

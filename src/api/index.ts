@@ -1,4 +1,4 @@
-export { task, type TaskOptions } from "./task";
+export { task } from "./task";
 export {
   all,
   forEach,
@@ -8,4 +8,4 @@ export {
   type AllReturn,
   type ForEachExecutionOptions,
   type ForEachOptions,
-} from "./collections";
+} from "./all-for-each";

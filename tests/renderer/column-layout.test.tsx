@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import * as Progress from "../../src";
 import { makeTaskSnapshot, makeRow as deriveRow, renderRows } from "../helpers/renderer";
 import { resolveColumns } from "../../src/renderer/column-layout";
-import type { CellInfo } from "../../src/columns/types";
+import type { TaskRow } from "../../src/columns/types";
 
 const makeTask = <M,>(
   id: number,
@@ -13,7 +13,7 @@ const makeTask = <M,>(
   makeTaskSnapshot({ id: Progress.TaskId(id), description, metadata, ...overrides });
 
 const renderWithColumns = (
-  rows: ReadonlyArray<CellInfo>,
+  rows: ReadonlyArray<TaskRow>,
   columns: Progress.ProgressState["columns"],
   now = 1_000,
 ): string => renderRows(rows, { columns, now });
@@ -38,7 +38,7 @@ describe("column layout", () => {
   test("renders the combined elapsed/eta column while keeping standalone columns available", () => {
     const output = renderWithColumns(
       [deriveRow(makeTask(1, "timed-task"))],
-      new Map<Progress.TaskId, ReadonlyArray<Progress.Column>>([
+      new Map<Progress.TaskId, ReadonlyArray<Progress.AnyColumn>>([
         [
           Progress.TaskId(1),
           [
@@ -68,7 +68,7 @@ describe("column layout", () => {
           }),
         ),
       ],
-      new Map<Progress.TaskId, ReadonlyArray<Progress.Column>>([
+      new Map<Progress.TaskId, ReadonlyArray<Progress.AnyColumn>>([
         [Progress.TaskId(1), [Progress.Columns.description(), Progress.Columns.elapsedEta()]],
       ]),
       3_661_000,
@@ -89,7 +89,7 @@ describe("column layout", () => {
           }),
         ),
       ],
-      new Map<Progress.TaskId, ReadonlyArray<Progress.Column>>([
+      new Map<Progress.TaskId, ReadonlyArray<Progress.AnyColumn>>([
         [Progress.TaskId(1), [Progress.Columns.description(), Progress.Columns.elapsedEta()]],
       ]),
       360_000_000,
@@ -146,7 +146,7 @@ describe("column layout", () => {
       readonly score: number;
     }
 
-    const columns = new Map<Progress.TaskId, ReadonlyArray<Progress.Column>>([
+    const columns = new Map<Progress.TaskId, ReadonlyArray<Progress.AnyColumn>>([
       [
         Progress.TaskId(1),
         [
@@ -187,7 +187,7 @@ describe("column layout", () => {
   });
 
   test("renders empty cells when a task has fewer positional columns", () => {
-    const columns = new Map<Progress.TaskId, ReadonlyArray<Progress.Column>>([
+    const columns = new Map<Progress.TaskId, ReadonlyArray<Progress.AnyColumn>>([
       [
         Progress.TaskId(1),
         [
@@ -213,7 +213,7 @@ describe("column layout", () => {
   });
 
   test("supports combining defaults with appended custom columns", () => {
-    const columns = new Map<Progress.TaskId, ReadonlyArray<Progress.Column>>([
+    const columns = new Map<Progress.TaskId, ReadonlyArray<Progress.AnyColumn>>([
       [
         Progress.TaskId(1),
         [
@@ -234,7 +234,7 @@ describe("column layout", () => {
   });
 
   test("keeps prepared values isolated by prepare function at the same index", () => {
-    const uppercase: Progress.ColumnDef<{ label: string }, string> = {
+    const uppercase: Progress.Column<{ label: string }, string> = {
       prepare: (rows) =>
         rows
           .map((row) => row.task.metadata.label)
@@ -242,7 +242,7 @@ describe("column layout", () => {
           .toUpperCase(),
       render: ({ task }, { prepared }) => `${task.metadata.label}:${prepared}`,
     };
-    const lengths: Progress.ColumnDef<{ count: number }, number> = {
+    const lengths: Progress.Column<{ count: number }, number> = {
       prepare: (rows) => rows.reduce((total, row) => total + row.task.metadata.count, 0),
       render: ({ task }, { prepared }) => `${task.metadata.count}/${prepared}`,
     };
@@ -252,7 +252,7 @@ describe("column layout", () => {
         deriveRow(makeTask(1, "task-a", { label: "alpha" })),
         deriveRow(makeTask(2, "task-b", { count: 7 })),
       ],
-      new Map<Progress.TaskId, ReadonlyArray<Progress.Column>>([
+      new Map<Progress.TaskId, ReadonlyArray<Progress.AnyColumn>>([
         [Progress.TaskId(1), [Progress.Columns.description(), uppercase]],
         [Progress.TaskId(2), [Progress.Columns.description(), lengths]],
       ]),
@@ -265,7 +265,7 @@ describe("column layout", () => {
   test("aggregates numeric sizing hints across different columns at the same index", () => {
     const output = renderWithColumns(
       [deriveRow(makeTask(1, "wide-a")), deriveRow(makeTask(2, "wide-b"))],
-      new Map<Progress.TaskId, ReadonlyArray<Progress.Column>>([
+      new Map<Progress.TaskId, ReadonlyArray<Progress.AnyColumn>>([
         [
           Progress.TaskId(1),
           [

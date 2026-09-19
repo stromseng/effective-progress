@@ -1,6 +1,6 @@
 import type { Effect, Option } from "effect";
-import type { TaskId, TaskSnapshot } from "../task-model";
-import type { AddTaskOptions, UpdateTaskOptions } from "../tasks/options";
+import type { TaskId, TaskSnapshot } from "./model";
+import type { AddTaskOptions, UpdateTaskOptions } from "./options";
 
 /** Task operations shared by the service and store. Mutations of finalized or removed tasks are no-ops. */
 export interface TaskOperations {

@@ -1,7 +1,7 @@
-import type { CellInfo, ColumnDef } from "./types";
-import type { TaskSnapshot } from "../task-model";
+import type { TaskRow, Column } from "./types";
+import type { TaskSnapshot } from "../tasks/model";
 import { Text } from "ink";
-import { isDeterminate } from "./determinate";
+import { isDeterminate } from "../tasks/model";
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));
@@ -10,9 +10,9 @@ export interface BarPrepared {
   readonly hasDeterminateRows: boolean;
 }
 
-const prepareBar = (rows: ReadonlyArray<CellInfo<unknown>>): BarPrepared => {
+const prepareBar = (rows: ReadonlyArray<TaskRow<unknown>>): BarPrepared => {
   return {
-    hasDeterminateRows: rows.some((row) => row.derived.isDeterminate),
+    hasDeterminateRows: rows.some((row) => isDeterminate(row.task)),
   };
 };
 
@@ -59,7 +59,7 @@ export interface BarOptions {
 
 const DEFAULT_BAR_SIZE = 30;
 
-const resolveBarSize = (size: number | "fullwidth" | undefined): number | "fullwidth" => {
+const normalizeBarSize = (size: number | "fullwidth" | undefined): number | "fullwidth" => {
   if (size === "fullwidth") {
     return size;
   }
@@ -71,8 +71,8 @@ const resolveBarSize = (size: number | "fullwidth" | undefined): number | "fullw
   return Math.max(1, Math.floor(size));
 };
 
-export const bar = ({ size }: BarOptions = {}): ColumnDef<unknown, BarPrepared> => {
-  const resolvedSize = resolveBarSize(size);
+export const bar = ({ size }: BarOptions = {}): Column<unknown, BarPrepared> => {
+  const resolvedSize = normalizeBarSize(size);
 
   return {
     prepare: prepareBar,

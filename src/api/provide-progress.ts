@@ -1,5 +1,5 @@
 import { Effect, Option } from "effect";
-import { Progress } from "../services/progress";
+import { Progress } from "../progress";
 
 /** Reuses the caller's service or scopes a new one around the entire operation. */
 export const provideProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>

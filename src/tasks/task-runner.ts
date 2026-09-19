@@ -1,18 +1,18 @@
 import { Context, Effect, Exit, Option } from "effect";
-import type { ProgressStoreService } from "../services/store/store";
-import type { TaskId } from "../task-model";
-import type { AddTaskOptions } from "./options";
-import { Task } from "./current-task";
-import { adaptTaskApi } from "./task-api";
+import type { ProgressStoreService } from "../store/store";
+import type { TaskId } from "./model";
+import type { AddTaskOptions, TaskOptions } from "./options";
+import { CurrentTask } from "./current-task";
+import { adaptTaskOverloads } from "./task-overloads";
 import { bindTaskHandle, type TaskHandle } from "./task-handle";
 
-interface CurrentParentState {
+interface CurrentParentTaskState {
   readonly owner: symbol;
   readonly taskId: TaskId;
 }
 
-const CurrentParent = Context.Reference<Option.Option<CurrentParentState>>(
-  "stromseng.dev/effective-progress/CurrentParent",
+const CurrentParentTask = Context.Reference<Option.Option<CurrentParentTaskState>>(
+  "stromseng.dev/effective-progress/CurrentParentTask",
   { defaultValue: Option.none },
 );
 
@@ -20,9 +20,9 @@ const CurrentParent = Context.Reference<Option.Option<CurrentParentState>>(
 export const createTaskRunner = (store: ProgressStoreService) => {
   const parentOwner = Symbol();
 
-  // Each Progress service has its own task store, but they all share CurrentParent.
+  // Each Progress service has its own task store, but they all share CurrentParentTask.
   // Ignore parent IDs created by another service so tasks never point into the wrong store.
-  const currentParentId = Effect.map(CurrentParent, (cp) =>
+  const currentParentId = Effect.map(CurrentParentTask, (cp) =>
     Option.isSome(cp) && cp.value.owner === parentOwner
       ? Option.some(cp.value.taskId)
       : Option.none<TaskId>(),
@@ -38,10 +38,10 @@ export const createTaskRunner = (store: ProgressStoreService) => {
       });
     });
 
-  const task = adaptTaskApi<Task>(
+  const task = adaptTaskOverloads<CurrentTask>(
     <M, A, E, R>(
       callback: (handle: TaskHandle<M>) => Effect.Effect<A, E, R>,
-      options: AddTaskOptions<M>,
+      options: TaskOptions<M>,
     ) =>
       Effect.gen(function* () {
         const taskId = yield* addTask(options);
@@ -52,8 +52,8 @@ export const createTaskRunner = (store: ProgressStoreService) => {
           (exit) => (Exit.isSuccess(exit) ? store.completeTask(taskId) : store.failTask(taskId)),
         );
         return yield* work.pipe(
-          Effect.provideService(Task, taskId),
-          Effect.provideService(CurrentParent, Option.some({ owner: parentOwner, taskId })),
+          Effect.provideService(CurrentTask, taskId),
+          Effect.provideService(CurrentParentTask, Option.some({ owner: parentOwner, taskId })),
         );
       }),
   );

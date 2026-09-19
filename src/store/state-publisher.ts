@@ -1,17 +1,17 @@
 import { Clock, Effect, Queue } from "effect";
-import type { ProgressState } from "./types";
+import type { ProgressState } from "./state";
 
-const SNAPSHOT_PUBLISH_INTERVAL_MILLIS = 100;
+const PUBLISH_INTERVAL_MILLIS = 100;
 
-/** Publishes the latest state at most every 100ms, with a synchronous shutdown flush. */
-export const createSnapshotPublisher = (
-  initialSnapshot: ProgressState,
+/** Publishes the latest progress state to the renderer at most every 100ms, with a synchronous shutdown flush. */
+export const createStatePublisher = (
+  initialState: ProgressState,
   publishQueue: Queue.Queue<void>,
 ) => {
-  let pendingSnapshot = initialSnapshot;
-  let publishedSnapshot = pendingSnapshot;
+  let pendingState = initialState;
+  let publishedState = pendingState;
   let hasPendingPublish = false;
-  let lastPublishAt = -SNAPSHOT_PUBLISH_INTERVAL_MILLIS;
+  let lastPublishAt = -PUBLISH_INTERVAL_MILLIS;
   let latestObservedAt = 0;
   const listeners = new Set<() => void>();
 
@@ -23,7 +23,7 @@ export const createSnapshotPublisher = (
 
   const publishNow = (publishedAt: number): void => {
     hasPendingPublish = false;
-    publishedSnapshot = pendingSnapshot;
+    publishedState = pendingState;
     notifyListeners();
     lastPublishAt = publishedAt;
   };
@@ -33,7 +33,7 @@ export const createSnapshotPublisher = (
       yield* Queue.take(publishQueue);
 
       const now = yield* Clock.currentTimeMillis;
-      const waitMillis = Math.max(0, SNAPSHOT_PUBLISH_INTERVAL_MILLIS - (now - lastPublishAt));
+      const waitMillis = Math.max(0, PUBLISH_INTERVAL_MILLIS - (now - lastPublishAt));
       if (waitMillis > 0) {
         yield* Effect.sleep(waitMillis);
       }
@@ -52,7 +52,7 @@ export const createSnapshotPublisher = (
     }
 
     const now = yield* Clock.currentTimeMillis;
-    const waitMillis = Math.max(0, SNAPSHOT_PUBLISH_INTERVAL_MILLIS - (now - lastPublishAt));
+    const waitMillis = Math.max(0, PUBLISH_INTERVAL_MILLIS - (now - lastPublishAt));
     if (waitMillis === 0) {
       publishNow(now);
       return;
@@ -62,7 +62,7 @@ export const createSnapshotPublisher = (
   });
 
   return {
-    getPublishedSnapshot: () => publishedSnapshot,
+    getPublishedState: () => publishedState,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
       return () => {
@@ -74,8 +74,8 @@ export const createSnapshotPublisher = (
         publishNow(latestObservedAt);
       }
     },
-    publish: (snapshot: ProgressState, now: number): Effect.Effect<void> => {
-      pendingSnapshot = snapshot;
+    publish: (state: ProgressState, now: number): Effect.Effect<void> => {
+      pendingState = state;
       latestObservedAt = now;
       hasPendingPublish = true;
       return schedulePublish;

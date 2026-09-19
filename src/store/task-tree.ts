@@ -1,5 +1,5 @@
-import type { TaskId } from "../../task-model";
-import type { ProgressState } from "./types";
+import type { TaskId } from "../tasks/model";
+import type { ProgressState } from "./state";
 
 export const findChildInsertionPoint = (
   renderOrder: ReadonlyArray<ProgressState["renderOrder"][number]>,
@@ -39,7 +39,7 @@ const findSubtreeRange = (renderOrder: ProgressState["renderOrder"], taskId: Tas
   return { start, end };
 };
 
-/** Removes a task subtree from every state collection without mutating the current snapshot. */
+/** Removes a task subtree from every state collection without mutating the current state. */
 export const removeTransientSubtree = (current: ProgressState, taskId: TaskId): ProgressState => {
   const range = findSubtreeRange(current.renderOrder, taskId);
   if (range === undefined) {

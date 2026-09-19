@@ -2,14 +2,14 @@ import { Predicate } from "effect";
 import { Box, Text, useBoxMetrics, type DOMElement } from "ink";
 import type { ReactElement, ReactNode } from "react";
 import { useRef } from "react";
-import type { ColumnAlign, Column } from "../columns/types";
-import type { TaskId } from "../task-model";
-import { resolveColumns, type ResolvedColumnPosition } from "./column-layout";
-import type { CellInfo } from "../columns/types";
+import type { ColumnAlign, AnyColumn } from "../columns/types";
+import type { TaskId } from "../tasks/model";
+import { resolveColumns, type ColumnPosition } from "./column-layout";
+import type { TaskRow } from "../columns/types";
 
 interface ProgressTableProps {
-  readonly rows: ReadonlyArray<CellInfo>;
-  readonly columns: ReadonlyMap<TaskId, ReadonlyArray<Column>>;
+  readonly rows: ReadonlyArray<TaskRow>;
+  readonly columns: ReadonlyMap<TaskId, ReadonlyArray<AnyColumn>>;
 }
 
 const justifyContentForAlign = (align: ColumnAlign | undefined) => {
@@ -22,7 +22,7 @@ const justifyContentForAlign = (align: ColumnAlign | undefined) => {
   return "flex-start";
 };
 
-const RenderedNode = ({ node }: { readonly node: ReactNode }) => {
+const CellOutput = ({ node }: { readonly node: ReactNode }) => {
   if (Predicate.isString(node) || Predicate.isNumber(node)) {
     return <Text wrap="truncate-end">{node}</Text>;
   }
@@ -30,7 +30,7 @@ const RenderedNode = ({ node }: { readonly node: ReactNode }) => {
   return node;
 };
 
-const ColumnPosition = ({ position }: { readonly position: ResolvedColumnPosition }) => {
+const ColumnPositionView = ({ position }: { readonly position: ColumnPosition }) => {
   const ref = useRef<DOMElement>(null!);
   const { width, hasMeasured } = useBoxMetrics(ref);
 
@@ -52,7 +52,7 @@ const ColumnPosition = ({ position }: { readonly position: ResolvedColumnPositio
 
         return (
           <Box key={row.task.id} height={1} justifyContent={justifyContentForAlign(column?.align)}>
-            <RenderedNode node={output} />
+            <CellOutput node={output} />
           </Box>
         );
       })}
@@ -70,7 +70,7 @@ export const ProgressTable = ({ rows, columns }: ProgressTableProps): ReactEleme
   return (
     <Box flexDirection="row" columnGap={1} overflow="hidden">
       {positions.map((position) => (
-        <ColumnPosition key={position.index} position={position} />
+        <ColumnPositionView key={position.index} position={position} />
       ))}
     </Box>
   );

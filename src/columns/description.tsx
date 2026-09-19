@@ -1,9 +1,9 @@
-import type { CellInfo, ColumnDef } from "./types";
-import type { TaskSnapshot } from "../task-model";
+import type { TaskRow, Column } from "./types";
+import type { TaskSnapshot } from "../tasks/model";
 import cliSpinners, { type SpinnerName } from "cli-spinners";
 import { Text } from "ink";
-import { useSpinnerTick } from "../renderer/context/spinner-context";
-import { isDeterminate } from "./determinate";
+import { useSpinnerTick } from "../renderer/spinner-clock";
+import { isDeterminate } from "../tasks/model";
 
 const MIN_TREE_DESCRIPTION_TEXT_WIDTH = 6;
 type TaskIndicatorColor = "green" | "yellow" | "red";
@@ -21,7 +21,7 @@ const getSpinnerFrame = (tick: number, spinnerType: SpinnerName): string => {
   return frames[frameIndex] ?? frames[0] ?? "";
 };
 
-export const getTaskIndicator = (
+const getTaskIndicator = (
   task: TaskSnapshot,
   tick: number,
   spinnerType: SpinnerName = DEFAULT_SPINNER_TYPE,
@@ -60,7 +60,7 @@ export interface DescriptionPrepared {
   readonly preferredWidth: number;
 }
 
-const prepareDescription = (rows: ReadonlyArray<CellInfo<unknown>>): DescriptionPrepared => ({
+const prepareDescription = (rows: ReadonlyArray<TaskRow<unknown>>): DescriptionPrepared => ({
   minTreeWidth: rows.reduce(
     (max, row) => Math.max(max, row.derived.treePrefixWidth + 2 + MIN_TREE_DESCRIPTION_TEXT_WIDTH),
     MIN_TREE_DESCRIPTION_TEXT_WIDTH + 2,
@@ -89,7 +89,7 @@ const DescriptionCell = ({
   width,
   minTreeWidth,
 }: {
-  readonly cell: CellInfo<unknown>;
+  readonly cell: TaskRow<unknown>;
   readonly width: number | undefined;
   readonly minTreeWidth: number;
 }) => {
@@ -117,12 +117,12 @@ const DescriptionCell = ({
   );
 };
 
-export const description = (): ColumnDef<unknown, DescriptionPrepared> => ({
+export const description = (): Column<unknown, DescriptionPrepared> => ({
   prepare: prepareDescription,
   flexShrink: 1,
   flexBasis: (prepared) => prepared.preferredWidth,
   minWidth: 1,
-  render: (cell, ctx) => (
-    <DescriptionCell cell={cell} width={ctx.width} minTreeWidth={ctx.prepared.minTreeWidth} />
+  render: (row, ctx) => (
+    <DescriptionCell cell={row} width={ctx.width} minTreeWidth={ctx.prepared.minTreeWidth} />
   ),
 });

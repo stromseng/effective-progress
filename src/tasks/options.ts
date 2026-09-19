@@ -1,16 +1,21 @@
-import type { Column } from "../columns/types";
-import type { TaskId, TaskCountDisplay } from "../task-model";
+import type { AnyColumn } from "../columns/types";
+import type { TaskId, TaskCountDisplay } from "./model";
 
-export interface AddTaskOptions<M = void> {
+/** Options accepted by `task`, `all`, and `forEach`. The parent is inferred from the current task. */
+export interface TaskOptions<M = void> {
   readonly description: string;
   readonly total?: number;
   /** Cleanup policy is fixed at creation; a transient parent makes its descendants transient. */
   readonly transient?: boolean;
-  /** Missing or removed parent IDs are normalized to root tasks. */
-  readonly parentId?: TaskId;
   readonly countDisplay?: TaskCountDisplay;
   readonly metadata?: M;
-  readonly columns?: ReadonlyArray<Column<M>>;
+  readonly columns?: ReadonlyArray<AnyColumn<M>>;
+}
+
+/** Service-level creation options; `TaskOperations.addTask` accepts an explicit parent. */
+export interface AddTaskOptions<M = void> extends TaskOptions<M> {
+  /** Missing or removed parent IDs are normalized to root tasks. */
+  readonly parentId?: TaskId;
 }
 
 /** Updates apply only while running; non-finite counters preserve their previous values. */
@@ -21,5 +26,3 @@ export interface UpdateTaskOptions {
   readonly total?: number;
   readonly countDisplay?: TaskCountDisplay;
 }
-
-export type TrackOptions = Omit<AddTaskOptions, "parentId">;

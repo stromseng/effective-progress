@@ -1,13 +1,13 @@
 import { defaults } from "../columns/defaults";
-import type { Column } from "../columns/types";
-import type { TaskId } from "../task-model";
-import { prepareColumns, type ResolvedColumn } from "./prepare-columns";
-import type { CellInfo } from "../columns/types";
+import type { AnyColumn } from "../columns/types";
+import type { TaskId } from "../tasks/model";
+import { prepareColumns, type BoundColumn } from "./prepare-columns";
+import type { TaskRow } from "../columns/types";
 
-export interface ResolvedColumnPosition {
+export interface ColumnPosition {
   readonly index: number;
-  readonly rows: ReadonlyArray<CellInfo>;
-  readonly entries: ReadonlyArray<ResolvedColumn | undefined>;
+  readonly rows: ReadonlyArray<TaskRow>;
+  readonly entries: ReadonlyArray<BoundColumn | undefined>;
   readonly flexGrow?: number;
   readonly flexShrink?: number;
   readonly flexBasis?: number;
@@ -17,9 +17,9 @@ export interface ResolvedColumnPosition {
 const DEFAULT_COLUMNS = defaults();
 
 const getColumnsForRow = (
-  row: CellInfo,
-  columns: ReadonlyMap<TaskId, ReadonlyArray<Column>>,
-): ReadonlyArray<Column> => columns.get(row.task.id) ?? DEFAULT_COLUMNS;
+  row: TaskRow,
+  columns: ReadonlyMap<TaskId, ReadonlyArray<AnyColumn>>,
+): ReadonlyArray<AnyColumn> => columns.get(row.task.id) ?? DEFAULT_COLUMNS;
 
 const maxDefined = (values: ReadonlyArray<number | undefined>): number | undefined =>
   values.reduce<number | undefined>(
@@ -29,9 +29,9 @@ const maxDefined = (values: ReadonlyArray<number | undefined>): number | undefin
   );
 
 export const resolveColumns = (
-  rows: ReadonlyArray<CellInfo>,
-  columns: ReadonlyMap<TaskId, ReadonlyArray<Column>>,
-): ReadonlyArray<ResolvedColumnPosition> => {
+  rows: ReadonlyArray<TaskRow>,
+  columns: ReadonlyMap<TaskId, ReadonlyArray<AnyColumn>>,
+): ReadonlyArray<ColumnPosition> => {
   const columnsByRow = rows.map((row) => getColumnsForRow(row, columns));
   const maxColumnCount = columnsByRow.reduce((max, defs) => Math.max(max, defs.length), 0);
 

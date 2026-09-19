@@ -1,5 +1,5 @@
-import type { AddTaskOptions, UpdateTaskOptions } from "../../tasks/options";
-import type { TaskId, TaskSnapshot } from "../../task-model";
+import type { AddTaskOptions, UpdateTaskOptions } from "../tasks/options";
+import type { TaskId, TaskSnapshot } from "../tasks/model";
 
 interface TaskCounts {
   readonly succeeded: number;

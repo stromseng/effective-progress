@@ -1,10 +1,10 @@
 import { Cause, Effect, Exit, Option } from "effect";
 import { dual } from "effect/Function";
 import type { Concurrency } from "effect/Types";
-import { Progress, type ProgressService } from "../services/progress";
-import type { Task } from "../tasks/current-task";
-import type { TrackOptions } from "../tasks/options";
-import type { TaskCountDisplay, TaskId } from "../task-model";
+import { Progress, type ProgressService } from "../progress";
+import type { CurrentTask } from "../tasks/current-task";
+import type { TaskOptions } from "../tasks/options";
+import type { TaskCountDisplay, TaskId } from "../tasks/model";
 import { provideProgress } from "./provide-progress";
 import { inferTotal } from "./infer-total";
 
@@ -17,21 +17,21 @@ export interface EffectAllExecutionOptions extends EffectExecutionOptions {
   readonly mode?: "default" | "result";
 }
 
-export type AllOptions = Omit<TrackOptions, "total" | "countDisplay"> & EffectAllExecutionOptions;
+export type AllOptions = Omit<TaskOptions, "total" | "countDisplay"> & EffectAllExecutionOptions;
 export type AllReturn<
   Arg extends
     | ReadonlyArray<Effect.Effect<any, any, any>>
     | Record<string, Effect.Effect<any, any, any>>,
   O extends EffectAllExecutionOptions,
 > = [Effect.All.Return<Arg, O>] extends [Effect.Effect<infer A, infer E, infer R>]
-  ? Effect.Effect<A, E, Exclude<R, Progress | Task>>
+  ? Effect.Effect<A, E, Exclude<R, Progress | CurrentTask>>
   : never;
 
 export interface ForEachExecutionOptions extends EffectExecutionOptions {
   readonly discard?: false | undefined;
 }
 
-export type ForEachOptions = Omit<TrackOptions, "countDisplay"> & ForEachExecutionOptions;
+export type ForEachOptions = Omit<TaskOptions, "countDisplay"> & ForEachExecutionOptions;
 
 type AllArg =
   | ReadonlyArray<Effect.Effect<any, any, any>>
@@ -86,18 +86,18 @@ const completeAccountedResultTask = (progress: ProgressService, taskId: TaskId) 
 export const all: {
   <const Arg extends AllArg, O extends EffectAllExecutionOptions>(
     effects: Arg,
-    options: Omit<TrackOptions, "total" | "countDisplay"> & O,
+    options: Omit<TaskOptions, "total" | "countDisplay"> & O,
   ): AllReturn<Arg, O>;
   <O extends EffectAllExecutionOptions>(
-    options: Omit<TrackOptions, "total" | "countDisplay"> & O,
+    options: Omit<TaskOptions, "total" | "countDisplay"> & O,
   ): <const Arg extends AllArg>(effects: Arg) => AllReturn<Arg, O>;
 } = dual(
   2,
   <const Arg extends AllArg, O extends EffectAllExecutionOptions>(
     effects: Arg,
-    options: Omit<TrackOptions, "total" | "countDisplay"> & O,
+    options: Omit<TaskOptions, "total" | "countDisplay"> & O,
   ) =>
-    // SAFETY: Wrapping preserves Effect.all keys, values, errors and mode; task supplies Progress and Task.
+    // SAFETY: Wrapping preserves Effect.all keys, values, errors and mode; task supplies Progress and CurrentTask.
     provideProgress(
       Effect.gen(function* () {
         const progress = yield* Progress;
@@ -137,11 +137,13 @@ export const forEach: {
     iterable: Iterable<A>,
     f: (item: A, index: number) => Effect.Effect<B, E, R>,
     options: ForEachOptions,
-  ): Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress | Task>>;
+  ): Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress | CurrentTask>>;
   <A, B, E, R>(
     f: (item: A, index: number) => Effect.Effect<B, E, R>,
     options: ForEachOptions,
-  ): (iterable: Iterable<A>) => Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress | Task>>;
+  ): (
+    iterable: Iterable<A>,
+  ) => Effect.Effect<ReadonlyArray<B>, E, Exclude<R, Progress | CurrentTask>>;
 } = dual(
   3,
   <A, B, E, R>(

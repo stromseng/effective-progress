@@ -1,4 +1,4 @@
-import type { TaskSnapshot } from "../task-model";
+import type { TaskSnapshot } from "../tasks/model";
 
 type AmountParts =
   | { readonly kind: "indicator"; readonly text: string }
@@ -11,7 +11,7 @@ type AmountParts =
       readonly total: string;
     };
 
-/** One presentation model shared by plain text, layout measurement, and colored cells. */
+/** One presentation model shared by preparation and colored cells. */
 export const getAmountParts = (task: TaskSnapshot): AmountParts => {
   const { succeeded, failed, processed, total } = task.units;
   if (total === undefined && !(processed > 0)) {

@@ -1,5 +1,5 @@
-import type { ColumnDef } from "./types";
-import type { TaskSnapshot } from "../task-model";
+import type { Column } from "./types";
+import type { TaskSnapshot } from "../tasks/model";
 import { Text } from "ink";
 import { formatEta } from "./format";
 
@@ -17,7 +17,7 @@ const EtaCell = ({ task }: { readonly task: TaskSnapshot }) => {
   );
 };
 
-export const eta = (): ColumnDef<unknown> => ({
+export const eta = (): Column<unknown> => ({
   align: "right",
   flexShrink: 0,
   minWidth: 8,

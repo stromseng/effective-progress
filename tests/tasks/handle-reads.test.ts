@@ -1,14 +1,7 @@
 import { expect, test } from "bun:test";
 import { Effect, Option } from "effect";
 import * as Progress from "../../src";
-import { Renderer } from "../../src/renderer/renderer";
-
-const withProgress = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  effect.pipe(
-    Effect.provide(Progress.Progress.layer),
-    Effect.provideService(Renderer, { start: Effect.void }),
-    Effect.scoped,
-  );
+import { withProgress } from "../helpers/progress";
 
 test.each([undefined, null, 0])("preserves present metadata %s in Some", async (metadata) => {
   const result = await Effect.runPromise(

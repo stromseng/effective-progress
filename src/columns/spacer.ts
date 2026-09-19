@@ -1,4 +1,4 @@
-import type { ColumnDef } from "./types";
+import type { Column } from "./types";
 
 export interface SpacerOptions {
   readonly flexGrow?: number;
@@ -7,12 +7,12 @@ export interface SpacerOptions {
   readonly minWidth?: number;
 }
 
-export const spacer = <M = unknown>({
+export const spacer = ({
   flexGrow,
   flexShrink,
   flexBasis,
   minWidth,
-}: SpacerOptions = {}): ColumnDef<M> => ({
+}: SpacerOptions = {}): Column<unknown> => ({
   render: () => null,
   flexGrow,
   flexShrink,

@@ -1,6 +1,5 @@
-import type { TaskSnapshot } from "../task-model";
-import { estimateRemainingMillis } from "../progress-estimation";
-import { getAmountParts } from "./amount-parts";
+import type { TaskSnapshot } from "../tasks/model";
+import { estimateRemainingMillis } from "../tasks/eta-estimation";
 
 const formatDurationSeconds = (seconds: number): string => {
   const value = Math.max(0, Math.floor(seconds));
@@ -50,12 +49,3 @@ const formatEtaClock = (task: TaskSnapshot): string | undefined => {
 
 export const formatElapsedEta = (task: TaskSnapshot, now: number): string =>
   `${formatElapsedClock(task, now)}<${formatEtaClock(task) ?? "00:00"}`;
-
-export const formatAmount = (task: TaskSnapshot): string => {
-  const parts = getAmountParts(task);
-  if (parts.kind === "indicator") {
-    return parts.text;
-  }
-  const processed = `${parts.processed}/${parts.total}`;
-  return parts.detailed ? `${parts.succeeded} ${parts.failed} ${processed}` : processed;
-};
